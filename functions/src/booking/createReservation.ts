@@ -4,6 +4,7 @@ import { assertAdmin } from '../authz'
 import { functionsRegion, getSalonId } from '../config'
 import { isObject } from '../schemas'
 import { createReservationTransactional } from './reservationWrite'
+import { syncReservationToGoogleCalendar } from '../googleCalendar/sync'
 import { sendBookingConfirmationEmail } from './sendBookingEmail'
 
 function requireString(value: unknown, field: string): string {
@@ -87,6 +88,8 @@ export const createReservation = onCall({ region: functionsRegion }, async (requ
 
   const firstName = requireString(data.firstName, 'firstName')
   const lastName = requireString(data.lastName, 'lastName')
+  const employeeId =
+    typeof data.employeeId === 'string' && data.employeeId.trim() ? data.employeeId.trim() : null
 
   const result = await createReservationTransactional(
     {
@@ -97,6 +100,7 @@ export const createReservation = onCall({ region: functionsRegion }, async (requ
       notes,
       serviceId,
       serviceIds,
+      employeeId,
       startAt,
       source: 'ONLINE',
       internalNote: null,
@@ -112,6 +116,10 @@ export const createReservation = onCall({ region: functionsRegion }, async (requ
 
   if (!result.ok) {
     throw new HttpsError('failed-precondition', result.message, { reason: result.code })
+  }
+
+  if (!result.reused) {
+    await syncReservationToGoogleCalendar(result.reservationId)
   }
 
   if (!result.reused && result.managementToken && result.serviceName && result.durationMinutes) {
@@ -169,6 +177,10 @@ export const createManualReservation = onCall({ region: functionsRegion }, async
       email:
         typeof data.email === 'string' && data.email.trim().length > 0 ? data.email.trim() : null,
       serviceId: requireString(data.serviceId, 'serviceId'),
+      employeeId:
+        typeof data.employeeId === 'string' && data.employeeId.trim()
+          ? data.employeeId.trim()
+          : null,
       startAt,
       source: 'MANUAL',
       internalNote:
@@ -187,6 +199,10 @@ export const createManualReservation = onCall({ region: functionsRegion }, async
 
   if (!result.ok) {
     throw new HttpsError('failed-precondition', result.message, { reason: result.code })
+  }
+
+  if (!result.reused) {
+    await syncReservationToGoogleCalendar(result.reservationId)
   }
 
   return {

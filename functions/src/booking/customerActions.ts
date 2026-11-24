@@ -6,6 +6,7 @@ import { isSlotAvailable } from '../domain/availability'
 import { isObject } from '../schemas'
 import { findReservationByManagementToken, toPublicReservationView } from './findByToken'
 import { lockIdForStart } from './reservationWrite'
+import { syncReservationToGoogleCalendar } from '../googleCalendar/sync'
 import { loadSalonContext } from './salonContext'
 
 function requireToken(data: Record<string, unknown>): string {
@@ -46,11 +47,12 @@ export const cancelReservation = onCall({ region: functionsRegion }, async (requ
   }
 
   const startAt = new Date(String(doc.data().startAt))
+  const cancelEmpId = typeof doc.data().employeeId === 'string' ? doc.data().employeeId : null
   const lockRef = db
     .collection('salons')
     .doc(salonId)
     .collection('slotLocks')
-    .doc(lockIdForStart(startAt))
+    .doc(lockIdForStart(startAt, cancelEmpId))
   const updatedAt = new Date().toISOString()
 
   await db.runTransaction(async (tx) => {
@@ -65,6 +67,8 @@ export const cancelReservation = onCall({ region: functionsRegion }, async (requ
     }
   })
 
+  await syncReservationToGoogleCalendar(doc.id, db, salonId)
+  await syncReservationToGoogleCalendar(doc.id, db, salonId)
   const after = await doc.ref.get()
   return {
     reservation: toPublicReservationView({
@@ -102,18 +106,20 @@ export const rescheduleReservation = onCall({ region: functionsRegion }, async (
   const durationMinutes = Number(data.durationMinutes)
   const newEndAt = new Date(newStartAt.getTime() + durationMinutes * 60_000)
   const oldStartAt = new Date(String(data.startAt))
+  const empId =
+    typeof data.employeeId === 'string' && data.employeeId.trim() ? data.employeeId.trim() : null
   const context = await loadSalonContext(db, salonId)
   const now = new Date()
   const oldLockRef = db
     .collection('salons')
     .doc(salonId)
     .collection('slotLocks')
-    .doc(lockIdForStart(oldStartAt))
+    .doc(lockIdForStart(oldStartAt, empId))
   const newLockRef = db
     .collection('salons')
     .doc(salonId)
     .collection('slotLocks')
-    .doc(lockIdForStart(newStartAt))
+    .doc(lockIdForStart(newStartAt, empId))
 
   try {
     await db.runTransaction(async (tx) => {
@@ -139,6 +145,7 @@ export const rescheduleReservation = onCall({ region: functionsRegion }, async (
           if (item.id === doc.id) return false
           const row = item.data()
           if (row.status !== 'PENDING' && row.status !== 'CONFIRMED') return false
+          if (empId && row.employeeId && String(row.employeeId) !== empId) return false
           return new Date(String(row.endAt)).getTime() > newStartAt.getTime()
         })
         .map((item) => ({
@@ -154,7 +161,11 @@ export const rescheduleReservation = onCall({ region: functionsRegion }, async (
           .where('startAt', '<', newEndAt.toISOString()),
       )
       const busyFromBlocks = blocksSnap.docs
-        .filter((item) => new Date(String(item.data().endAt)).getTime() > newStartAt.getTime())
+        .filter((item) => {
+          const row = item.data()
+          if (empId && row.employeeId && String(row.employeeId) !== empId) return false
+          return new Date(String(row.endAt)).getTime() > newStartAt.getTime()
+        })
         .map((item) => ({
           startAt: new Date(String(item.data().startAt)),
           endAt: new Date(String(item.data().endAt)),

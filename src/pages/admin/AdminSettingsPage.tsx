@@ -26,6 +26,9 @@ import ContentCutOutlinedIcon from '@mui/icons-material/ContentCutOutlined'
 import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined'
 import ScheduleOutlinedIcon from '@mui/icons-material/ScheduleOutlined'
 import type { NewAccountInput, StaffOverview } from '../../data/adminAccessApi'
+import { formatViennaDateTime } from '../../data/dateFormat'
+import type { EmployeeWithId } from '../../data/employees'
+import type { GoogleCalendarStatus } from '../../data/googleCalendarApi'
 import { emptySalon } from '../../data/salon'
 import type { BookingSettings, ConfirmationMode, Salon, SalonDetails } from '../../data/schemas'
 import {
@@ -76,6 +79,25 @@ export type AdminSettingsPageProps = {
   expireMessage: string | null
   expireError: string | null
   onExpirePendingClick: () => void
+  googleCalendar?: {
+    employees?: EmployeeWithId[]
+    selectedEmployeeId?: string | null
+    onSelectEmployee?: (employeeId: string | null) => void
+    status: GoogleCalendarStatus | undefined
+    loading: boolean
+    error: string | null
+    oauthCallbackResult?: 'connected' | 'error'
+    connecting: boolean
+    selecting: boolean
+    syncing: boolean
+    disconnecting: boolean
+    actionError: string | null
+    syncMessage: string | null
+    onConnect: () => void
+    onSelectCalendar: (calendarId: string) => void
+    onSyncNow: () => void
+    onDisconnect: () => void
+  }
 }
 
 type SettingsLinkProps = {
@@ -434,6 +456,171 @@ const NewAccountForm: React.FunctionComponent<NewAccountFormProps> = ({
   )
 }
 
+type GoogleCalendarSectionProps = {
+  state: NonNullable<AdminSettingsPageProps['googleCalendar']>
+}
+
+const GoogleCalendarSection: React.FunctionComponent<GoogleCalendarSectionProps> = ({ state }) => {
+  const { t, locale } = useLocale()
+  const [customCalendarId, setCustomCalendarId] = useState('')
+  const status = state.status
+
+  return (
+    <Paper
+      component="section"
+      aria-labelledby="settings-google-calendar"
+      sx={{ p: { xs: 2, sm: 3 } }}
+    >
+      <Typography id="settings-google-calendar" variant="h2" sx={{ mb: 0.5 }}>
+        {t('admin.googleCalendarTitle')}
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        {t('admin.googleCalendarHint')}
+      </Typography>
+
+      {state.employees && state.employees.length > 0 && state.onSelectEmployee ? (
+        <TextField
+          select
+          label={t('admin.googleCalendarForEmployee')}
+          value={state.selectedEmployeeId ?? ''}
+          onChange={(event) => state.onSelectEmployee?.(event.target.value || null)}
+          sx={{ mb: 2.5, maxWidth: 420 }}
+          fullWidth
+        >
+          <MenuItem value="">{t('admin.googleCalendarSalonWide')}</MenuItem>
+          {state.employees.map((emp) => (
+            <MenuItem key={emp.id} value={emp.id}>
+              {emp.displayName}
+            </MenuItem>
+          ))}
+        </TextField>
+      ) : null}
+
+      {state.oauthCallbackResult === 'connected' ? (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          {t('admin.googleCalendarConnectedBanner')}
+        </Alert>
+      ) : null}
+      {state.oauthCallbackResult === 'error' ? (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {t('admin.googleCalendarErrorBanner')}
+        </Alert>
+      ) : null}
+
+      {state.loading ? <CircularProgress size={24} /> : null}
+      {state.error ? <Alert severity="error">{state.error}</Alert> : null}
+
+      {!state.loading && !state.error && status ? (
+        <Stack spacing={2}>
+          {!status.oauthConfigured ? (
+            <Alert severity="info">{t('admin.googleCalendarNotConfigured')}</Alert>
+          ) : null}
+
+          {!status.connected ? (
+            <Box>
+              <Button
+                variant="contained"
+                disabled={!status.oauthConfigured || state.connecting}
+                onClick={state.onConnect}
+              >
+                {t('admin.googleCalendarConnect')}
+              </Button>
+            </Box>
+          ) : (
+            <Stack spacing={2}>
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                <Chip color="success" size="small" label={status.calendarSummary ?? 'Google'} />
+                {status.accountEmail ? (
+                  <Typography variant="body2" color="text.secondary">
+                    {t('admin.googleCalendarConnectedAs', { email: status.accountEmail })}
+                  </Typography>
+                ) : null}
+              </Stack>
+
+              {status.availableCalendars.length > 0 ? (
+                <TextField
+                  select
+                  label={t('admin.googleCalendarSelectLabel')}
+                  value={status.calendarId ?? ''}
+                  disabled={state.selecting || state.syncing}
+                  onChange={(event) => {
+                    if (event.target.value) state.onSelectCalendar(event.target.value)
+                  }}
+                  sx={{ maxWidth: 420 }}
+                >
+                  {status.availableCalendars.map((cal) => (
+                    <MenuItem key={cal.id} value={cal.id}>
+                      {cal.summary}
+                      {cal.primary ? ' (Primary)' : ''}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              ) : null}
+
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={1.5}
+                sx={{ alignItems: { sm: 'center' } }}
+              >
+                <TextField
+                  label={t('admin.googleCalendarCustomIdLabel')}
+                  value={customCalendarId}
+                  onChange={(event) => setCustomCalendarId(event.target.value)}
+                  size="small"
+                  sx={{ flexGrow: 1, maxWidth: 360 }}
+                />
+                <Button
+                  variant="outlined"
+                  disabled={!customCalendarId.trim() || state.selecting}
+                  onClick={() => {
+                    state.onSelectCalendar(customCalendarId.trim())
+                    setCustomCalendarId('')
+                  }}
+                >
+                  {t('admin.googleCalendarUseId')}
+                </Button>
+              </Stack>
+
+              {status.lastSyncAt ? (
+                <Typography variant="body2" color="text.secondary">
+                  {t('admin.googleCalendarLastSync', {
+                    time: formatViennaDateTime(status.lastSyncAt, locale),
+                  })}
+                </Typography>
+              ) : null}
+
+              {status.lastSyncStatus === 'ERROR' && status.lastSyncError ? (
+                <Alert severity="warning">{status.lastSyncError}</Alert>
+              ) : null}
+
+              <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
+                <Button
+                  variant="contained"
+                  disabled={!status.calendarId || state.syncing || state.disconnecting}
+                  onClick={state.onSyncNow}
+                >
+                  {t('admin.googleCalendarSyncNow')}
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  disabled={state.disconnecting || state.syncing}
+                  onClick={state.onDisconnect}
+                >
+                  {t('admin.googleCalendarDisconnect')}
+                </Button>
+              </Stack>
+            </Stack>
+          )}
+
+          {state.syncMessage ? <Alert severity="success">{state.syncMessage}</Alert> : null}
+          {state.actionError ? <Alert severity="error">{state.actionError}</Alert> : null}
+        </Stack>
+      ) : null}
+    </Paper>
+  )
+}
+
 export const AdminSettingsPage: React.FunctionComponent<AdminSettingsPageProps> = ({
   settings,
   settingsLoading,
@@ -457,6 +644,7 @@ export const AdminSettingsPage: React.FunctionComponent<AdminSettingsPageProps> 
   expireMessage,
   expireError,
   onExpirePendingClick,
+  googleCalendar,
 }) => {
   const { t } = useLocale()
 
@@ -547,6 +735,8 @@ export const AdminSettingsPage: React.FunctionComponent<AdminSettingsPageProps> 
           />
         ) : null}
       </Paper>
+
+      {googleCalendar ? <GoogleCalendarSection state={googleCalendar} /> : null}
 
       {isOperator && demoMode ? (
         <Paper component="section" aria-labelledby="settings-demo" sx={{ p: { xs: 2, sm: 3 } }}>

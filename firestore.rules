@@ -161,6 +161,15 @@ service cloud.firestore {
       match /notificationJobs/{jobId} {
         allow read, write: if false;
       }
+
+      match /employees/{employeeId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+
+      match /integrations/{integrationId} {
+        allow read, write: if false;
+      }
     }
   }
 }

@@ -15,11 +15,15 @@ import {
 import type { AvailableSlotDto } from '../../data/bookingApi'
 import { formatViennaDate, formatViennaTime } from '../../data/dateFormat'
 import { localizedServiceName } from '../../data/serviceForm'
+import type { EmployeeWithId } from '../../data/employees'
 import type { ServiceWithId } from '../../data/services'
 import { useLocale } from '../../i18n'
 
 export type AdminManualBookingPageProps = {
   services: ServiceWithId[] | undefined
+  employees?: EmployeeWithId[]
+  selectedEmployeeId?: string | null
+  onEmployeeChange?: (employeeId: string | null) => void
   dates: string[]
   selectedServiceId: string | null
   selectedDate: string | null
@@ -34,6 +38,7 @@ export type AdminManualBookingPageProps = {
   onDateChange: (dateYmd: string) => void
   onSubmit: (input: {
     serviceId: string
+    employeeId?: string | null
     startAt: string
     firstName: string
     lastName: string
@@ -45,6 +50,9 @@ export type AdminManualBookingPageProps = {
 
 export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingPageProps> = ({
   services,
+  employees,
+  selectedEmployeeId,
+  onEmployeeChange,
   dates,
   selectedServiceId,
   selectedDate,
@@ -97,6 +105,23 @@ export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingP
               </MenuItem>
             ))}
           </TextField>
+
+          {employees && employees.length > 0 && onEmployeeChange ? (
+            <TextField
+              select
+              label={t('book.employeeTitle')}
+              value={selectedEmployeeId ?? ''}
+              onChange={(event) => onEmployeeChange(event.target.value || null)}
+              fullWidth
+            >
+              <MenuItem value="">{t('book.employeeAny')}</MenuItem>
+              {employees.map((emp) => (
+                <MenuItem key={emp.id} value={emp.id}>
+                  {emp.displayName}
+                </MenuItem>
+              ))}
+            </TextField>
+          ) : null}
 
           <Typography variant="subtitle2">{t('admin.dayLabel')}</Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
@@ -189,6 +214,7 @@ export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingP
               if (!selectedServiceId || !startAt) return
               onSubmit({
                 serviceId: selectedServiceId,
+                ...(selectedEmployeeId ? { employeeId: selectedEmployeeId } : {}),
                 startAt,
                 firstName: firstName.trim(),
                 lastName: lastName.trim(),

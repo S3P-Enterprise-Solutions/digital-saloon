@@ -6,6 +6,7 @@ import { queryKeyOf } from './queryKeys'
 export function useAvailableSlots(input: {
   serviceId?: string | null
   serviceIds?: string[]
+  employeeId?: string | null
   fromDateYmd: string | null
   toDateYmd: string | null
   enforceAdvanceRestrictions?: boolean
@@ -26,6 +27,7 @@ export function useAvailableSlots(input: {
     queryKey: queryKeyOf(
       'availableSlots',
       servicesKey,
+      input.employeeId ?? null,
       input.fromDateYmd,
       input.toDateYmd,
       enforceAdvanceRestrictions,
@@ -35,6 +37,7 @@ export function useAvailableSlots(input: {
       fetchAvailableSlots({
         serviceId: serviceIds[0],
         serviceIds,
+        ...(input.employeeId ? { employeeId: input.employeeId } : {}),
         fromDateYmd: input.fromDateYmd!,
         toDateYmd: input.toDateYmd!,
         enforceAdvanceRestrictions,

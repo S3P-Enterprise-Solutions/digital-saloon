@@ -34,6 +34,7 @@ export type PublicReservation = {
 export async function fetchAvailableSlots(input: {
   serviceId?: string
   serviceIds?: string[]
+  employeeId?: string | null
   fromDateYmd: string
   toDateYmd: string
   enforceAdvanceRestrictions?: boolean
@@ -44,6 +45,7 @@ export async function fetchAvailableSlots(input: {
     {
       serviceId?: string
       serviceIds?: string[]
+      employeeId?: string | null
       fromDateYmd: string
       toDateYmd: string
       enforceAdvanceRestrictions?: boolean
@@ -54,6 +56,7 @@ export async function fetchAvailableSlots(input: {
   const result = await callable({
     ...(input.serviceId ? { serviceId: input.serviceId } : {}),
     ...(input.serviceIds && input.serviceIds.length > 0 ? { serviceIds: input.serviceIds } : {}),
+    ...(input.employeeId ? { employeeId: input.employeeId } : {}),
     fromDateYmd: input.fromDateYmd,
     toDateYmd: input.toDateYmd,
     ...(input.enforceAdvanceRestrictions === false ? { enforceAdvanceRestrictions: false } : {}),
@@ -65,6 +68,7 @@ export async function fetchAvailableSlots(input: {
 export async function submitOnlineReservation(input: {
   serviceId: string
   serviceIds: string[]
+  employeeId?: string | null
   startAt: string
   firstName: string
   lastName: string

@@ -90,6 +90,9 @@ export const reservationSchema = v.object({
   source: reservationSourceSchema,
   managementTokenHash: v.pipe(v.string(), v.minLength(1)),
   internalNote: v.nullable(v.pipe(v.string(), v.maxLength(2000))),
+  googleCalendarEventId: v.optional(v.nullable(v.string())),
+  employeeId: v.optional(v.nullable(v.string())),
+  employeeName: v.optional(v.nullable(v.string())),
   idempotencyKey: v.nullable(v.pipe(v.string(), v.minLength(1), v.maxLength(128))),
   createdAt: v.string(),
   updatedAt: v.string(),
@@ -135,8 +138,14 @@ export type DayException = v.InferOutput<typeof dayExceptionSchema>
 export const blockedSlotSchema = v.object({
   startAt: v.string(),
   endAt: v.string(),
-  reason: v.nullable(v.pipe(v.string(), v.maxLength(500))),
+  reason: v.optional(v.nullable(v.pipe(v.string(), v.maxLength(500)))),
   createdAt: v.string(),
+  source: v.optional(v.picklist(['MANUAL', 'GOOGLE_CALENDAR'] as const)),
+  employeeId: v.optional(v.nullable(v.string())),
+  googleEventId: v.optional(v.string()),
+  title: v.optional(v.string()),
+  allDay: v.optional(v.boolean()),
+  updatedAt: v.optional(v.string()),
 })
 export type BlockedSlot = v.InferOutput<typeof blockedSlotSchema>
 
@@ -173,3 +182,10 @@ export const homepageConfigSchema = v.object({
   customSections: v.array(homepageCustomSectionSchema),
 })
 export type HomepageConfig = v.InferOutput<typeof homepageConfigSchema>
+
+export const employeeSchema = v.object({
+  displayName: v.pipe(v.string(), v.minLength(1), v.maxLength(80)),
+  active: v.boolean(),
+  createdAt: v.string(),
+})
+export type Employee = v.InferOutput<typeof employeeSchema>

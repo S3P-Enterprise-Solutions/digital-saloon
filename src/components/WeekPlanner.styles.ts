@@ -199,6 +199,38 @@ export const Entry = styled('button')(({ theme }) => ({
   },
 }))
 
+export const BlockedEntry = styled('div')(({ theme }) => ({
+  position: 'absolute',
+  left: 2,
+  right: 2,
+  zIndex: 2,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 1,
+  overflow: 'hidden',
+  padding: theme.spacing(0.5, 0.75),
+  borderRadius: 3,
+  border: `1px solid ${theme.palette.divider}`,
+  backgroundColor: 'rgba(74, 54, 49, 0.08)',
+  backgroundImage: `repeating-linear-gradient(135deg, rgba(74, 54, 49, 0.05) 0 4px, transparent 4px 8px)`,
+  color: brand.espressoMuted,
+  lineHeight: 1.2,
+  pointerEvents: 'none',
+  '& .entry-time': {
+    fontSize: '0.6875rem',
+    fontVariantNumeric: 'tabular-nums',
+    opacity: 0.8,
+  },
+  '& .entry-name': {
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    maxWidth: '100%',
+  },
+}))
+
 export const NowLine = styled('div')({
   position: 'absolute',
   left: 0,
@@ -247,6 +279,10 @@ export const Legend = styled('ul')(({ theme }) => ({
   '& .swatch.is-completed': {
     backgroundColor: brand.stone,
     boxShadow: `inset 3px 0 0 ${brand.espressoMuted}`,
+  },
+  '& .swatch.is-blocked': {
+    backgroundColor: 'rgba(74, 54, 49, 0.12)',
+    boxShadow: `inset 0 0 0 1px ${theme.palette.divider}`,
   },
   '& .swatch.is-closed': {
     backgroundImage: closedHatch,

@@ -5,6 +5,7 @@ import { assertAdmin } from '../authz'
 import { functionsRegion, getSalonId } from '../config'
 import { isObject } from '../schemas'
 import { toPublicReservationView } from './findByToken'
+import { syncReservationToGoogleCalendar } from '../googleCalendar/sync'
 import { lockIdForStart } from './reservationWrite'
 
 const ACTIVE = new Set(['PENDING', 'CONFIRMED'])
@@ -48,6 +49,7 @@ export const confirmReservation = onCall({ region: functionsRegion }, async (req
     tx.update(ref, { status: 'CONFIRMED', updatedAt })
   })
 
+  await syncReservationToGoogleCalendar(reservationId)
   const after = await ref.get()
   return { reservation: viewOf(after) }
 })
@@ -65,11 +67,12 @@ export const declineReservation = onCall({ region: functionsRegion }, async (req
   }
 
   const startAt = new Date(String(snap.data()?.startAt))
+  const empId = typeof snap.data()?.employeeId === 'string' ? snap.data()?.employeeId : null
   const lockRef = db
     .collection('salons')
     .doc(salonId)
     .collection('slotLocks')
-    .doc(lockIdForStart(startAt))
+    .doc(lockIdForStart(startAt, empId))
   const updatedAt = new Date().toISOString()
 
   await db.runTransaction(async (tx) => {
@@ -83,6 +86,7 @@ export const declineReservation = onCall({ region: functionsRegion }, async (req
     }
   })
 
+  await syncReservationToGoogleCalendar(reservationId)
   const after = await ref.get()
   return {
     reservation: viewOf(after),
@@ -100,11 +104,12 @@ export const adminCancelReservation = onCall({ region: functionsRegion }, async 
   }
 
   const startAt = new Date(String(snap.data()?.startAt))
+  const empId = typeof snap.data()?.employeeId === 'string' ? snap.data()?.employeeId : null
   const lockRef = db
     .collection('salons')
     .doc(salonId)
     .collection('slotLocks')
-    .doc(lockIdForStart(startAt))
+    .doc(lockIdForStart(startAt, empId))
   const updatedAt = new Date().toISOString()
 
   await db.runTransaction(async (tx) => {
@@ -118,6 +123,7 @@ export const adminCancelReservation = onCall({ region: functionsRegion }, async 
     }
   })
 
+  await syncReservationToGoogleCalendar(reservationId)
   const after = await ref.get()
   return { reservation: viewOf(after) }
 })

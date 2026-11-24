@@ -283,4 +283,74 @@ describe('planWeek', () => {
     expect(plan.nowMinute).toBeNull()
     expect(plan.days.every((day) => day.addStartMinutes.length === 0)).toBe(true)
   })
+
+  it('shows blockedSlots (Google Calendar events) and excludes them from addStartMinutes', () => {
+    const plan = planWeek({
+      reservations: [],
+      blockedSlots: [
+        {
+          id: 'gcal_1',
+          source: 'GOOGLE_CALENDAR',
+          title: 'Dentist',
+          startAt: '2026-11-17T08:00:00.000Z',
+          endAt: '2026-11-17T09:00:00.000Z',
+          createdAt: '2026-11-16T00:00:00.000Z',
+        },
+      ],
+      weekStartYmd: weekStart,
+      openingHours,
+      timeZone,
+      now: mondayMorning,
+    })
+    const tuesday = plan.days[1]
+    expect(tuesday.blockedEntries).toHaveLength(1)
+    expect(tuesday.blockedEntries[0].block.title).toBe('Dentist')
+    expect(tuesday.addStartMinutes.map(hhmmOfMinute)).not.toContain('09:00')
+    expect(tuesday.addStartMinutes.map(hhmmOfMinute)).not.toContain('09:30')
+    expect(tuesday.addStartMinutes.map(hhmmOfMinute)).toContain('10:00')
+  })
+
+  it('filters reservations and blockedSlots by employeeId when selected', () => {
+    const r1 = {
+      ...reservation('emp1', '2026-11-17T08:00:00.000Z', '2026-11-17T09:00:00.000Z'),
+      employeeId: 'e1',
+      employeeName: 'Anna',
+    }
+    const r2 = {
+      ...reservation('emp2', '2026-11-17T08:00:00.000Z', '2026-11-17T09:00:00.000Z'),
+      employeeId: 'e2',
+      employeeName: 'Ben',
+    }
+    const plan = planWeek({
+      reservations: [r1, r2],
+      blockedSlots: [
+        {
+          id: 'b1',
+          employeeId: 'e1',
+          source: 'GOOGLE_CALENDAR',
+          title: 'Anna Break',
+          startAt: '2026-11-17T10:00:00.000Z',
+          endAt: '2026-11-17T11:00:00.000Z',
+          createdAt: '2026-11-16T00:00:00.000Z',
+        },
+        {
+          id: 'b2',
+          employeeId: 'e2',
+          source: 'GOOGLE_CALENDAR',
+          title: 'Ben Break',
+          startAt: '2026-11-17T12:00:00.000Z',
+          endAt: '2026-11-17T13:00:00.000Z',
+          createdAt: '2026-11-16T00:00:00.000Z',
+        },
+      ],
+      employeeId: 'e1',
+      weekStartYmd: weekStart,
+      openingHours,
+      timeZone,
+      now: mondayMorning,
+    })
+    const tuesday = plan.days[1]
+    expect(tuesday.entries.map((e) => e.reservation.id)).toEqual(['emp1'])
+    expect(tuesday.blockedEntries.map((b) => b.block.id)).toEqual(['b1'])
+  })
 })

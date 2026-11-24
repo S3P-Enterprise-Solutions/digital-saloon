@@ -3,6 +3,7 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   CircularProgress,
   IconButton,
   Paper,
@@ -15,6 +16,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import { AdminViewSwitch } from '../../components/AdminViewSwitch'
 import { WeekPlanner } from '../../components/WeekPlanner'
 import { formatViennaDateTime } from '../../data/dateFormat'
+import type { EmployeeWithId } from '../../data/employees'
 import type { ReservationWithId } from '../../data/reservations'
 import { formatBookedTime, type WeekPlan } from '../../data/weekPlanner'
 import { useLocale } from '../../i18n'
@@ -38,6 +40,9 @@ export type AdminHomePageProps = {
   onAddReservationClick: () => void
   onAddReservationAt: (dateYmd: string, startTime: string) => void
   onListViewClick: () => void
+  employees?: EmployeeWithId[]
+  selectedEmployeeId?: string | null
+  onSelectEmployee?: (employeeId: string | null) => void
 }
 
 export const AdminHomePage: React.FunctionComponent<AdminHomePageProps> = ({
@@ -58,6 +63,9 @@ export const AdminHomePage: React.FunctionComponent<AdminHomePageProps> = ({
   onAddReservationClick,
   onAddReservationAt,
   onListViewClick,
+  employees,
+  selectedEmployeeId,
+  onSelectEmployee,
 }) => {
   const { t, intlLocale } = useLocale()
   const revenue = new Intl.NumberFormat(intlLocale, {
@@ -122,6 +130,31 @@ export const AdminHomePage: React.FunctionComponent<AdminHomePageProps> = ({
           {t('admin.addReservation')}
         </Button>
       </Toolbar>
+
+      {employees && employees.length > 0 && onSelectEmployee ? (
+        <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mr: 0.5 }}>
+            {t('admin.employeeSelectLabel')}:
+          </Typography>
+          <Chip
+            label={t('admin.employeeAll')}
+            clickable
+            color={!selectedEmployeeId ? 'primary' : 'default'}
+            variant={!selectedEmployeeId ? 'filled' : 'outlined'}
+            onClick={() => onSelectEmployee(null)}
+          />
+          {employees.map((emp) => (
+            <Chip
+              key={emp.id}
+              label={emp.displayName}
+              clickable
+              color={selectedEmployeeId === emp.id ? 'primary' : 'default'}
+              variant={selectedEmployeeId === emp.id ? 'filled' : 'outlined'}
+              onClick={() => onSelectEmployee(emp.id)}
+            />
+          ))}
+        </Stack>
+      ) : null}
 
       {planError ? <Alert severity="error">{t('admin.reservationsError')}</Alert> : null}
 
