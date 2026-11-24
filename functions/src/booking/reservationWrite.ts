@@ -542,18 +542,16 @@ export async function updateReservationTransactional(
         ),
     )
   }
-  const oldLockRef = db
-    .collection('salons')
-    .doc(context.salonId)
-    .collection('slotLocks')
-    .doc(lockIdForStart(oldStartAt, oldEmpId))
-  const newLockRef = db
-    .collection('salons')
-    .doc(context.salonId)
-    .collection('slotLocks')
-    .doc(lockIdForStart(newStartAt, empId))
+  const slotLocksCol = db.collection('salons').doc(context.salonId).collection('slotLocks')
+  const oldLockRef = slotLocksCol.doc(lockIdForStart(oldStartAt, oldEmpId))
+  const assignedLockRef = slotLocksCol.doc(lockIdForStart(newStartAt, empId))
+  const anyAssignLockRefs =
+    featureEnabled && !empId
+      ? anyAssignCandidates.map((candidate) =>
+          slotLocksCol.doc(lockIdForStart(newStartAt, candidate?.id ?? null)),
+        )
+      : []
   const updatedAt = now.toISOString()
-  const sameLock = oldLockRef.path === newLockRef.path
 
   try {
     await db.runTransaction(async (tx) => {
@@ -562,11 +560,6 @@ export async function updateReservationTransactional(
       const freshData = fresh.data()!
       const freshStatus = String(freshData.status)
       if (freshStatus !== 'PENDING' && freshStatus !== 'CONFIRMED') throw new Error('INACTIVE')
-
-      const newLockSnap = await tx.get(newLockRef)
-      if (newLockSnap.exists && newLockSnap.data()?.reservationId !== input.reservationId) {
-        throw new Error('UNAVAILABLE')
-      }
 
       const overlapSnap = await tx.get(
         db
@@ -617,16 +610,19 @@ export async function updateReservationTransactional(
 
       const oldLockSnap = await tx.get(oldLockRef)
 
-      const busyForAssigned = [
-        ...overlappingReservations.filter(
-          (r) => !empId || !r.employeeId || r.employeeId === empId,
-        ),
-        ...overlappingBlocks.filter((b) => !empId || !b.employeeId || b.employeeId === empId),
-      ].map((item) => ({ startAt: item.startAt, endAt: item.endAt }))
-
+      let chosenEmpId = empId
+      let chosenEmpName = empName
+      let chosenLockRef = assignedLockRef
       let available = false
+
       if (featureEnabled && !empId) {
-        for (const candidate of anyAssignCandidates) {
+        const lockSnaps = await Promise.all(anyAssignLockRefs.map((ref) => tx.get(ref)))
+        for (let i = 0; i < anyAssignCandidates.length; i += 1) {
+          const lockSnap = lockSnaps[i]
+          if (lockSnap.exists && lockSnap.data()?.reservationId !== input.reservationId) {
+            continue
+          }
+          const candidate = anyAssignCandidates[i]
           const candidateId = candidate?.id ?? null
           const candidateBusy = [
             ...overlappingReservations.filter(
@@ -653,11 +649,24 @@ export async function updateReservationTransactional(
                 : undefined,
             })
           ) {
+            chosenEmpId = candidateId
+            chosenEmpName = candidate?.displayName ?? null
+            chosenLockRef = anyAssignLockRefs[i]
             available = true
             break
           }
         }
       } else {
+        const newLockSnap = await tx.get(assignedLockRef)
+        if (newLockSnap.exists && newLockSnap.data()?.reservationId !== input.reservationId) {
+          throw new Error('UNAVAILABLE')
+        }
+        const busyForAssigned = [
+          ...overlappingReservations.filter(
+            (r) => !empId || !r.employeeId || r.employeeId === empId,
+          ),
+          ...overlappingBlocks.filter((b) => !empId || !b.employeeId || b.employeeId === empId),
+        ].map((item) => ({ startAt: item.startAt, endAt: item.endAt }))
         available = isSlotAvailable({
           startAt: newStartAt,
           durationMinutes,
@@ -671,26 +680,32 @@ export async function updateReservationTransactional(
           enforceAdvanceRestrictions: input.enforceAdvanceRestrictions,
           employeeEnvelope,
         })
+        if (available) {
+          chosenLockRef = assignedLockRef
+        }
       }
       if (!available) throw new Error('UNAVAILABLE')
 
+      const sameLock = oldLockRef.path === chosenLockRef.path
       if (!sameLock) {
         if (oldLockSnap.exists && oldLockSnap.data()?.reservationId === input.reservationId) {
           tx.delete(oldLockRef)
         }
-        tx.set(newLockRef, {
+        tx.set(chosenLockRef, {
           reservationId: input.reservationId,
-          employeeId: empId,
+          employeeId: chosenEmpId,
           startAt: newStartAt.toISOString(),
           endAt: newEndAt.toISOString(),
           createdAt: updatedAt,
         })
       } else {
-        tx.set(newLockRef, {
+        const existingLock = await tx.get(chosenLockRef)
+        tx.set(chosenLockRef, {
           reservationId: input.reservationId,
+          employeeId: chosenEmpId,
           startAt: newStartAt.toISOString(),
           endAt: newEndAt.toISOString(),
-          createdAt: String(newLockSnap.data()?.createdAt ?? updatedAt),
+          createdAt: String(existingLock.data()?.createdAt ?? updatedAt),
         })
       }
 
@@ -704,8 +719,8 @@ export async function updateReservationTransactional(
         serviceName,
         durationMinutes,
         priceCents,
-        employeeId: empId,
-        employeeName: empName,
+        employeeId: chosenEmpId,
+        employeeName: chosenEmpName,
         startAt: newStartAt.toISOString(),
         endAt: newEndAt.toISOString(),
         internalNote: input.internalNote,

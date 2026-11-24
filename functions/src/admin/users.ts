@@ -249,8 +249,17 @@ export const createEmployeeAccount = onCall({ region: functionsRegion }, async (
     createdAt,
   })
 
-  await db.collection('users').doc(uid).set(userDoc)
-  await db.collection('salons').doc(getSalonId()).collection('employees').doc(uid).set(employeeDoc)
+  try {
+    await db.runTransaction(async (tx) => {
+      tx.set(db.collection('users').doc(uid), userDoc)
+      tx.set(db.collection('salons').doc(getSalonId()).collection('employees').doc(uid), employeeDoc)
+    })
+  } catch (error: unknown) {
+    await getAuth()
+      .deleteUser(uid)
+      .catch(() => undefined)
+    throw error
+  }
 
   return { uid, email, displayName, firstName, lastName, role: 'employee' as const, createdAt }
 })

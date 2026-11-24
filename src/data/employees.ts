@@ -53,6 +53,7 @@ export async function fetchEmployeeByUid(employeeUid: string): Promise<EmployeeW
   return employeeFromFirestoreDoc(snapshot.id, snapshot.data())
 }
 
+/** Bookable roster for admin calendars/manual booking (aligns with backend eligibility). */
 export async function fetchActiveEmployees(): Promise<EmployeeWithId[]> {
   const salonId = getSalonId()
   const snap = await getDocs(
@@ -63,7 +64,9 @@ export async function fetchActiveEmployees(): Promise<EmployeeWithId[]> {
     ),
   )
 
-  return snap.docs.map((docSnap) => employeeFromFirestoreDoc(docSnap.id, docSnap.data()))
+  return snap.docs
+    .map((docSnap) => employeeFromFirestoreDoc(docSnap.id, docSnap.data()))
+    .filter((employee) => employee.active && !employee.authDisabled && !employee.removedAt)
 }
 
 /** Full employee list for admin UI (includes inactive and removed). */

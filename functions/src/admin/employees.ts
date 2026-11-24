@@ -305,6 +305,10 @@ export const setEmployeePassword = onCall({ region: functionsRegion }, async (re
   if (password.length < 8) {
     throw new HttpsError('invalid-argument', 'Password must be at least 8 characters.')
   }
+  const empSnap = await employeesCol().doc(employeeUid).get()
+  if (!empSnap.exists) {
+    throw new HttpsError('not-found', 'Employee not found.')
+  }
   await getAuth().updateUser(employeeUid, { password })
   return { ok: true as const }
 })
@@ -464,14 +468,14 @@ export const listMyEmployeeReservations = onCall({ region: functionsRegion }, as
     .collection('salons')
     .doc(getSalonId())
     .collection('reservations')
+    .where('employeeId', '==', employeeUid)
     .where('startAt', '>=', rangeStartIso)
     .where('startAt', '<', rangeEndIso)
     .orderBy('startAt', 'asc')
     .get()
 
-  const reservations = filterReservationsForEmployee(
-    employeeUid,
-    snap.docs.map((doc) => ({ id: doc.id, data: doc.data() as Record<string, unknown> })),
-  )
+  const reservations = snap.docs
+    .map((doc) => toEmployeeReservationProjection(doc.id, doc.data() as Record<string, unknown>))
+    .sort((a, b) => a.startAt.localeCompare(b.startAt))
   return { reservations }
 })

@@ -1,8 +1,10 @@
 import { getActiveBrandModule } from './active'
 
 /**
- * Employee Management is a brand compile-time flag.
- * E2E may force it on via `VITE_EMPLOYEE_MANAGEMENT_ENABLED=true` without enabling a brand.
+ * Employee Management is a brand compile-time flag (`features.employeeManagement`).
+ * Keep in sync with Functions `isEmployeeManagementEnabled()` / brand map.
+ * E2E may force both sides on via `VITE_EMPLOYEE_MANAGEMENT_ENABLED` and
+ * `EMPLOYEE_MANAGEMENT_ENABLED` in `scripts/start-e2e.mjs` without enabling a brand.
  */
 export function isEmployeeManagementEnabled(): boolean {
   const raw = import.meta.env.VITE_EMPLOYEE_MANAGEMENT_ENABLED

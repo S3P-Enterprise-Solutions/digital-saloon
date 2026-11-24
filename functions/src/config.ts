@@ -24,7 +24,10 @@ export function getBrandKey(): 'kimm' | 'salon1500' | 'hairboutique' {
   return 'kimm'
 }
 
-/** Must stay aligned with `features.employeeManagement` on each brand module. */
+/**
+ * Must stay aligned with `features.employeeManagement` on each brand module
+ * and with client `isEmployeeManagementEnabled()` (unless both sides use matching env overrides).
+ */
 const employeeManagementByBrand: Record<ReturnType<typeof getBrandKey>, boolean> = {
   kimm: false,
   salon1500: false,

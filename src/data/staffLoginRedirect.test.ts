@@ -9,6 +9,15 @@ describe('staffLoginDestination', () => {
     )
   })
 
+  it('rejects protocol-relative open redirects', () => {
+    expect(staffLoginDestination({ redirect: '//evil.com', isOperator: false, role: 'admin' })).toBe(
+      '/admin',
+    )
+    expect(
+      staffLoginDestination({ redirect: '//evil.com', isOperator: false, role: 'employee' }),
+    ).toBe('/employee')
+  })
+
   it('sends operators to admin', () => {
     expect(staffLoginDestination({ isOperator: true, role: 'employee' })).toBe('/admin')
   })
