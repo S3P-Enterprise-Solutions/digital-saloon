@@ -61,4 +61,21 @@ test.describe('customer booking @smoke', () => {
     await page.getByLabel(/Datenschutzhinweise/).check()
     await expect(page.getByRole('alert')).toHaveCount(0)
   })
+
+  test('selecting a timeslot does not add empty space below the footer', async ({ page }) => {
+    await page.goto('/book')
+    await selectServiceDateAndTime(page)
+
+    const { scrollHeight, footerBottom } = await page.evaluate(() => {
+      const footer = document.querySelector('footer')
+      const rect = footer?.getBoundingClientRect()
+      return {
+        scrollHeight: document.documentElement.scrollHeight,
+        footerBottom: rect ? Math.round(rect.bottom + window.scrollY) : 0,
+      }
+    })
+
+    expect(footerBottom).toBeGreaterThan(0)
+    expect(scrollHeight - footerBottom).toBeLessThanOrEqual(2)
+  })
 })

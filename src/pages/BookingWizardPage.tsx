@@ -68,12 +68,15 @@ const contactIssueMessages: Record<BookingContactIssue, MessageKey> = {
   invalid: 'book.error.invalid',
 }
 
-/** Read by screen readers only (same rules as MUI's `visuallyHidden`). */
+/**
+ * Read by screen readers only.
+ * String pixel values avoid MUI `sx` turning numeric `1` into `100%` and `-1` into `-8px`.
+ */
 const screenReaderOnly = {
   position: 'absolute',
-  width: 1,
-  height: 1,
-  margin: -1,
+  width: '1px',
+  height: '1px',
+  margin: '-1px',
   padding: 0,
   border: 0,
   overflow: 'hidden',
