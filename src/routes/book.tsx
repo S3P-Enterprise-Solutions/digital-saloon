@@ -113,6 +113,7 @@ export const bookRoute = createRoute({
             to: '/book',
             search: {
               serviceIds: serializeServiceIds(nextIds),
+              employeeId: selectedEmployeeId ?? undefined,
               step: '1',
               date: undefined,
               startAt: undefined,
@@ -129,6 +130,7 @@ export const bookRoute = createRoute({
             to: '/book',
             search: {
               serviceIds: serializeServiceIds(selectedServiceIds),
+              employeeId: selectedEmployeeId ?? undefined,
               step: '2',
               date: search.date,
               startAt: undefined,
@@ -144,6 +146,7 @@ export const bookRoute = createRoute({
             to: '/book',
             search: {
               serviceIds: serializeServiceIds(selectedServiceIds),
+              employeeId: selectedEmployeeId ?? undefined,
               step: '1',
               date: search.date,
               startAt: undefined,
@@ -159,6 +162,7 @@ export const bookRoute = createRoute({
             to: '/book',
             search: {
               serviceIds: serializeServiceIds(selectedServiceIds),
+              employeeId: selectedEmployeeId ?? undefined,
               step: '2',
               date: search.date,
               startAt: search.startAt,
@@ -174,6 +178,7 @@ export const bookRoute = createRoute({
             to: '/book',
             search: {
               serviceIds: serializeServiceIds(selectedServiceIds),
+              employeeId: selectedEmployeeId ?? undefined,
               step: '2',
               date: dateYmd,
               startAt: undefined,
@@ -189,6 +194,7 @@ export const bookRoute = createRoute({
             to: '/book',
             search: {
               serviceIds: serializeServiceIds(selectedServiceIds),
+              employeeId: selectedEmployeeId ?? undefined,
               step: '2',
               date: search.date,
               startAt,
@@ -204,6 +210,7 @@ export const bookRoute = createRoute({
             to: '/book',
             search: {
               serviceIds: serializeServiceIds(selectedServiceIds),
+              employeeId: selectedEmployeeId ?? undefined,
               step: '2',
               date: search.date,
               startAt: undefined,

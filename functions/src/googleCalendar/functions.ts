@@ -1,4 +1,5 @@
-﻿import { getFirestore } from 'firebase-admin/firestore'
+﻿import { getAuth } from 'firebase-admin/auth'
+import { getFirestore } from 'firebase-admin/firestore'
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 
@@ -166,8 +167,22 @@ export const googleCalendarOAuthCallback = onRequest(
 
     const stateParam = typeof req.query.state === 'string' ? req.query.state : ''
     const state = verifyOAuthState(stateParam, oauth.stateSecret)
-    if (!state) {
+    if (!state || state.salonId !== getSalonId()) {
       res.status(400).send('Invalid or expired OAuth state.')
+      return
+    }
+
+    const db = getFirestore()
+    const userDoc = await db.collection('users').doc(state.uid).get()
+    let isAuthorizedAdmin = userDoc.exists && userDoc.data()?.role === 'admin'
+    if (!isAuthorizedAdmin) {
+      const authUser = await getAuth()
+        .getUser(state.uid)
+        .catch(() => null)
+      isAuthorizedAdmin = authUser?.customClaims?.operator === true
+    }
+    if (!isAuthorizedAdmin) {
+      res.status(403).send('Admin access required.')
       return
     }
 
@@ -193,7 +208,6 @@ export const googleCalendarOAuthCallback = onRequest(
         redirectUri: oauth.redirectUri,
       })
 
-      const db = getFirestore()
       const ref = integrationDocRef(db, state.salonId, employeeId)
       const prevSnap = await ref.get()
       const prev = prevSnap.exists

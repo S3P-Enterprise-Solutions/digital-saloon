@@ -227,6 +227,7 @@ export const rescheduleReservation = onCall({ region: functionsRegion }, async (
     throw error
   }
 
+  await syncReservationToGoogleCalendar(doc.id, db, salonId)
   const after = await doc.ref.get()
   const afterData = after.data() ?? {}
   await notifyCustomerRescheduled({

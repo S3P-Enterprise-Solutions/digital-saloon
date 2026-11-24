@@ -345,6 +345,7 @@ export type UpdateReservationInput = {
   email: string | null
   serviceId: string
   serviceIds?: string[]
+  employeeId?: string | null
   startAt: Date
   internalNote: string | null
   enforceAdvanceRestrictions: boolean
@@ -407,15 +408,38 @@ export async function updateReservationTransactional(
   const newStartAt = input.startAt
   const newEndAt = new Date(newStartAt.getTime() + durationMinutes * 60_000)
   const oldStartAt = new Date(String(existing.startAt))
-  const empId =
+  const oldEmpId =
     typeof existing.employeeId === 'string' && existing.employeeId.trim()
       ? existing.employeeId.trim()
       : null
+  let empId = oldEmpId
+  let empName: string | null =
+    typeof existing.employeeName === 'string' && existing.employeeName.trim()
+      ? existing.employeeName.trim()
+      : null
+  if (input.employeeId !== undefined) {
+    const requestedEmpId =
+      typeof input.employeeId === 'string' && input.employeeId.trim()
+        ? input.employeeId.trim()
+        : null
+    if (requestedEmpId) {
+      const activeEmployees = await loadActiveEmployees(db, context.salonId)
+      const matched = activeEmployees.find((emp) => emp.id === requestedEmpId)
+      if (!matched) {
+        return { ok: false, code: 'NOT_FOUND', message: 'Selected employee not found.' }
+      }
+      empId = matched.id
+      empName = matched.displayName
+    } else {
+      empId = null
+      empName = null
+    }
+  }
   const oldLockRef = db
     .collection('salons')
     .doc(context.salonId)
     .collection('slotLocks')
-    .doc(lockIdForStart(oldStartAt, empId))
+    .doc(lockIdForStart(oldStartAt, oldEmpId))
   const newLockRef = db
     .collection('salons')
     .doc(context.salonId)
@@ -497,6 +521,7 @@ export async function updateReservationTransactional(
         }
         tx.set(newLockRef, {
           reservationId: input.reservationId,
+          employeeId: empId,
           startAt: newStartAt.toISOString(),
           endAt: newEndAt.toISOString(),
           createdAt: updatedAt,
@@ -520,6 +545,8 @@ export async function updateReservationTransactional(
         serviceName,
         durationMinutes,
         priceCents,
+        employeeId: empId,
+        employeeName: empName,
         startAt: newStartAt.toISOString(),
         endAt: newEndAt.toISOString(),
         internalNote: input.internalNote,

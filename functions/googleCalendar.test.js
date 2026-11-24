@@ -1,9 +1,15 @@
 ﻿import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { createOAuthNonce, signOAuthState, verifyOAuthState } from './lib/googleCalendar/client.js'
+import {
+  createOAuthNonce,
+  getGoogleOAuthConfig,
+  signOAuthState,
+  verifyOAuthState,
+} from './lib/googleCalendar/client.js'
 import {
   blockedSlotDocIdForGoogleEvent,
+  googleEventIdForReservation,
   googleEventToBlockedSlot,
   reservationToGoogleEvent,
 } from './lib/googleCalendar/mapping.js'
@@ -86,7 +92,7 @@ describe('googleCalendar mapping', () => {
     )
   })
 
-  it('formats reservationToGoogleEvent with pending prefix and extendedProperties', () => {
+  it('formats reservationToGoogleEvent with deterministic id and without PII/internal notes', () => {
     const payload = reservationToGoogleEvent({
       reservationId: 'res-42',
       salonId: 'pilot',
@@ -99,14 +105,20 @@ describe('googleCalendar mapping', () => {
       endAt: '2026-11-20T10:00:00.000Z',
       status: 'PENDING',
       notes: 'Please use ammonia-free dye',
+      internalNote: 'VIP secret note',
       timeZone: 'Europe/Vienna',
     })
     assert.equal(payload.summary, '[Pending] Anna Muster — Waschen & Schneiden')
+    assert.equal(payload.id, googleEventIdForReservation('pilot', 'res-42'))
+    assert.match(payload.id, /^[0-9a-v]{22}$/)
     assert.deepEqual(payload.extendedProperties.private, {
       salonReservationId: 'res-42',
       salonId: 'pilot',
     })
     assert.match(payload.description, /Booking ID: res-42/)
+    assert.doesNotMatch(payload.description, /\+43660123456/)
+    assert.doesNotMatch(payload.description, /anna@example\.com/)
+    assert.doesNotMatch(payload.description, /VIP secret note/)
   })
 
   it('produces deterministic Firestore-safe doc IDs for Google event IDs', () => {
@@ -119,7 +131,7 @@ describe('googleCalendar mapping', () => {
   })
 })
 
-describe('googleCalendar OAuth state signing', () => {
+describe('googleCalendar OAuth state signing & config', () => {
   it('signs and verifies state tokens and rejects tampering or expiry', () => {
     const secret = 'test-secret-key-32-chars-minimum'
     const now = 1_700_000_000_000
@@ -140,5 +152,16 @@ describe('googleCalendar OAuth state signing', () => {
 
     assert.equal(verifyOAuthState(`${token}x`, secret, now + 10_000), null)
     assert.equal(verifyOAuthState(token, secret, now + 120_000), null)
+  })
+
+  it('requires GOOGLE_OAUTH_STATE_SECRET in production but allows emulator fallback', () => {
+    const baseEnv = {
+      GOOGLE_OAUTH_CLIENT_ID: 'cid',
+      GOOGLE_OAUTH_CLIENT_SECRET: 'csecret',
+      GOOGLE_OAUTH_REDIRECT_URI: 'https://example.com/cb',
+    }
+    assert.equal(getGoogleOAuthConfig(baseEnv), null)
+    assert.ok(getGoogleOAuthConfig({ ...baseEnv, FUNCTIONS_EMULATOR: 'true' }))
+    assert.ok(getGoogleOAuthConfig({ ...baseEnv, GOOGLE_OAUTH_STATE_SECRET: 'dedicated-secret' }))
   })
 })

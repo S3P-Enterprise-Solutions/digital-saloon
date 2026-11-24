@@ -66,7 +66,10 @@ export function getGoogleOAuthConfig(
   const clientSecret = envString(env, 'GOOGLE_OAUTH_CLIENT_SECRET')
   const redirectUri = defaultOAuthRedirectUri(env)
   if (!clientId || !clientSecret || !redirectUri) return null
-  const stateSecret = envString(env, 'GOOGLE_OAUTH_STATE_SECRET') ?? clientSecret
+  const stateSecret =
+    envString(env, 'GOOGLE_OAUTH_STATE_SECRET') ??
+    (env.FUNCTIONS_EMULATOR === 'true' ? clientSecret : null)
+  if (!stateSecret) return null
   return { clientId, clientSecret, redirectUri, stateSecret }
 }
 

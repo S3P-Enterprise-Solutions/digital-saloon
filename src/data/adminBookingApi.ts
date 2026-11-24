@@ -104,6 +104,7 @@ export async function createManualReservationAdmin(input: {
 export async function updateManualReservationAdmin(input: {
   reservationId: string
   serviceIds: string[]
+  employeeId?: string | null
   startAt: string
   firstName: string
   lastName: string

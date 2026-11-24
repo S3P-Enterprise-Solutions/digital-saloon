@@ -28,6 +28,17 @@ export type MappedBlockedSlot = {
   allDay: boolean
 }
 
+const BASE32HEX = '0123456789abcdefghijklmnopqrstuv'
+
+export function googleEventIdForReservation(salonId: string, reservationId: string): string {
+  const digest = createHash('sha256').update(`${salonId}:${reservationId}`).digest()
+  let out = 'sf'
+  for (let i = 0; i < 20; i += 1) {
+    out += BASE32HEX[digest[i]! % 32]
+  }
+  return out
+}
+
 export function blockedSlotDocIdForGoogleEvent(
   eventId: string,
   employeeId?: string | null,
@@ -110,6 +121,7 @@ export type ReservationGoogleEventInput = {
 }
 
 export type GoogleCalendarEventPayload = {
+  id?: string
   summary: string
   description: string
   start: { dateTime: string; timeZone: string }
@@ -126,21 +138,18 @@ export function reservationToGoogleEvent(
   input: ReservationGoogleEventInput,
 ): GoogleCalendarEventPayload {
   const customerName = `${input.firstName} ${input.lastName}`.trim()
-  const prefix = input.status === 'PENDING' ? '[Pending] ' : ''
+  const prefix =
+    input.status === 'PENDING' ? '[Pending] ' : input.status === 'COMPLETED' ? '[Completed] ' : ''
   const summary = `${prefix}${customerName} — ${input.serviceName}`
 
   const lines = [
     `Service: ${input.serviceName}`,
-    `Customer: ${customerName}`,
-    `Phone: ${input.phone}`,
+    `Status: ${input.status}`,
+    `Booking ID: ${input.reservationId}`,
   ]
-  if (input.email) lines.push(`Email: ${input.email}`)
-  lines.push(`Status: ${input.status}`)
-  if (input.notes) lines.push(`Customer note: ${input.notes}`)
-  if (input.internalNote) lines.push(`Internal note: ${input.internalNote}`)
-  lines.push(`Booking ID: ${input.reservationId}`)
 
   return {
+    id: googleEventIdForReservation(input.salonId, input.reservationId),
     summary,
     description: lines.join('\n'),
     start: { dateTime: input.startAt, timeZone: input.timeZone },

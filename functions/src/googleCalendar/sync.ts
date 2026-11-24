@@ -20,9 +20,25 @@ import {
 } from './client'
 import {
   blockedSlotDocIdForGoogleEvent,
+  googleEventIdForReservation,
   googleEventToBlockedSlot,
   reservationToGoogleEvent,
 } from './mapping'
+
+const FIRESTORE_BATCH_LIMIT = 450
+
+async function commitInChunks(
+  db: Firestore,
+  ops: Array<(batch: FirebaseFirestore.WriteBatch) => void>,
+): Promise<void> {
+  for (let i = 0; i < ops.length; i += FIRESTORE_BATCH_LIMIT) {
+    const batch = db.batch()
+    for (const op of ops.slice(i, i + FIRESTORE_BATCH_LIMIT)) {
+      op(batch)
+    }
+    await batch.commit()
+  }
+}
 
 export type GoogleCalendarIntegrationDoc = {
   employeeId: string | null
@@ -183,11 +199,10 @@ export async function deleteAllSyncedBlockedSlots(
   })
   if (targets.length === 0) return
 
-  const batch = db.batch()
-  for (const doc of targets) {
-    batch.delete(doc.ref)
-  }
-  await batch.commit()
+  await commitInChunks(
+    db,
+    targets.map((doc) => (batch) => batch.delete(doc.ref)),
+  )
 }
 
 export async function syncGoogleCalendarForSalon(
@@ -231,34 +246,36 @@ export async function syncGoogleCalendarForSalon(
     const nowIso = now.toISOString()
     let syncedBlockedSlots = 0
 
-    const batch = db.batch()
+    const ops: Array<(batch: FirebaseFirestore.WriteBatch) => void> = []
     for (const event of events) {
       const mapped = googleEventToBlockedSlot(event, timeZone)
       if (!mapped) continue
       const docId = blockedSlotDocIdForGoogleEvent(event.id, emp)
       activeIds.add(docId)
       const prev = existingById.get(docId)
-      batch.set(blocksCol.doc(docId), {
-        source: 'GOOGLE_CALENDAR',
-        employeeId: emp,
-        googleEventId: event.id,
-        title: mapped.title,
-        reason: mapped.title,
-        startAt: mapped.startAt,
-        endAt: mapped.endAt,
-        allDay: mapped.allDay,
-        createdAt: prev ? String(prev.data().createdAt ?? nowIso) : nowIso,
-        updatedAt: nowIso,
-      })
+      ops.push((batch) =>
+        batch.set(blocksCol.doc(docId), {
+          source: 'GOOGLE_CALENDAR',
+          employeeId: emp,
+          googleEventId: event.id,
+          title: mapped.title,
+          reason: mapped.title,
+          startAt: mapped.startAt,
+          endAt: mapped.endAt,
+          allDay: mapped.allDay,
+          createdAt: prev ? String(prev.data().createdAt ?? nowIso) : nowIso,
+          updatedAt: nowIso,
+        }),
+      )
       syncedBlockedSlots += 1
     }
 
     for (const [docId, doc] of existingById.entries()) {
       if (!activeIds.has(docId)) {
-        batch.delete(doc.ref)
+        ops.push((batch) => batch.delete(doc.ref))
       }
     }
-    await batch.commit()
+    await commitInChunks(db, ops)
 
     // Backfill upcoming active reservations for this employee (or salon-wide when emp is null).
     const resSnap = await db
@@ -295,8 +312,18 @@ export async function syncGoogleCalendarForSalon(
         internalNote: typeof data.internalNote === 'string' ? data.internalNote : null,
         timeZone,
       })
-      const created = await insertEvent(auth.accessToken, calendarId, payload, fetchFn)
-      await doc.ref.update({ googleCalendarEventId: created.id })
+      const deterministicId = googleEventIdForReservation(salonId, doc.id)
+      try {
+        const created = await insertEvent(auth.accessToken, calendarId, payload, fetchFn)
+        await doc.ref.update({ googleCalendarEventId: created.id })
+      } catch (err) {
+        if (err instanceof GoogleApiError && err.status === 409) {
+          await patchEvent(auth.accessToken, calendarId, deterministicId, payload, fetchFn)
+          await doc.ref.update({ googleCalendarEventId: deterministicId })
+        } else {
+          throw err
+        }
+      }
       pushedReservations += 1
     }
 
@@ -359,7 +386,7 @@ export async function syncReservationToGoogleCalendar(
       return
     }
 
-    if (status !== 'PENDING' && status !== 'CONFIRMED') return
+    if (status !== 'PENDING' && status !== 'CONFIRMED' && status !== 'COMPLETED') return
 
     const timeZone = await loadSalonTimezone(db, salonId)
     const payload = reservationToGoogleEvent({
@@ -389,8 +416,18 @@ export async function syncReservationToGoogleCalendar(
       }
     }
 
-    const created = await insertEvent(auth.accessToken, calendarId, payload, fetchFn)
-    await resRef.update({ googleCalendarEventId: created.id })
+    const deterministicId = googleEventIdForReservation(salonId, reservationId)
+    try {
+      const created = await insertEvent(auth.accessToken, calendarId, payload, fetchFn)
+      await resRef.update({ googleCalendarEventId: created.id })
+    } catch (error) {
+      if (error instanceof GoogleApiError && error.status === 409) {
+        await patchEvent(auth.accessToken, calendarId, deterministicId, payload, fetchFn)
+        await resRef.update({ googleCalendarEventId: deterministicId })
+      } else {
+        throw error
+      }
+    }
   } catch (error) {
     console.error('[googleCalendar] syncReservationToGoogleCalendar failed', {
       reservationId,

@@ -147,6 +147,7 @@ export const completeReservation = onCall({ region: functionsRegion }, async (re
   }
   const updatedAt = new Date().toISOString()
   await ref.update({ status: 'COMPLETED', updatedAt })
+  await syncReservationToGoogleCalendar(reservationId)
   const after = await ref.get()
   return { reservation: viewOf(after) }
 })
@@ -213,6 +214,14 @@ export const adminUpdateReservation = onCall({ region: functionsRegion }, async 
           : null,
       serviceId,
       serviceIds,
+      ...(request.data.employeeId !== undefined
+        ? {
+            employeeId:
+              typeof request.data.employeeId === 'string' && request.data.employeeId.trim()
+                ? request.data.employeeId.trim()
+                : null,
+          }
+        : {}),
       startAt,
       internalNote:
         typeof request.data.internalNote === 'string' && request.data.internalNote.trim().length > 0
