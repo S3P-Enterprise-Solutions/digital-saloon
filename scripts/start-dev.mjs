@@ -10,7 +10,12 @@ import { createProcessSupervisor, localBin } from './lib/process-tree.mjs'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const brandArg = process.argv.find((arg) => arg.startsWith('--brand='))?.split('=')[1]
 const activeBrand = (brandArg || process.env.VITE_BRAND || 'kimm').trim().toLowerCase()
-const defaultSalonId = activeBrand === 'salon1500' ? 'salon1500' : 'pilot'
+const defaultSalonId =
+  activeBrand === 'salon1500'
+    ? 'salon1500'
+    : activeBrand === 'hairboutique'
+      ? 'hairboutique'
+      : 'pilot'
 const activeSalonId = (process.env.VITE_SALON_ID || defaultSalonId).trim()
 const skipBuild = process.env.DEV_SKIP_BUILD === 'true'
 const forceFreePorts = resolveForceFreePorts()

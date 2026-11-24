@@ -22,7 +22,7 @@ function activeAdminNavOf(pathname: string): AdminNavItem | null {
 }
 
 const RootRoute: React.FunctionComponent = () => {
-  const { user } = useAuth()
+  const { user, isOperator } = useAuth()
   const navigate = useNavigate()
   const signOut = useSignOut()
   const salon = useSalon()
@@ -32,7 +32,7 @@ const RootRoute: React.FunctionComponent = () => {
   return (
     <AppShell
       salon={salon.data ?? null}
-      email={user?.email ?? null}
+      email={user ? (user.email ?? (isOperator ? 'Operator' : 'Admin')) : null}
       activeAdminNav={activeAdminNavOf(pathname)}
       contentWidth={
         pathname === '/' || pathname === '/balayage'

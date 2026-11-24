@@ -4,6 +4,7 @@ import type { ReservationStatus } from '../data/schemas'
 import {
   formatBookedTime,
   hhmmOfMinute,
+  type PlannerBlockedEntry,
   type PlannerDay,
   type PlannerEntry,
   type WeekPlan,
@@ -11,6 +12,7 @@ import {
 import { useLocale } from '../i18n'
 import type { MessageKey } from '../i18n'
 import {
+  BlockedEntry,
   DayColumn,
   DayHeader,
   Entry,
@@ -57,6 +59,9 @@ const PlannerEntryButton: React.FunctionComponent<PlannerEntryButtonProps> = ({
   const { reservation } = entry
   const time = `${hhmmOfMinute(entry.startMinute)}–${hhmmOfMinute(entry.endMinute)}`
   const name = `${reservation.firstName} ${reservation.lastName}`
+  const serviceLabel = reservation.employeeName
+    ? `${reservation.serviceName} · ${reservation.employeeName}`
+    : reservation.serviceName
   const status = t(`status.${reservation.status}` as MessageKey)
   const height = Math.max((entry.endMinute - entry.startMinute) * pixelsPerMinute - 2, 22)
   const widthShare = 100 / entry.laneCount
@@ -65,8 +70,8 @@ const PlannerEntryButton: React.FunctionComponent<PlannerEntryButtonProps> = ({
     <Entry
       type="button"
       className={entryClass[reservation.status]}
-      aria-label={`${time}, ${name}, ${reservation.serviceName}, ${status}`}
-      title={`${time}\n${name}\n${reservation.serviceName}\n${status}`}
+      aria-label={`${time}, ${name}, ${serviceLabel}, ${status}`}
+      title={`${time}\n${name}\n${serviceLabel}\n${status}`}
       style={{
         top: (entry.startMinute - gridStartMinute) * pixelsPerMinute + 1,
         height,
@@ -82,9 +87,7 @@ const PlannerEntryButton: React.FunctionComponent<PlannerEntryButtonProps> = ({
     >
       <span className="entry-time">{hhmmOfMinute(entry.startMinute)}</span>
       <span className="entry-name">{name}</span>
-      {height >= detailedEntryHeight ? (
-        <span className="entry-service">{reservation.serviceName}</span>
-      ) : null}
+      {height >= detailedEntryHeight ? <span className="entry-service">{serviceLabel}</span> : null}
     </Entry>
   )
 }
@@ -92,13 +95,41 @@ const PlannerEntryButton: React.FunctionComponent<PlannerEntryButtonProps> = ({
 type PlannerDayColumnProps = {
   day: PlannerDay
   gridStartMinute: number
+  gridEndMinute: number
   nowMinute: number | null
   onSelectReservation: (reservationId: string, anchorEl: HTMLElement) => void
+}
+
+const PlannerBlockedBlock: React.FunctionComponent<{
+  entry: PlannerBlockedEntry
+  gridStartMinute: number
+  gridEndMinute: number
+}> = ({ entry, gridStartMinute, gridEndMinute }) => {
+  const { t } = useLocale()
+  const clampedStart = Math.max(entry.startMinute, gridStartMinute)
+  const clampedEnd = Math.min(entry.endMinute, gridEndMinute)
+  if (clampedEnd <= clampedStart) return null
+  const height = Math.max((clampedEnd - clampedStart) * pixelsPerMinute - 2, 20)
+  const label = entry.block.title || entry.block.reason || t('admin.googleCalendarEventFallback')
+  const time = `${hhmmOfMinute(entry.startMinute)}–${hhmmOfMinute(entry.endMinute)}`
+  return (
+    <BlockedEntry
+      title={`${time}\n${label}`}
+      style={{
+        top: (clampedStart - gridStartMinute) * pixelsPerMinute + 1,
+        height,
+      }}
+    >
+      <span className="entry-time">{hhmmOfMinute(clampedStart)}</span>
+      <span className="entry-name">{label}</span>
+    </BlockedEntry>
+  )
 }
 
 const PlannerDayColumn: React.FunctionComponent<PlannerDayColumnProps> = ({
   day,
   gridStartMinute,
+  gridEndMinute,
   nowMinute,
   onSelectReservation,
 }) => (
@@ -110,6 +141,14 @@ const PlannerDayColumn: React.FunctionComponent<PlannerDayColumnProps> = ({
           top: (interval.startMinute - gridStartMinute) * pixelsPerMinute,
           height: (interval.endMinute - interval.startMinute) * pixelsPerMinute,
         }}
+      />
+    ))}
+    {day.blockedEntries.map((entry) => (
+      <PlannerBlockedBlock
+        key={entry.block.id}
+        entry={entry}
+        gridStartMinute={gridStartMinute}
+        gridEndMinute={gridEndMinute}
       />
     ))}
     {day.entries.map((entry) => (
@@ -199,6 +238,7 @@ export const WeekPlanner: React.FunctionComponent<WeekPlannerProps> = ({
               key={day.dateYmd}
               day={day}
               gridStartMinute={gridStartMinute}
+              gridEndMinute={gridEndMinute}
               nowMinute={day.isToday ? nowMinute : null}
               onSelectReservation={onSelectReservation}
             />
@@ -218,6 +258,10 @@ export const WeekPlanner: React.FunctionComponent<WeekPlannerProps> = ({
         <li>
           <span className="swatch is-completed" />
           {t('status.COMPLETED')}
+        </li>
+        <li>
+          <span className="swatch is-blocked" />
+          {t('admin.googleCalendarLegend')}
         </li>
         <li>
           <span className="swatch is-closed" />

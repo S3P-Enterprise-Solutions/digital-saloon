@@ -50,13 +50,28 @@ describe('active brand module', () => {
     expect(() => getActiveBrandKey()).toThrow(/Unknown VITE_BRAND/)
   })
 
-  it('both brand modules satisfy the BrandModule contract', async () => {
+  it('selects hairboutique when VITE_BRAND=hairboutique', async () => {
+    vi.stubEnv('VITE_BRAND', 'hairboutique')
+    const { getActiveBrandKey } = await import('./brandKey')
+    const { getActiveBrandModule } = await import('./active')
+    expect(getActiveBrandKey()).toBe('hairboutique')
+    const module = getActiveBrandModule()
+    expect(module.key).toBe('hairboutique')
+    expect(module.profile.name).toBe('Hairboutique OHG')
+    expect(module.profile.stylists).toHaveLength(2)
+    assertBrandModuleContract(module)
+  })
+
+  it('all brand modules satisfy the BrandModule contract', async () => {
     const { kimmModule } = await import('./kimm/module')
     const { salon1500Module } = await import('./salon1500/module')
+    const { hairboutiqueModule } = await import('./hairboutique/module')
     assertBrandModuleContract(kimmModule)
     assertBrandModuleContract(salon1500Module)
+    assertBrandModuleContract(hairboutiqueModule)
     expect(kimmModule.features).toEqual(expect.any(Object))
     expect(salon1500Module.features).toEqual(expect.any(Object))
+    expect(hairboutiqueModule.features).toEqual(expect.any(Object))
   })
 
   it('does not leave Task 1 stub home pages behind', async () => {

@@ -236,7 +236,23 @@ export function buildBookingIcs(input: BookingEmailInput, manageUrl: string | nu
   return `${lines.map(foldIcsLine).join('\r\n')}\r\n`
 }
 
-function getEmailPalette() {
+export function getEmailPalette() {
+  if (getBrandKey() === 'hairboutique') {
+    return {
+      canvasBg: '#E7ECEA',
+      footerBg: '#F9FAFA',
+      primary: '#242C2B',
+      muted: '#5A6664',
+      accent: '#242C2B',
+      accentText: '#242C2B',
+      border: '#C9D3D0',
+      rowBorder: '#DCE3E1',
+      confirmedBadgeBg: '#242C2B',
+      confirmedBadgeText: '#F9FAFA',
+      fontFamily: "'Plus Jakarta Sans','Helvetica Neue',Arial,sans-serif",
+      headingFontFamily: "'Plus Jakarta Sans','Helvetica Neue',Arial,sans-serif",
+    }
+  }
   if (getBrandKey() === 'salon1500') {
     return {
       canvasBg: '#FAF6F2',

@@ -3,7 +3,13 @@ import { randomBytes } from 'node:crypto'
 import { getFirestore, type Firestore } from 'firebase-admin/firestore'
 
 import { isSlotAvailable, listAvailableSlots } from '../domain/availability'
-import { loadBusyIntervals, loadSalonContext, type SalonContext } from './salonContext'
+import {
+  loadActiveEmployees,
+  loadBusyIntervals,
+  loadSalonContext,
+  type ActiveEmployee,
+  type SalonContext,
+} from './salonContext'
 import { hashManagementToken } from './tokens'
 
 export type CreateReservationInput = {
@@ -14,6 +20,7 @@ export type CreateReservationInput = {
   notes?: string | null
   serviceId: string
   serviceIds?: string[]
+  employeeId?: string | null
   startAt: Date
   source: 'ONLINE' | 'MANUAL'
   internalNote: string | null
@@ -39,8 +46,9 @@ export type CreateReservationResult =
     }
   | { ok: false; code: 'UNAVAILABLE' | 'SERVICE_INACTIVE' | 'NOT_FOUND'; message: string }
 
-export function lockIdForStart(startAt: Date): string {
-  return startAt.toISOString().replace(/[:.]/g, '-')
+export function lockIdForStart(startAt: Date, employeeId?: string | null): string {
+  const base = startAt.toISOString().replace(/[:.]/g, '-')
+  return employeeId ? `${employeeId}_${base}` : base
 }
 
 /** Snapshot label for a booking: bilingual when DE/IT differ, with legacy `name` fallback. */
@@ -162,16 +170,29 @@ export async function createReservationTransactional(
     }
   }
 
+  const activeEmployees = await loadActiveEmployees(db, context.salonId)
+  const requestedEmployeeId =
+    typeof input.employeeId === 'string' && input.employeeId.trim() ? input.employeeId.trim() : null
+
+  let candidateEmployees: Array<ActiveEmployee | null>
+  if (requestedEmployeeId) {
+    const matched = activeEmployees.find((emp) => emp.id === requestedEmployeeId)
+    if (!matched) {
+      return { ok: false, code: 'NOT_FOUND', message: 'Selected employee not found.' }
+    }
+    candidateEmployees = [matched]
+  } else if (activeEmployees.length > 0) {
+    candidateEmployees = activeEmployees
+  } else {
+    candidateEmployees = [null]
+  }
+
   const reservationRef = db
     .collection('salons')
     .doc(context.salonId)
     .collection('reservations')
     .doc()
-  const lockRef = db
-    .collection('salons')
-    .doc(context.salonId)
-    .collection('slotLocks')
-    .doc(lockIdForStart(input.startAt))
+  const slotLocksCol = db.collection('salons').doc(context.salonId).collection('slotLocks')
 
   const managementToken = randomBytes(32).toString('base64url')
   const managementTokenHash = hashManagementToken(managementToken)
@@ -183,10 +204,10 @@ export async function createReservationTransactional(
 
   try {
     await db.runTransaction(async (tx) => {
-      const lockSnap = await tx.get(lockRef)
-      if (lockSnap.exists) {
-        throw new Error('UNAVAILABLE')
-      }
+      const lockRefs = candidateEmployees.map((emp) =>
+        slotLocksCol.doc(lockIdForStart(input.startAt, emp?.id ?? null)),
+      )
+      const lockSnaps = await Promise.all(lockRefs.map((ref) => tx.get(ref)))
 
       // Re-read blocking reservations overlapping this window inside the transaction.
       const overlapQuery = db
@@ -195,7 +216,7 @@ export async function createReservationTransactional(
         .collection('reservations')
         .where('startAt', '<', endAt.toISOString())
       const overlapSnap = await tx.get(overlapQuery)
-      const busyFromReservations = overlapSnap.docs
+      const overlappingReservations = overlapSnap.docs
         .filter((doc) => {
           const data = doc.data()
           if (data.status !== 'PENDING' && data.status !== 'CONFIRMED') return false
@@ -203,6 +224,7 @@ export async function createReservationTransactional(
           return existingEnd.getTime() > input.startAt.getTime()
         })
         .map((doc) => ({
+          employeeId: typeof doc.data().employeeId === 'string' ? doc.data().employeeId : null,
           startAt: new Date(String(doc.data().startAt)),
           endAt: new Date(String(doc.data().endAt)),
         }))
@@ -214,32 +236,56 @@ export async function createReservationTransactional(
           .collection('blockedSlots')
           .where('startAt', '<', endAt.toISOString()),
       )
-      const busyFromBlocks = blocksSnap.docs
+      const overlappingBlocks = blocksSnap.docs
         .filter((doc) => new Date(String(doc.data().endAt)).getTime() > input.startAt.getTime())
         .map((doc) => ({
+          employeeId: typeof doc.data().employeeId === 'string' ? doc.data().employeeId : null,
           startAt: new Date(String(doc.data().startAt)),
           endAt: new Date(String(doc.data().endAt)),
         }))
 
-      const available = isSlotAvailable({
-        startAt: input.startAt,
-        durationMinutes,
-        timeZone: context.timeZone,
-        weekly: context.weekly,
-        holidays: context.holidays,
-        dayExceptions: context.dayExceptions,
-        busy: [...busyFromReservations, ...busyFromBlocks],
-        settings: context.settings,
-        now,
-        enforceAdvanceRestrictions: input.enforceAdvanceRestrictions,
-      })
+      let chosenEmployee: ActiveEmployee | null = null
+      let chosenLockRef = lockRefs[0]
+      let foundAvailable = false
 
-      if (!available) {
+      for (let i = 0; i < candidateEmployees.length; i += 1) {
+        if (lockSnaps[i].exists) continue
+        const candidate = candidateEmployees[i]
+        const empId = candidate?.id ?? null
+        const busy = [
+          ...overlappingReservations.filter(
+            (r) => !empId || !r.employeeId || r.employeeId === empId,
+          ),
+          ...overlappingBlocks.filter((b) => !empId || !b.employeeId || b.employeeId === empId),
+        ].map((item) => ({ startAt: item.startAt, endAt: item.endAt }))
+
+        const available = isSlotAvailable({
+          startAt: input.startAt,
+          durationMinutes,
+          timeZone: context.timeZone,
+          weekly: context.weekly,
+          holidays: context.holidays,
+          dayExceptions: context.dayExceptions,
+          busy,
+          settings: context.settings,
+          now,
+          enforceAdvanceRestrictions: input.enforceAdvanceRestrictions,
+        })
+        if (available) {
+          chosenEmployee = candidate
+          chosenLockRef = lockRefs[i]
+          foundAvailable = true
+          break
+        }
+      }
+
+      if (!foundAvailable) {
         throw new Error('UNAVAILABLE')
       }
 
-      tx.set(lockRef, {
+      tx.set(chosenLockRef, {
         reservationId: reservationRef.id,
+        employeeId: chosenEmployee?.id ?? null,
         startAt: input.startAt.toISOString(),
         endAt: endAt.toISOString(),
         createdAt,
@@ -256,6 +302,8 @@ export async function createReservationTransactional(
         serviceName,
         durationMinutes,
         priceCents,
+        employeeId: chosenEmployee?.id ?? null,
+        employeeName: chosenEmployee?.displayName ?? null,
         startAt: input.startAt.toISOString(),
         endAt: endAt.toISOString(),
         status,
@@ -297,6 +345,7 @@ export type UpdateReservationInput = {
   email: string | null
   serviceId: string
   serviceIds?: string[]
+  employeeId?: string | null
   startAt: Date
   internalNote: string | null
   enforceAdvanceRestrictions: boolean
@@ -359,16 +408,43 @@ export async function updateReservationTransactional(
   const newStartAt = input.startAt
   const newEndAt = new Date(newStartAt.getTime() + durationMinutes * 60_000)
   const oldStartAt = new Date(String(existing.startAt))
+  const oldEmpId =
+    typeof existing.employeeId === 'string' && existing.employeeId.trim()
+      ? existing.employeeId.trim()
+      : null
+  let empId = oldEmpId
+  let empName: string | null =
+    typeof existing.employeeName === 'string' && existing.employeeName.trim()
+      ? existing.employeeName.trim()
+      : null
+  if (input.employeeId !== undefined) {
+    const requestedEmpId =
+      typeof input.employeeId === 'string' && input.employeeId.trim()
+        ? input.employeeId.trim()
+        : null
+    if (requestedEmpId) {
+      const activeEmployees = await loadActiveEmployees(db, context.salonId)
+      const matched = activeEmployees.find((emp) => emp.id === requestedEmpId)
+      if (!matched) {
+        return { ok: false, code: 'NOT_FOUND', message: 'Selected employee not found.' }
+      }
+      empId = matched.id
+      empName = matched.displayName
+    } else {
+      empId = null
+      empName = null
+    }
+  }
   const oldLockRef = db
     .collection('salons')
     .doc(context.salonId)
     .collection('slotLocks')
-    .doc(lockIdForStart(oldStartAt))
+    .doc(lockIdForStart(oldStartAt, oldEmpId))
   const newLockRef = db
     .collection('salons')
     .doc(context.salonId)
     .collection('slotLocks')
-    .doc(lockIdForStart(newStartAt))
+    .doc(lockIdForStart(newStartAt, empId))
   const updatedAt = now.toISOString()
   const sameLock = oldLockRef.path === newLockRef.path
 
@@ -397,6 +473,7 @@ export async function updateReservationTransactional(
           if (doc.id === input.reservationId) return false
           const data = doc.data()
           if (data.status !== 'PENDING' && data.status !== 'CONFIRMED') return false
+          if (empId && data.employeeId && String(data.employeeId) !== empId) return false
           return new Date(String(data.endAt)).getTime() > newStartAt.getTime()
         })
         .map((doc) => ({
@@ -412,7 +489,11 @@ export async function updateReservationTransactional(
           .where('startAt', '<', newEndAt.toISOString()),
       )
       const busyFromBlocks = blocksSnap.docs
-        .filter((doc) => new Date(String(doc.data().endAt)).getTime() > newStartAt.getTime())
+        .filter((doc) => {
+          const data = doc.data()
+          if (empId && data.employeeId && String(data.employeeId) !== empId) return false
+          return new Date(String(data.endAt)).getTime() > newStartAt.getTime()
+        })
         .map((doc) => ({
           startAt: new Date(String(doc.data().startAt)),
           endAt: new Date(String(doc.data().endAt)),
@@ -440,6 +521,7 @@ export async function updateReservationTransactional(
         }
         tx.set(newLockRef, {
           reservationId: input.reservationId,
+          employeeId: empId,
           startAt: newStartAt.toISOString(),
           endAt: newEndAt.toISOString(),
           createdAt: updatedAt,
@@ -463,6 +545,8 @@ export async function updateReservationTransactional(
         serviceName,
         durationMinutes,
         priceCents,
+        employeeId: empId,
+        employeeName: empName,
         startAt: newStartAt.toISOString(),
         endAt: newEndAt.toISOString(),
         internalNote: input.internalNote,
@@ -496,6 +580,7 @@ export async function updateReservationTransactional(
 export async function previewAvailableSlots(input: {
   serviceId?: string
   serviceIds?: string[]
+  employeeId?: string | null
   fromDateYmd: string
   toDateYmd: string
   now?: Date
@@ -531,30 +616,46 @@ export async function previewAvailableSlots(input: {
   }
   const rangeStart = new Date(`${input.fromDateYmd}T00:00:00.000Z`)
   const rangeEnd = new Date(`${input.toDateYmd}T23:59:59.999Z`)
-  const busy = await loadBusyIntervals(
-    db,
-    context.salonId,
-    rangeStart,
-    rangeEnd,
-    input.excludeReservationId ?? input.reschedule?.reservationId,
-  )
+  const activeEmployees = await loadActiveEmployees(db, context.salonId)
+  const requestedEmployeeId =
+    typeof input.employeeId === 'string' && input.employeeId.trim() ? input.employeeId.trim() : null
 
-  const slots = listAvailableSlots({
-    timeZone: context.timeZone,
-    weekly: context.weekly,
-    holidays: context.holidays,
-    dayExceptions: context.dayExceptions,
-    busy,
-    durationMinutes,
-    settings: context.settings,
-    now: input.now ?? new Date(),
-    fromDateYmd: input.fromDateYmd,
-    toDateYmd: input.toDateYmd,
-    enforceAdvanceRestrictions: input.enforceAdvanceRestrictions !== false,
-  })
+  const employeeIdsToCheck: Array<string | null> = requestedEmployeeId
+    ? [requestedEmployeeId]
+    : activeEmployees.length > 0
+      ? activeEmployees.map((emp) => emp.id)
+      : [null]
 
-  return slots.map((slot) => ({
-    startAt: slot.startAt.toISOString(),
-    endAt: slot.endAt.toISOString(),
-  }))
+  const slotMap = new Map<string, { startAt: string; endAt: string }>()
+  for (const empId of employeeIdsToCheck) {
+    const busy = await loadBusyIntervals(
+      db,
+      context.salonId,
+      rangeStart,
+      rangeEnd,
+      input.excludeReservationId ?? input.reschedule?.reservationId,
+      empId,
+    )
+    const slots = listAvailableSlots({
+      timeZone: context.timeZone,
+      weekly: context.weekly,
+      holidays: context.holidays,
+      dayExceptions: context.dayExceptions,
+      busy,
+      durationMinutes,
+      settings: context.settings,
+      now: input.now ?? new Date(),
+      fromDateYmd: input.fromDateYmd,
+      toDateYmd: input.toDateYmd,
+      enforceAdvanceRestrictions: input.enforceAdvanceRestrictions !== false,
+    })
+    for (const slot of slots) {
+      const startIso = slot.startAt.toISOString()
+      if (!slotMap.has(startIso)) {
+        slotMap.set(startIso, { startAt: startIso, endAt: slot.endAt.toISOString() })
+      }
+    }
+  }
+
+  return Array.from(slotMap.values()).sort((a, b) => a.startAt.localeCompare(b.startAt))
 }

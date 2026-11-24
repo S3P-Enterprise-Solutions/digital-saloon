@@ -94,12 +94,36 @@ export async function loadSalonContext(
   }
 }
 
+export type ActiveEmployee = {
+  id: string
+  displayName: string
+}
+
+export async function loadActiveEmployees(
+  db: Firestore,
+  salonId: string,
+): Promise<ActiveEmployee[]> {
+  const snap = await db
+    .collection('salons')
+    .doc(salonId)
+    .collection('employees')
+    .where('active', '==', true)
+    .get()
+  return snap.docs
+    .map((doc) => ({
+      id: doc.id,
+      displayName: String(doc.data().displayName ?? '').trim() || doc.id,
+    }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName))
+}
+
 export async function loadBusyIntervals(
   db: Firestore,
   salonId: string,
   rangeStart: Date,
   rangeEnd: Date,
   excludeReservationId?: string,
+  employeeId?: string | null,
 ): Promise<BusyInterval[]> {
   const salonRef = db.collection('salons').doc(salonId)
   const [reservationsSnap, blocksSnap] = await Promise.all([
@@ -113,6 +137,7 @@ export async function loadBusyIntervals(
     if (excludeReservationId && doc.id === excludeReservationId) continue
     const data = doc.data()
     if (!BLOCKING_STATUSES.has(String(data.status))) continue
+    if (employeeId && data.employeeId && String(data.employeeId) !== employeeId) continue
     const startAt = new Date(String(data.startAt))
     const endAt = new Date(String(data.endAt))
     if (endAt.getTime() <= rangeStart.getTime()) continue
@@ -121,6 +146,7 @@ export async function loadBusyIntervals(
 
   for (const doc of blocksSnap.docs) {
     const data = doc.data()
+    if (employeeId && data.employeeId && String(data.employeeId) !== employeeId) continue
     const startAt = new Date(String(data.startAt))
     const endAt = new Date(String(data.endAt))
     if (endAt.getTime() <= rangeStart.getTime()) continue

@@ -2,6 +2,7 @@ import { addCalendarDays } from './calendarMath'
 import { startOfWeekYmd } from './calendarRange'
 import type { OpeningHoursByWeekday } from './openingHours'
 import { minuteOfHhmm, openIntervalsForDate, weekdayOfYmd, type Closures } from './openingRules'
+import type { BlockedSlotWithId } from './blockedSlots'
 import type { ReservationWithId } from './reservations'
 import type { ReservationStatus, Weekday } from './schemas'
 
@@ -20,12 +21,17 @@ export type PlannerEntry = MinuteInterval & {
   laneCount: number
 }
 
+export type PlannerBlockedEntry = MinuteInterval & {
+  block: BlockedSlotWithId
+}
+
 export type PlannerDay = {
   dateYmd: string
   weekday: Weekday
   isToday: boolean
   openIntervals: MinuteInterval[]
   entries: PlannerEntry[]
+  blockedEntries: PlannerBlockedEntry[]
   count: number
   bookedMinutes: number
 }
@@ -153,6 +159,8 @@ function assignLanes(
 
 export type PlanWeekInput = {
   reservations: readonly ReservationWithId[]
+  blockedSlots?: readonly BlockedSlotWithId[]
+  employeeId?: string | null
   weekStartYmd: string
   openingHours: Partial<OpeningHoursByWeekday> | undefined
   /** Holidays and day exceptions; days they close show as closed in the planner. */
@@ -163,6 +171,8 @@ export type PlanWeekInput = {
 
 export function planWeek({
   reservations,
+  blockedSlots = [],
+  employeeId,
   weekStartYmd,
   openingHours,
   closures,
@@ -175,6 +185,7 @@ export function planWeek({
   const byDate = new Map<string, Array<MinuteInterval & { reservation: ReservationWithId }>>()
   for (const reservation of reservations) {
     if (!plannedStatuses.has(reservation.status)) continue
+    if (employeeId && reservation.employeeId !== employeeId) continue
     const start = zonedDateAndMinute(reservation.startAt, timeZone)
     if (!dates.includes(start.dateYmd)) continue
     const end = zonedDateAndMinute(reservation.endAt, timeZone)
@@ -182,6 +193,23 @@ export function planWeek({
     const items = byDate.get(start.dateYmd) ?? []
     items.push({ reservation, startMinute: start.minute, endMinute })
     byDate.set(start.dateYmd, items)
+  }
+
+  const blockedByDate = new Map<string, PlannerBlockedEntry[]>()
+  for (const block of blockedSlots) {
+    if (employeeId && block.employeeId && block.employeeId !== employeeId) continue
+    const start = zonedDateAndMinute(block.startAt, timeZone)
+    const end = zonedDateAndMinute(block.endAt, timeZone)
+    for (const dateYmd of dates) {
+      if (start.dateYmd > dateYmd || end.dateYmd < dateYmd) continue
+      if (end.dateYmd === dateYmd && end.minute === 0) continue
+      const startMinute = start.dateYmd < dateYmd ? 0 : start.minute
+      const endMinute = end.dateYmd > dateYmd ? 24 * 60 : end.minute
+      if (endMinute <= startMinute) continue
+      const list = blockedByDate.get(dateYmd) ?? []
+      list.push({ block, startMinute, endMinute })
+      blockedByDate.set(dateYmd, list)
+    }
   }
 
   let earliest = Number.POSITIVE_INFINITY
@@ -195,6 +223,7 @@ export function planWeek({
       endMinute: minuteOfHhmm(interval.end),
     }))
     const entries = assignLanes(byDate.get(dateYmd) ?? [])
+    const blockedEntries = blockedByDate.get(dateYmd) ?? []
 
     for (const interval of [...openIntervals, ...entries]) {
       earliest = Math.min(earliest, interval.startMinute)
@@ -215,6 +244,7 @@ export function planWeek({
       isToday: dateYmd === current.dateYmd,
       openIntervals,
       entries,
+      blockedEntries,
       count: entries.length,
       bookedMinutes,
     }

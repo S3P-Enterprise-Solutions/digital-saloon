@@ -1,6 +1,10 @@
 import type { BrandKey } from './types'
 
-export const KNOWN_BRAND_KEYS = ['kimm', 'salon1500'] as const satisfies readonly BrandKey[]
+export const KNOWN_BRAND_KEYS = [
+  'kimm',
+  'salon1500',
+  'hairboutique',
+] as const satisfies readonly BrandKey[]
 
 function isBrandKey(value: string): value is BrandKey {
   return (KNOWN_BRAND_KEYS as readonly string[]).includes(value)
@@ -25,4 +29,5 @@ export function getActiveBrandKey(): BrandKey {
 export const defaultSalonIdByBrand: Record<BrandKey, string> = {
   kimm: 'pilot',
   salon1500: 'salon1500',
+  hairboutique: 'hairboutique',
 }

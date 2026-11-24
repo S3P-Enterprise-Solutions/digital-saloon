@@ -19,4 +19,11 @@ describe('brand key + default salon id', () => {
     const { getSalonId } = await import('./salonConfig')
     expect(getSalonId()).toBe('salon1500')
   })
+
+  it('uses hairboutique default salon id when VITE_BRAND=hairboutique', async () => {
+    vi.stubEnv('VITE_BRAND', 'hairboutique')
+    vi.stubEnv('VITE_SALON_ID', '')
+    const { getSalonId } = await import('./salonConfig')
+    expect(getSalonId()).toBe('hairboutique')
+  })
 })

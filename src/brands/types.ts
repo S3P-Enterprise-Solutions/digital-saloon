@@ -9,7 +9,7 @@ import type { BalayageContent } from '../features/balayage/content'
 
 export type { BalayageContent }
 
-export type BrandKey = 'kimm' | 'salon1500'
+export type BrandKey = 'kimm' | 'salon1500' | 'hairboutique'
 
 export type BrandStylist = {
   name: string
@@ -33,6 +33,8 @@ export type BrandProfile = {
   logoUrl?: string
   instagramUrl?: string
   instagramHandle?: string
+  mapsUrl?: string
+  facebookUrl?: string
   place: Record<Locale, string>
   heroIntro: Record<Locale, string>
   heroSlides: readonly string[]
