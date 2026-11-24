@@ -71,3 +71,18 @@ test('Resend fallback keeps default sender', () => {
     from: 'onboarding@resend.dev',
   })
 })
+
+test('getEmailPalette returns complete palette for kimm, salon1500, and hairboutique', async () => {
+  const { getEmailPalette } = await import('./lib/booking/sendBookingEmail.js')
+  const prevBrand = process.env.BRAND
+  try {
+    for (const brand of ['kimm', 'salon1500', 'hairboutique']) {
+      process.env.BRAND = brand
+      const p = getEmailPalette()
+      assert.ok(p.canvasBg && p.primary && p.accent && p.fontFamily && p.headingFontFamily)
+    }
+  } finally {
+    if (prevBrand === undefined) delete process.env.BRAND
+    else process.env.BRAND = prevBrand
+  }
+})

@@ -2,6 +2,7 @@
   "projects": {
     "default": "demo-react-firebase-template",
     "kimm": "kimm-hair",
-    "salon1500": "salon-1500"
+    "salon1500": "salon-1500",
+    "hairboutique": "hairboutique-ohg"
   }
 }

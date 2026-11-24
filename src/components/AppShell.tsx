@@ -27,7 +27,7 @@ import { localeLabels, locales } from '../i18n'
 import { brand } from '../theme'
 import { FooterLink, Header, LanguageSwitch, NavIconButton, NavLink } from './AppShell.styles'
 import { PullToRefresh } from './PullToRefresh'
-import { HeaderWordmark } from './Wordmark'
+import { HairboutiqueInlineMark, HeaderWordmark } from './Wordmark'
 
 /** Staff header entry matching the current page; `null` outside the admin area. */
 export type AdminNavItem = 'calendar' | 'pending' | 'settings'
@@ -247,7 +247,13 @@ export const AppShell: React.FunctionComponent<AppShellProps> = ({
             spacing={{ xs: 2, sm: 6 }}
             sx={{ alignItems: { sm: 'baseline' } }}
           >
-            {activeBrand.key === 'salon1500' ? (
+            {activeBrand.key === 'hairboutique' ? (
+              <HairboutiqueInlineMark
+                scriptSize="1.35rem"
+                sansSize="0.85rem"
+                sansColor="rgba(249, 250, 250, 0.85)"
+              />
+            ) : activeBrand.key === 'salon1500' ? (
               <Typography sx={{ fontWeight: 700, fontSize: '1.125rem' }}>
                 <Box component="span" sx={{ color: brand.orange }}>
                   Salon

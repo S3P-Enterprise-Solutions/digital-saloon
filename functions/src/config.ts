@@ -15,10 +15,12 @@ export function getDefaultTimezone(): string {
 
 export const functionsRegion = 'europe-west8' as const
 
-export function getBrandKey(): 'kimm' | 'salon1500' {
+export function getBrandKey(): 'kimm' | 'salon1500' | 'hairboutique' {
   const fromEnv = process.env.BRAND?.trim().toLowerCase()
   if (fromEnv === 'salon1500') return 'salon1500'
+  if (fromEnv === 'hairboutique') return 'hairboutique'
   if (getSalonId() === 'salon1500') return 'salon1500'
+  if (getSalonId() === 'hairboutique') return 'hairboutique'
   return 'kimm'
 }
 

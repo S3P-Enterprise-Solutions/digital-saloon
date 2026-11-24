@@ -10,13 +10,22 @@ import { LocaleProvider } from './i18n'
 import { router } from './router'
 import { brand, theme } from './theme'
 
-const isSalon1500 =
-  typeof import.meta.env.VITE_BRAND === 'string' &&
-  import.meta.env.VITE_BRAND.trim().toLowerCase() === 'salon1500'
-document.title = `${isSalon1500 ? 'Salon 1500' : 'KIMM Hair'} – Online-Terminbuchung`
+const rawBrand =
+  typeof import.meta.env.VITE_BRAND === 'string'
+    ? import.meta.env.VITE_BRAND.trim().toLowerCase()
+    : 'kimm'
+const brandTitle =
+  rawBrand === 'salon1500'
+    ? 'Salon 1500'
+    : rawBrand === 'hairboutique'
+      ? 'Hairboutique OHG'
+      : 'KIMM Hair'
+document.title = `${brandTitle} – Online-Terminbuchung`
 const iconLink = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
-if (iconLink && isSalon1500) {
+if (iconLink && rawBrand === 'salon1500') {
   iconLink.href = '/favicon-salon1500.svg'
+} else if (iconLink && rawBrand === 'hairboutique') {
+  iconLink.href = '/favicon-hairboutique.svg'
 }
 const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
 if (themeMeta) {
