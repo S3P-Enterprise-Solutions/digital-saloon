@@ -215,7 +215,12 @@ export type ActivityAction = v.InferOutput<typeof activityActionSchema>
 export const activitySourceSchema = v.picklist(['client', 'server'] as const)
 export type ActivitySource = v.InferOutput<typeof activitySourceSchema>
 
-export const activityActorTypeSchema = v.picklist(['anonymous', 'admin', 'operator'] as const)
+export const activityActorTypeSchema = v.picklist([
+  'anonymous',
+  'user',
+  'admin',
+  'operator',
+] as const)
 export type ActivityActorType = v.InferOutput<typeof activityActorTypeSchema>
 
 export const activityDetailValueSchema = v.nullable(v.union([v.string(), v.number(), v.boolean()]))

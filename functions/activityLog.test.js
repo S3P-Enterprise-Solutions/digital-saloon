@@ -4,10 +4,14 @@ import test from 'node:test'
 import {
   extractClientIp,
   extractUserAgent,
+  isPageViewRateLimited,
   parseBrowserSummary,
+  resetPageViewRateLimiter,
+  resolveActorFromRequest,
   sanitizeDetails,
   sanitizePath,
   sanitizeSessionId,
+  validateClientActivityRequest,
 } from './lib/logging/activityLog.js'
 
 test('logActivity callable is exported from lib/index.js', async () => {
@@ -109,4 +113,100 @@ test('sanitizeDetails keeps bounded primitives and drops unsafe keys or nested o
     },
   )
   assert.equal(sanitizeDetails({}), null)
+})
+
+test('resolveActorFromRequest distinguishes anonymous, user, admin, and operator', async () => {
+  assert.deepEqual(await resolveActorFromRequest({ auth: undefined }, async () => 'admin'), {
+    actorType: 'anonymous',
+    actorUid: null,
+    actorEmail: null,
+  })
+
+  assert.deepEqual(
+    await resolveActorFromRequest(
+      { auth: { uid: 'op-1', token: { operator: true, email: 'op@example.com' } } },
+      async () => null,
+    ),
+    { actorType: 'operator', actorUid: 'op-1', actorEmail: 'op@example.com' },
+  )
+
+  assert.deepEqual(
+    await resolveActorFromRequest(
+      { auth: { uid: 'admin-1', token: { email: 'admin@example.com' } } },
+      async () => 'admin',
+    ),
+    { actorType: 'admin', actorUid: 'admin-1', actorEmail: 'admin@example.com' },
+  )
+
+  assert.deepEqual(
+    await resolveActorFromRequest(
+      { auth: { uid: 'user-1', token: { email: 'customer@example.com' } } },
+      async () => 'user',
+    ),
+    { actorType: 'user', actorUid: 'user-1', actorEmail: 'customer@example.com' },
+  )
+
+  assert.deepEqual(
+    await resolveActorFromRequest(
+      { auth: { uid: 'user-2', token: { email: 'fallback@example.com' } } },
+      async () => {
+        throw new Error('firestore unavailable')
+      },
+    ),
+    { actorType: 'user', actorUid: 'user-2', actorEmail: 'fallback@example.com' },
+  )
+})
+
+test('validateClientActivityRequest rejects client admin_login_failed and enforces admin auth for admin_login/admin_logout', async () => {
+  // page_view works without calling verifyAdmin
+  let verifyCalls = 0
+  const pageView = await validateClientActivityRequest(
+    { data: { action: 'page_view', path: '/book?foo=bar', sessionId: 'sess_1' } },
+    async () => {
+      verifyCalls += 1
+      return 'admin-1'
+    },
+  )
+  assert.equal(verifyCalls, 0)
+  assert.equal(pageView.action, 'page_view')
+  assert.equal(pageView.path, '/book')
+
+  // admin_login_failed is server-only and rejected from client callable
+  await assert.rejects(
+    validateClientActivityRequest({ data: { action: 'admin_login_failed', path: '/login' } }),
+    /Unsupported activity action/,
+  )
+
+  // admin_login & admin_logout require verifyAdmin
+  for (const action of ['admin_login', 'admin_logout']) {
+    await assert.rejects(
+      validateClientActivityRequest({ data: { action, path: '/login' } }, async () => {
+        throw new Error('permission-denied')
+      }),
+      /permission-denied/,
+    )
+
+    const verified = await validateClientActivityRequest(
+      { data: { action, path: '/login' } },
+      async () => {
+        verifyCalls += 1
+        return 'admin-1'
+      },
+    )
+    assert.equal(verified.action, action)
+  }
+  assert.equal(verifyCalls, 2)
+})
+
+test('isPageViewRateLimited allows up to 60 views per minute and resets after window', () => {
+  resetPageViewRateLimiter()
+  const base = 1_700_000_000_000
+  for (let i = 0; i < 60; i += 1) {
+    assert.equal(isPageViewRateLimited('203.0.113.9', base + i), false)
+  }
+  assert.equal(isPageViewRateLimited('203.0.113.9', base + 1000), true)
+  // Different IP is unaffected
+  assert.equal(isPageViewRateLimited('203.0.113.10', base + 1000), false)
+  // Window resets after 60s
+  assert.equal(isPageViewRateLimited('203.0.113.9', base + 60_001), false)
 })

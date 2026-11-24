@@ -2,15 +2,16 @@ import { getFirestore, type Firestore } from 'firebase-admin/firestore'
 import * as logger from 'firebase-functions/logger'
 import { HttpsError, onCall, type CallableRequest } from 'firebase-functions/v2/https'
 
+import { assertAdmin } from '../authz'
 import { functionsRegion, getSalonId } from '../config'
 import { isObject } from '../schemas'
 
-export const CLIENT_ACTIVITY_ACTIONS = [
-  'page_view',
+export const CLIENT_ACTIVITY_ACTIONS = ['page_view', 'admin_login', 'admin_logout'] as const
+
+export const ADMIN_CLIENT_ACTIVITY_ACTIONS: ReadonlySet<string> = new Set([
   'admin_login',
-  'admin_login_failed',
   'admin_logout',
-] as const
+])
 
 export const SERVER_ACTIVITY_ACTIONS = [
   'reservation_created',
@@ -33,7 +34,7 @@ export type ClientActivityAction = (typeof CLIENT_ACTIVITY_ACTIONS)[number]
 export type ServerActivityAction = (typeof SERVER_ACTIVITY_ACTIONS)[number]
 export type ActivityAction = ClientActivityAction | ServerActivityAction
 export type ActivitySource = 'client' | 'server'
-export type ActivityActorType = 'anonymous' | 'admin' | 'operator'
+export type ActivityActorType = 'anonymous' | 'user' | 'admin' | 'operator'
 export type ActivityDetailValue = string | number | boolean | null
 export type ActivityDetails = Record<string, ActivityDetailValue>
 
@@ -58,12 +59,41 @@ type RequestLike = {
   socket?: { remoteAddress?: string }
 }
 
+export type RoleLookup = (uid: string) => Promise<string | null>
+export type AdminVerifier = (request: CallableRequest<unknown>) => Promise<string>
+
 const CLIENT_ACTION_SET: ReadonlySet<string> = new Set(CLIENT_ACTIVITY_ACTIONS)
 const MAX_UA_LENGTH = 512
 const MAX_PATH_LENGTH = 256
 const MAX_SESSION_ID_LENGTH = 64
 const MAX_DETAILS_KEYS = 10
 const MAX_DETAIL_STRING_LENGTH = 160
+
+const PAGE_VIEW_WINDOW_MS = 60_000
+const PAGE_VIEW_MAX_PER_WINDOW = 60
+const PAGE_VIEW_MAX_TRACKED_IPS = 1000
+const pageViewRateBuckets = new Map<string, { count: number; resetAt: number }>()
+
+export function isPageViewRateLimited(ip: string, nowMs = Date.now()): boolean {
+  if (pageViewRateBuckets.size > PAGE_VIEW_MAX_TRACKED_IPS) {
+    for (const [key, bucket] of pageViewRateBuckets.entries()) {
+      if (bucket.resetAt <= nowMs) {
+        pageViewRateBuckets.delete(key)
+      }
+    }
+  }
+  const existing = pageViewRateBuckets.get(ip)
+  if (!existing || existing.resetAt <= nowMs) {
+    pageViewRateBuckets.set(ip, { count: 1, resetAt: nowMs + PAGE_VIEW_WINDOW_MS })
+    return false
+  }
+  existing.count += 1
+  return existing.count > PAGE_VIEW_MAX_PER_WINDOW
+}
+
+export function resetPageViewRateLimiter(): void {
+  pageViewRateBuckets.clear()
+}
 
 function firstHeaderValue(
   headers: Record<string, string | string[] | undefined> | undefined,
@@ -194,21 +224,67 @@ export function sanitizeDetails(value: unknown): ActivityDetails | null {
   return count > 0 ? result : null
 }
 
-function actorFromRequest(request: CallableRequest<unknown>): {
+export async function resolveActorFromRequest(
+  request: Pick<CallableRequest<unknown>, 'auth'>,
+  lookupRole: RoleLookup,
+): Promise<{
   actorType: ActivityActorType
   actorUid: string | null
   actorEmail: string | null
-} {
+}> {
   const auth = request.auth
   if (!auth) {
     return { actorType: 'anonymous', actorUid: null, actorEmail: null }
   }
-  const isOperator = auth.token.operator === true
   const email = typeof auth.token.email === 'string' ? auth.token.email : null
+  if (auth.token.operator === true) {
+    return {
+      actorType: 'operator',
+      actorUid: auth.uid,
+      actorEmail: email,
+    }
+  }
+  try {
+    const role = await lookupRole(auth.uid)
+    return {
+      actorType: role === 'admin' ? 'admin' : 'user',
+      actorUid: auth.uid,
+      actorEmail: email,
+    }
+  } catch {
+    return {
+      actorType: 'user',
+      actorUid: auth.uid,
+      actorEmail: email,
+    }
+  }
+}
+
+export async function validateClientActivityRequest(
+  request: CallableRequest<unknown>,
+  verifyAdmin: AdminVerifier = assertAdmin,
+): Promise<{
+  action: ClientActivityAction
+  path: string | null
+  sessionId: string | null
+  details: ActivityDetails | null
+}> {
+  const data = request.data
+  if (!isObject(data)) {
+    throw new HttpsError('invalid-argument', 'Invalid payload.')
+  }
+  const action = typeof data.action === 'string' ? data.action.trim() : ''
+  if (!CLIENT_ACTION_SET.has(action)) {
+    throw new HttpsError('invalid-argument', 'Unsupported activity action.')
+  }
+  if (ADMIN_CLIENT_ACTIVITY_ACTIONS.has(action)) {
+    await verifyAdmin(request)
+  }
   return {
-    actorType: isOperator ? 'operator' : 'admin',
-    actorUid: auth.uid,
-    actorEmail: email,
+    action: action as ClientActivityAction,
+    path: sanitizePath(data.path),
+    sessionId: sanitizeSessionId(data.sessionId),
+    details: sanitizeDetails(data.details),
   }
 }
 
@@ -227,10 +303,24 @@ export async function recordActivityLog(params: {
   db?: Firestore
   salonId?: string
 }): Promise<ActivityLogEntry> {
+  const db = params.db ?? getFirestore()
   const ip = extractClientIp(params.request.rawRequest)
   const userAgent = extractUserAgent(params.request.rawRequest)
   const browser = parseBrowserSummary(userAgent)
-  const derivedActor = actorFromRequest(params.request)
+  const derivedActor =
+    params.actorOverride?.actorType !== undefined &&
+    params.actorOverride?.actorUid !== undefined &&
+    params.actorOverride?.actorEmail !== undefined
+      ? {
+          actorType: params.actorOverride.actorType,
+          actorUid: params.actorOverride.actorUid,
+          actorEmail: params.actorOverride.actorEmail,
+        }
+      : await resolveActorFromRequest(params.request, async (uid) => {
+          const snap = await db.collection('users').doc(uid).get()
+          const role = snap.data()?.role
+          return typeof role === 'string' ? role : null
+        })
 
   const entry: ActivityLogEntry = {
     createdAt: new Date().toISOString(),
@@ -256,7 +346,6 @@ export async function recordActivityLog(params: {
   logger.info('activity_log', entry)
 
   try {
-    const db = params.db ?? getFirestore()
     const salonId = params.salonId ?? getSalonId()
     await db.collection('salons').doc(salonId).collection('activityLogs').add(entry)
   } catch (error: unknown) {
@@ -270,22 +359,21 @@ export async function recordActivityLog(params: {
 }
 
 export const logActivity = onCall({ region: functionsRegion }, async (request) => {
-  const data = request.data
-  if (!isObject(data)) {
-    throw new HttpsError('invalid-argument', 'Invalid payload.')
-  }
-  const action = typeof data.action === 'string' ? data.action.trim() : ''
-  if (!CLIENT_ACTION_SET.has(action)) {
-    throw new HttpsError('invalid-argument', 'Unsupported activity action.')
+  const parsed = await validateClientActivityRequest(request)
+  if (parsed.action === 'page_view') {
+    const ip = extractClientIp(request.rawRequest)
+    if (isPageViewRateLimited(ip)) {
+      return { ok: true as const, throttled: true as const }
+    }
   }
 
   await recordActivityLog({
     request,
-    action: action as ClientActivityAction,
+    action: parsed.action,
     source: 'client',
-    path: sanitizePath(data.path),
-    sessionId: sanitizeSessionId(data.sessionId),
-    details: sanitizeDetails(data.details),
+    path: parsed.path,
+    sessionId: parsed.sessionId,
+    details: parsed.details,
   })
 
   return { ok: true as const }

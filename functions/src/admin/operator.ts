@@ -43,7 +43,7 @@ export const operatorLogin = onCall({ region: functionsRegion }, async (request)
       action: 'admin_login_failed',
       source: 'server',
       path: '/login',
-      details: { method: 'operator', email: email || 'empty' },
+      details: { method: 'operator' },
     })
     throw new HttpsError('unauthenticated', 'Invalid operator credentials.')
   }

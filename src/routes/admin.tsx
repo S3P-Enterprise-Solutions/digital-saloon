@@ -940,7 +940,8 @@ export const adminActivityLogsRoute = createRoute({
 
     return (
       <AdminActivityLogsPage
-        logs={logs.data ?? []}
+        logs={logs.data?.logs ?? []}
+        skippedCount={logs.data?.skippedCount ?? 0}
         loading={logs.isLoading}
         refreshing={logs.isFetching}
         error={logs.isError}

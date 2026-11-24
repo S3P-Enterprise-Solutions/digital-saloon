@@ -482,8 +482,10 @@ export type Messages = {
   'admin.activityLogsColBrowser': string
   'admin.activityLogsColActor': string
   'admin.activityLogsActorAnonymous': string
+  'admin.activityLogsActorUser': string
   'admin.activityLogsActorOperator': string
   'admin.activityLogsActorAdmin': string
+  'admin.activityLogsSkippedWarning': string
   'admin.activityLogsAction.page_view': string
   'admin.activityLogsAction.reservation_created': string
   'admin.activityLogsAction.reservation_viewed': string
@@ -1033,8 +1035,11 @@ export const de: Messages = {
   'admin.activityLogsColBrowser': 'Browser',
   'admin.activityLogsColActor': 'Benutzer',
   'admin.activityLogsActorAnonymous': 'Besucher',
+  'admin.activityLogsActorUser': 'Angemeldet (kein Admin)',
   'admin.activityLogsActorOperator': 'Operator',
   'admin.activityLogsActorAdmin': 'Admin',
+  'admin.activityLogsSkippedWarning':
+    '{count} Protokolleinträge konnten aufgrund eines abweichenden Formats nicht angezeigt werden.',
   'admin.activityLogsAction.page_view': 'Seite geöffnet',
   'admin.activityLogsAction.reservation_created': 'Termin gebucht',
   'admin.activityLogsAction.reservation_viewed': 'Termin angesehen',
@@ -1575,8 +1580,11 @@ export const it: Messages = {
   'admin.activityLogsColBrowser': 'Browser',
   'admin.activityLogsColActor': 'Utente',
   'admin.activityLogsActorAnonymous': 'Visitatore',
+  'admin.activityLogsActorUser': 'Utente (non admin)',
   'admin.activityLogsActorOperator': 'Operatore',
   'admin.activityLogsActorAdmin': 'Admin',
+  'admin.activityLogsSkippedWarning':
+    '{count} voci del registro non sono state visualizzate a causa di un formato non compatibile.',
   'admin.activityLogsAction.page_view': 'Pagina aperta',
   'admin.activityLogsAction.reservation_created': 'Appuntamento prenotato',
   'admin.activityLogsAction.reservation_viewed': 'Appuntamento visualizzato',

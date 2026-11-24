@@ -6,8 +6,7 @@ import { firebaseFunctions, firestore } from '../firebase'
 import { activityLogsCollectionPath } from './salonPaths'
 import { activityLogSchema, type ActivityAction, type ActivityLog } from './schemas'
 
-export type ClientActivityAction =
-  'page_view' | 'admin_login' | 'admin_login_failed' | 'admin_logout'
+export type ClientActivityAction = 'page_view' | 'admin_login' | 'admin_logout'
 
 export type ClientActivityDetails = Record<string, string | number | boolean | null>
 
@@ -18,6 +17,11 @@ export type ClientActivityInput = {
 }
 
 export type ActivityLogWithId = ActivityLog & { id: string }
+
+export type ActivityLogsResult = {
+  logs: ActivityLogWithId[]
+  skippedCount: number
+}
 
 export type ActivityCategory = 'all' | 'page_views' | 'bookings' | 'auth' | 'admin'
 
@@ -76,17 +80,20 @@ export async function logClientActivity(input: ClientActivityInput): Promise<voi
 export async function fetchActivityLogs(
   salonId: string,
   limitCount = 200,
-): Promise<ActivityLogWithId[]> {
+): Promise<ActivityLogsResult> {
   const colRef = collection(firestore, activityLogsCollectionPath(salonId))
   const snapshot = await getDocs(query(colRef, orderBy('createdAt', 'desc'), limit(limitCount)))
-  const items: ActivityLogWithId[] = []
+  const logs: ActivityLogWithId[] = []
+  let skippedCount = 0
   for (const docSnap of snapshot.docs) {
     const parsed = v.safeParse(activityLogSchema, docSnap.data())
     if (parsed.success) {
-      items.push({ id: docSnap.id, ...parsed.output })
+      logs.push({ id: docSnap.id, ...parsed.output })
+    } else {
+      skippedCount += 1
     }
   }
-  return items
+  return { logs, skippedCount }
 }
 
 export function categoryOfAction(action: ActivityAction): Exclude<ActivityCategory, 'all'> {

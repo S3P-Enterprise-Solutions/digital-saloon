@@ -32,6 +32,7 @@ import { useLocale, type MessageKey } from '../../i18n'
 
 export type AdminActivityLogsPageProps = {
   logs: ActivityLogWithId[]
+  skippedCount: number
   loading: boolean
   refreshing: boolean
   error: boolean
@@ -105,6 +106,7 @@ const categories: readonly { value: ActivityCategory; labelKey: MessageKey }[] =
 
 export const AdminActivityLogsPage: React.FunctionComponent<AdminActivityLogsPageProps> = ({
   logs,
+  skippedCount,
   loading,
   refreshing,
   error,
@@ -125,6 +127,11 @@ export const AdminActivityLogsPage: React.FunctionComponent<AdminActivityLogsPag
 
   const formatActor = (entry: ActivityLogWithId): string => {
     if (entry.actorType === 'anonymous') return t('admin.activityLogsActorAnonymous')
+    if (entry.actorType === 'user') {
+      return entry.actorEmail
+        ? `${t('admin.activityLogsActorUser')} (${entry.actorEmail})`
+        : t('admin.activityLogsActorUser')
+    }
     if (entry.actorType === 'operator') {
       return entry.actorEmail
         ? `${t('admin.activityLogsActorOperator')} (${entry.actorEmail})`
@@ -196,6 +203,12 @@ export const AdminActivityLogsPage: React.FunctionComponent<AdminActivityLogsPag
       ) : null}
 
       {error ? <Alert severity="error">{t('admin.activityLogsError')}</Alert> : null}
+
+      {!loading && !error && skippedCount > 0 ? (
+        <Alert severity="warning">
+          {t('admin.activityLogsSkippedWarning', { count: skippedCount })}
+        </Alert>
+      ) : null}
 
       {!loading && !error && visibleLogs.length === 0 ? (
         <Alert severity="info">{t('admin.activityLogsEmpty')}</Alert>

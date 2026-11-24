@@ -43,19 +43,9 @@ export function useSignIn(): UseMutationResult<UserCredential, Error, SignInInpu
             ) {
               throw originalError
             }
-            void logClientActivity({
-              action: 'admin_login_failed',
-              path: '/login',
-              details: { method: 'password', email: email.trim().toLowerCase() },
-            })
             throw operatorError
           }
         }
-        void logClientActivity({
-          action: 'admin_login_failed',
-          path: '/login',
-          details: { method: 'password', email: email.trim().toLowerCase() },
-        })
         throw originalError
       }
     },
