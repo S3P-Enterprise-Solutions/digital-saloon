@@ -8,7 +8,8 @@ import { optionalSearchParam } from '../data/schemas'
 import { parseSelectedServiceIds, serializeServiceIds } from '../data/serviceSelection'
 import { localizedServiceName } from '../data/serviceForm'
 import { useActiveServices } from '../hooks/useActiveServices'
-import { useActiveEmployees } from '../hooks/useEmployees'
+import { isEmployeeManagementEnabled } from '../brands/employeeManagement'
+import { useListBookableEmployees } from '../hooks/useListBookableEmployees'
 import { useAvailableSlots } from '../hooks/useAvailableSlots'
 import { useCreateReservation } from '../hooks/useCreateReservation'
 import { useLocale } from '../i18n'
@@ -36,11 +37,19 @@ export const bookRoute = createRoute({
     const search = bookRoute.useSearch()
     const { locale } = useLocale()
     const services = useActiveServices()
-    const employees = useActiveEmployees()
     const create = useCreateReservation()
 
     const today = viennaTodayYmd()
     const selectedServiceIds = parseSelectedServiceIds(search)
+    const employeeManagementEnabled = isEmployeeManagementEnabled()
+    const bookableEmployees = useListBookableEmployees(employeeManagementEnabled)
+    const employees = useMemo(() => {
+      if (!employeeManagementEnabled || !bookableEmployees.data) return undefined
+      const eligible = bookableEmployees.data.filter((emp) =>
+        selectedServiceIds.every((serviceId) => emp.serviceIds.includes(serviceId)),
+      )
+      return eligible.map((emp) => ({ id: emp.id, displayName: emp.displayName }))
+    }, [bookableEmployees.data, employeeManagementEnabled, selectedServiceIds])
     const step: 1 | 2 =
       search.step === '2' || (!search.step && selectedServiceIds.length > 0) ? 2 : 1
     const weekAnchorYmd = search.week ?? weekStartMondayYmd(today)
@@ -76,20 +85,24 @@ export const bookRoute = createRoute({
         servicesError={services.isError}
         step={step}
         selectedServiceIds={selectedServiceIds}
-        employees={employees.data}
+        employees={employees}
         selectedEmployeeId={selectedEmployeeId}
-        onSelectEmployee={(employeeId) => {
-          void navigate({
-            to: '/book',
-            search: {
-              ...search,
-              employeeId: employeeId ?? undefined,
-              startAt: undefined,
-            },
-            replace: true,
-            resetScroll: false,
-          })
-        }}
+        onSelectEmployee={
+          employeeManagementEnabled
+            ? (employeeId) => {
+                void navigate({
+                  to: '/book',
+                  search: {
+                    ...search,
+                    employeeId: employeeId ?? undefined,
+                    startAt: undefined,
+                  },
+                  replace: true,
+                  resetScroll: false,
+                })
+              }
+            : undefined
+        }
         selectedDate={search.date ?? null}
         selectedStartAt={search.startAt ?? null}
         rangeSlots={rangeSlots.data}

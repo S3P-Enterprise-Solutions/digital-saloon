@@ -19,6 +19,10 @@ export const queryRootVisibility = {
   userProfile: 'private',
   demoMode: 'private',
   staffOverview: 'private',
+  employeeWorkingHours: 'private',
+  employeeDayExceptions: 'private',
+  myEmployeeReservations: 'private',
+  myEmployeeProfile: 'private',
   activityLogs: 'private',
 } as const
 

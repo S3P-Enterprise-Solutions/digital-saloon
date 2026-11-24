@@ -3,9 +3,99 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 
 import { assertAdmin, assertOperator, assertPrimaryAdmin } from '../authz'
-import { functionsRegion, getSalonId } from '../config'
+import { functionsRegion, getSalonId, isEmployeeManagementEnabled } from '../config'
 import { recordActivityLog } from '../logging/activityLog'
 import { isObject } from '../schemas'
+
+export function assertEmployeeManagementFeatureEnabled(): void {
+  if (!isEmployeeManagementEnabled()) {
+    throw new HttpsError('failed-precondition', 'Employee management is not enabled for this salon.')
+  }
+}
+
+export function validateEmployeeAccountInput(data: unknown): {
+  email: string
+  password: string
+  firstName: string
+  lastName: string
+  displayName: string
+} {
+  if (!isObject(data)) {
+    throw new HttpsError('invalid-argument', 'Invalid payload.')
+  }
+  const email = typeof data.email === 'string' ? data.email.trim().toLowerCase() : ''
+  const password = typeof data.password === 'string' ? data.password : ''
+  const firstName = typeof data.firstName === 'string' ? data.firstName.trim() : ''
+  const lastName = typeof data.lastName === 'string' ? data.lastName.trim() : ''
+
+  if (!email || !email.includes('@')) {
+    throw new HttpsError('invalid-argument', 'Valid email is required.')
+  }
+  if (password.length < 8) {
+    throw new HttpsError('invalid-argument', 'Password must be at least 8 characters.')
+  }
+  if (!firstName || firstName.length > 80) {
+    throw new HttpsError('invalid-argument', 'First name is required (max 80 characters).')
+  }
+  if (!lastName || lastName.length > 80) {
+    throw new HttpsError('invalid-argument', 'Last name is required (max 80 characters).')
+  }
+
+  const displayName = `${firstName} ${lastName}`.trim()
+  if (displayName.length > 80) {
+    throw new HttpsError('invalid-argument', 'Display name is too long (max 80 characters).')
+  }
+
+  return { email, password, firstName, lastName, displayName }
+}
+
+export function buildEmployeeUserDocument(input: {
+  email: string
+  displayName: string
+  createdAt: string
+}): {
+  email: string
+  displayName: string
+  role: 'employee'
+  createdAt: string
+} {
+  return {
+    email: input.email,
+    displayName: input.displayName,
+    role: 'employee',
+    createdAt: input.createdAt,
+  }
+}
+
+export function buildEmployeeSalonDocument(input: {
+  email: string
+  firstName: string
+  lastName: string
+  displayName: string
+  createdAt: string
+}): {
+  firstName: string
+  lastName: string
+  displayName: string
+  email: string
+  active: true
+  authDisabled: false
+  serviceIds: []
+  createdAt: string
+  updatedAt: string
+} {
+  return {
+    firstName: input.firstName,
+    lastName: input.lastName,
+    displayName: input.displayName,
+    email: input.email,
+    active: true,
+    authDisabled: false,
+    serviceIds: [],
+    createdAt: input.createdAt,
+    updatedAt: input.createdAt,
+  }
+}
 
 function validateNewAccountInput(data: unknown): {
   email: string
@@ -31,6 +121,24 @@ function validateNewAccountInput(data: unknown): {
   return { email, password, displayName }
 }
 
+export type StaffOverviewMember = {
+  uid: string
+  email: string
+  displayName: string
+  isPrimaryAdmin: boolean
+  createdAt: string
+}
+
+export function buildStaffOverviewResponse(staff: StaffOverviewMember[]): {
+  hasPrimaryAdmin: boolean
+  staff: StaffOverviewMember[]
+} {
+  return {
+    hasPrimaryAdmin: staff.some((member) => member.isPrimaryAdmin),
+    staff,
+  }
+}
+
 export const getStaffOverview = onCall({ region: functionsRegion }, async (request) => {
   await assertAdmin(request)
   const snap = await getFirestore().collection('users').where('role', '==', 'admin').get()
@@ -44,24 +152,7 @@ export const getStaffOverview = onCall({ region: functionsRegion }, async (reque
       createdAt: String(d.createdAt ?? ''),
     }
   })
-  const db = getFirestore()
-  const salonId = getSalonId()
-  const empCol = db.collection('salons').doc(salonId).collection('employees')
-  const existingEmps = await empCol.get()
-  const existingIds = new Set(existingEmps.docs.map((d) => d.id))
-  for (const member of staff) {
-    if (!existingIds.has(member.uid)) {
-      await empCol.doc(member.uid).set({
-        displayName: member.displayName,
-        active: true,
-        createdAt: member.createdAt || new Date().toISOString(),
-      })
-    }
-  }
-  return {
-    hasPrimaryAdmin: staff.some((member) => member.isPrimaryAdmin),
-    staff,
-  }
+  return buildStaffOverviewResponse(staff)
 })
 
 export const createFirstSalonAdmin = onCall({ region: functionsRegion }, async (request) => {
@@ -139,7 +230,10 @@ export const createFirstSalonAdmin = onCall({ region: functionsRegion }, async (
 
 export const createEmployeeAccount = onCall({ region: functionsRegion }, async (request) => {
   await assertPrimaryAdmin(request)
-  const { email, password, displayName } = validateNewAccountInput(request.data)
+  assertEmployeeManagementFeatureEnabled()
+  const { email, password, firstName, lastName, displayName } = validateEmployeeAccountInput(
+    request.data,
+  )
   const db = getFirestore()
 
   let uid: string
@@ -156,18 +250,26 @@ export const createEmployeeAccount = onCall({ region: functionsRegion }, async (
   }
 
   const createdAt = new Date().toISOString()
-  await db.collection('users').doc(uid).set({
+  const userDoc = buildEmployeeUserDocument({ email, displayName, createdAt })
+  const employeeDoc = buildEmployeeSalonDocument({
     email,
+    firstName,
+    lastName,
     displayName,
-    role: 'admin',
-    isPrimaryAdmin: false,
     createdAt,
   })
-  await db.collection('salons').doc(getSalonId()).collection('employees').doc(uid).set({
-    displayName,
-    active: true,
-    createdAt,
-  })
+
+  try {
+    await db.runTransaction(async (tx) => {
+      tx.set(db.collection('users').doc(uid), userDoc)
+      tx.set(db.collection('salons').doc(getSalonId()).collection('employees').doc(uid), employeeDoc)
+    })
+  } catch (error: unknown) {
+    await getAuth()
+      .deleteUser(uid)
+      .catch(() => undefined)
+    throw error
+  }
 
   await recordActivityLog({
     request,
@@ -178,5 +280,5 @@ export const createEmployeeAccount = onCall({ region: functionsRegion }, async (
     db,
   })
 
-  return { uid, email, displayName, isPrimaryAdmin: false, createdAt }
+  return { uid, email, displayName, firstName, lastName, role: 'employee' as const, createdAt }
 })

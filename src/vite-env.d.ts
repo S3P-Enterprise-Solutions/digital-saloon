@@ -8,6 +8,8 @@ interface ImportMetaEnv {
   readonly VITE_FIREBASE_STORAGE_BUCKET?: string
   readonly VITE_FIREBASE_MESSAGING_SENDER_ID?: string
   readonly VITE_FIREBASE_APP_ID?: string
+  /** E2E-only override for Employee Management (brand flag remains source of truth in deploys). */
+  readonly VITE_EMPLOYEE_MANAGEMENT_ENABLED?: string
 }
 
 interface ImportMeta {

@@ -1,10 +1,20 @@
 import { expect, type Page } from '@playwright/test'
 
-/** Drive the 2-step booking wizard through service → date → time. */
-export async function selectServiceDateAndTime(page: Page): Promise<void> {
-  await expect(page.getByRole('heading', { name: 'Termin buchen' })).toBeVisible()
+type SelectSlotOptions = {
+  /** Service (and optional stylist) already chosen — start at date step. */
+  skipServiceStep?: boolean
+}
+
+/** Drive the booking wizard through service → date → time (stylist step left at “Beliebig” when shown). */
+export async function selectServiceDateAndTime(
+  page: Page,
+  options: SelectSlotOptions = {},
+): Promise<void> {
+  if (!options.skipServiceStep) {
+    await expect(page.getByRole('heading', { name: 'Termin buchen' })).toBeVisible()
+  }
   const serviceSection = page.locator('[aria-labelledby="step-service"]')
-  if (await serviceSection.isVisible()) {
+  if (!options.skipServiceStep && (await serviceSection.isVisible())) {
     await serviceSection.locator('button').first().click()
     await page.getByRole('button', { name: 'Weiter zur Terminauswahl' }).click()
   }

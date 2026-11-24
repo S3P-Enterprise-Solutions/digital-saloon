@@ -41,6 +41,7 @@ async function main() {
       email: config.adminEmail,
       displayName: 'Salon Admin',
       role: 'admin',
+      isPrimaryAdmin: true,
       createdAt: new Date().toISOString(),
     },
     { merge: true },

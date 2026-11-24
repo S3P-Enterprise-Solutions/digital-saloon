@@ -165,15 +165,18 @@ service cloud.firestore {
       }
 
       match /employees/{employeeId} {
-        allow read: if true;
-        allow write: if isAdmin()
-          && request.resource.data.keys().hasAll(['displayName', 'active', 'createdAt'])
-          && request.resource.data.keys().hasOnly(['displayName', 'active', 'createdAt'])
-          && request.resource.data.displayName is string
-          && request.resource.data.displayName.size() >= 1
-          && request.resource.data.displayName.size() <= 80
-          && request.resource.data.active is bool
-          && request.resource.data.createdAt is string;
+        allow read: if isAdmin() || (isSignedIn() && request.auth.uid == employeeId);
+        allow write: if false;
+
+        match /workingHours/{weekday} {
+          allow read: if isAdmin() || (isSignedIn() && request.auth.uid == employeeId);
+          allow write: if false;
+        }
+
+        match /dayExceptions/{exceptionId} {
+          allow read: if isAdmin() || (isSignedIn() && request.auth.uid == employeeId);
+          allow write: if false;
+        }
       }
 
       match /integrations/{integrationId} {

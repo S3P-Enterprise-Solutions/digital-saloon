@@ -2,6 +2,19 @@ import { initializeApp } from 'firebase-admin/app'
 import { onCall } from 'firebase-functions/v2/https'
 
 import { getDemoModeStatus, operatorLogin, setDemoMode } from './admin/operator'
+import {
+  createEmployeeProfileForAdmin,
+  deleteEmployeeDayException,
+  listBookableEmployees,
+  listMyEmployeeReservations,
+  saveEmployeeDayException,
+  saveEmployeeWorkingHours,
+  setEmployeeAuthDisabled,
+  setEmployeeBookable,
+  setEmployeePassword,
+  softRemoveEmployee,
+  updateEmployeeProfile,
+} from './admin/employees'
 import { createEmployeeAccount, createFirstSalonAdmin, getStaffOverview } from './admin/users'
 import { assertSignedIn } from './authz'
 import {
@@ -58,6 +71,17 @@ export {
   getStaffOverview,
   createFirstSalonAdmin,
   createEmployeeAccount,
+  createEmployeeProfileForAdmin,
+  updateEmployeeProfile,
+  setEmployeeBookable,
+  setEmployeeAuthDisabled,
+  setEmployeePassword,
+  softRemoveEmployee,
+  saveEmployeeWorkingHours,
+  saveEmployeeDayException,
+  deleteEmployeeDayException,
+  listBookableEmployees,
+  listMyEmployeeReservations,
   getGoogleCalendarStatus,
   startGoogleCalendarOAuth,
   googleCalendarOAuthCallback,

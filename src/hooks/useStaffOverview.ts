@@ -10,6 +10,7 @@ import {
   createEmployeeAccount,
   createFirstSalonAdmin,
   fetchStaffOverview,
+  type EmployeeAccountInput,
   type NewAccountInput,
   type StaffMember,
   type StaffOverview,
@@ -35,7 +36,11 @@ export function useCreateFirstSalonAdmin(): UseMutationResult<StaffMember, Error
   })
 }
 
-export function useCreateEmployeeAccount(): UseMutationResult<StaffMember, Error, NewAccountInput> {
+export function useCreateEmployeeAccount(): UseMutationResult<
+  StaffMember,
+  Error,
+  EmployeeAccountInput
+> {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: createEmployeeAccount,

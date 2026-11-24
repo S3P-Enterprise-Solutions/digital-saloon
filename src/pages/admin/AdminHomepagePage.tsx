@@ -532,22 +532,14 @@ export const AdminHomepagePage: React.FunctionComponent<AdminHomepagePageProps> 
 
   return (
     <Stack spacing={3}>
-      <Box
-        sx={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 2,
-          alignItems: 'flex-end',
-          justifyContent: 'space-between',
-        }}
-      >
-        <Box sx={{ maxWidth: '42rem' }}>
-          <Typography variant="h1">{t('admin.homepage')}</Typography>
-          <Typography color="text.secondary" sx={{ mt: 1 }}>
-            {t('admin.homepageSubtitle')}
-          </Typography>
-        </Box>
-        <Button onClick={onBackClick}>{t('admin.backToSettings')}</Button>
+      <Box sx={{ maxWidth: '42rem' }}>
+        <Button onClick={onBackClick} sx={{ ml: -1, mb: 1 }}>
+          {t('admin.backToSettings')}
+        </Button>
+        <Typography variant="h1">{t('admin.homepage')}</Typography>
+        <Typography color="text.secondary" sx={{ mt: 1 }}>
+          {t('admin.homepageSubtitle')}
+        </Typography>
       </Box>
 
       {isLoading ? <CircularProgress aria-label={t('admin.loading')} /> : null}

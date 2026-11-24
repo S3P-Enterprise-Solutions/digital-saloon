@@ -3,6 +3,8 @@ import { defineConfig, devices } from '@playwright/test'
 import { EMULATOR_PORTS } from './scripts/emulator-ports.mjs'
 
 const baseURL = `http://127.0.0.1:${EMULATOR_PORTS.app}`
+/** Feature-off suite: `pnpm test:e2e:employee-off` (server without employee management). */
+const employeeOff = process.env.E2E_EMPLOYEE_OFF === '1'
 
 export default defineConfig({
   testDir: './e2e',
@@ -26,6 +28,9 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      ...(employeeOff
+        ? { testMatch: /employeeManagementOff\.spec\.ts/ }
+        : { testIgnore: /employeeManagementOff\.spec\.ts/ }),
     },
   ],
   webServer: {

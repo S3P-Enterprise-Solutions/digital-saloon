@@ -48,6 +48,18 @@ export function employeesCollectionPath(salonId: string): string {
   return `salons/${salonId}/employees`
 }
 
+export function employeeWorkingHoursDocPath(
+  salonId: string,
+  employeeUid: string,
+  weekday: string,
+): string {
+  return `${employeesCollectionPath(salonId)}/${employeeUid}/workingHours/${weekday}`
+}
+
+export function employeeDayExceptionsCollectionPath(salonId: string, employeeUid: string): string {
+  return `${employeesCollectionPath(salonId)}/${employeeUid}/dayExceptions`
+}
+
 export function activityLogsCollectionPath(salonId: string): string {
   return `salons/${salonId}/activityLogs`
 }

@@ -13,6 +13,7 @@ const settingsPaths = [
   '/admin/opening-hours',
   '/admin/holidays',
   '/admin/homepage',
+  '/admin/employees',
   '/admin/activity-logs',
 ]
 
@@ -40,7 +41,7 @@ const RootRoute: React.FunctionComponent = () => {
       contentWidth={
         pathname === '/' || pathname === '/balayage'
           ? 'full'
-          : pathname.startsWith('/admin')
+          : pathname.startsWith('/admin') || pathname.startsWith('/employee')
             ? 'wide'
             : 'contained'
       }

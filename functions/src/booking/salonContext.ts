@@ -9,6 +9,8 @@ import type {
   TimeInterval,
   Weekday,
 } from '../domain/types'
+import { sanitizeTimeIntervals } from '../domain/openingIntervals'
+import type { EmployeeAvailabilityEnvelope } from '../domain/availability'
 import { getSalonId } from '../config'
 
 const WEEKDAYS: Weekday[] = [
@@ -99,6 +101,55 @@ export type ActiveEmployee = {
   displayName: string
 }
 
+export type BookingCandidateEmployee = ActiveEmployee & {
+  serviceIds: string[]
+}
+
+export function isBookingCandidateRecord(data: Record<string, unknown>): boolean {
+  const removedAt = data.removedAt
+  const removed =
+    removedAt !== undefined && removedAt !== null && String(removedAt).length > 0
+  return data.active === true && data.authDisabled !== true && !removed
+}
+
+export function coversRequestedServices(
+  employeeServiceIds: readonly string[],
+  requestedServiceIds: readonly string[],
+): boolean {
+  if (requestedServiceIds.length === 0) return true
+  const offered = new Set(employeeServiceIds)
+  return requestedServiceIds.every((id) => offered.has(id))
+}
+
+export function bookingCandidateFromDoc(
+  id: string,
+  data: Record<string, unknown>,
+): BookingCandidateEmployee | null {
+  if (!isBookingCandidateRecord(data)) return null
+  const serviceIds = Array.isArray(data.serviceIds)
+    ? data.serviceIds.filter((item): item is string => typeof item === 'string')
+    : []
+  return {
+    id,
+    displayName: String(data.displayName ?? '').trim() || id,
+    serviceIds,
+  }
+}
+
+export async function loadBookingCandidates(
+  db: Firestore,
+  salonId: string,
+  requestedServiceIds: readonly string[],
+): Promise<BookingCandidateEmployee[]> {
+  const snap = await db.collection('salons').doc(salonId).collection('employees').get()
+  return snap.docs
+    .map((doc) => bookingCandidateFromDoc(doc.id, doc.data() as Record<string, unknown>))
+    .filter((emp): emp is BookingCandidateEmployee => emp !== null)
+    .filter((emp) => coversRequestedServices(emp.serviceIds, requestedServiceIds))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName))
+}
+
+/** @deprecated Prefer loadBookingCandidates when employee management is enabled. */
 export async function loadActiveEmployees(
   db: Firestore,
   salonId: string,
@@ -115,6 +166,43 @@ export async function loadActiveEmployees(
       displayName: String(doc.data().displayName ?? '').trim() || doc.id,
     }))
     .sort((a, b) => a.displayName.localeCompare(b.displayName))
+}
+
+function emptyWeekly(): OpeningHoursByWeekday {
+  const weekly = {} as OpeningHoursByWeekday
+  for (const weekday of WEEKDAYS) {
+    weekly[weekday] = []
+  }
+  return weekly
+}
+
+export async function loadEmployeeAvailabilityEnvelope(
+  db: Firestore,
+  salonId: string,
+  employeeId: string,
+): Promise<EmployeeAvailabilityEnvelope> {
+  const empRef = db.collection('salons').doc(salonId).collection('employees').doc(employeeId)
+  const [hoursSnap, exceptionsSnap] = await Promise.all([
+    empRef.collection('workingHours').get(),
+    empRef.collection('dayExceptions').get(),
+  ])
+  const weekly = emptyWeekly()
+  for (const doc of hoursSnap.docs) {
+    const weekday = doc.id as Weekday
+    if (!WEEKDAYS.includes(weekday)) continue
+    weekly[weekday] = sanitizeTimeIntervals((doc.data() as { intervals?: unknown }).intervals)
+  }
+  const dayExceptions: DayException[] = exceptionsSnap.docs.map((doc) => {
+    const data = doc.data()
+    const closed = Boolean(data.closed)
+    const intervals = closed ? [] : sanitizeTimeIntervals(data.intervals)
+    return {
+      date: String(data.date),
+      intervals,
+      closed,
+    }
+  })
+  return { weekly, dayExceptions }
 }
 
 export async function loadBusyIntervals(

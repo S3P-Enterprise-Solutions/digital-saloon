@@ -1,5 +1,8 @@
 import { intervalsOverlap } from './overlap'
-import { resolveOpenIntervalsForDate } from './openingIntervals'
+import {
+  intersectLocalIntervals,
+  resolveOpenIntervalsForDate,
+} from './openingIntervals'
 import { addCalendarDays, calendarDateInTimeZone, parseHm, zonedLocalToUtc } from './timezone'
 import type {
   AvailableSlot,
@@ -9,6 +12,11 @@ import type {
   Holiday,
   OpeningHoursByWeekday,
 } from './types'
+
+export type EmployeeAvailabilityEnvelope = {
+  weekly: OpeningHoursByWeekday
+  dayExceptions: readonly DayException[]
+}
 
 export type ListAvailableSlotsInput = {
   timeZone: string
@@ -26,6 +34,34 @@ export type ListAvailableSlotsInput = {
   toDateYmd: string
   /** When false, skip min/max advance checks (manual admin bookings). */
   enforceAdvanceRestrictions?: boolean
+  /** When set, open hours are salon hours ∩ employee hours for each day. */
+  employeeEnvelope?: EmployeeAvailabilityEnvelope
+}
+
+function resolveOpenForDay(input: {
+  dateYmd: string
+  timeZone: string
+  weekly: OpeningHoursByWeekday
+  holidays: readonly Holiday[]
+  dayExceptions: readonly DayException[]
+  employeeEnvelope?: EmployeeAvailabilityEnvelope
+}): ReturnType<typeof resolveOpenIntervalsForDate> {
+  const salonOpen = resolveOpenIntervalsForDate({
+    dateYmd: input.dateYmd,
+    timeZone: input.timeZone,
+    weekly: input.weekly,
+    holidays: input.holidays,
+    dayExceptions: input.dayExceptions,
+  })
+  if (!input.employeeEnvelope) return salonOpen
+  const employeeOpen = resolveOpenIntervalsForDate({
+    dateYmd: input.dateYmd,
+    timeZone: input.timeZone,
+    weekly: input.employeeEnvelope.weekly,
+    holidays: [],
+    dayExceptions: input.employeeEnvelope.dayExceptions,
+  })
+  return intersectLocalIntervals(salonOpen, employeeOpen)
 }
 
 function fitsInOpenInterval(
@@ -59,6 +95,7 @@ export function listAvailableSlots(input: ListAvailableSlotsInput): AvailableSlo
     fromDateYmd,
     toDateYmd,
     enforceAdvanceRestrictions = true,
+    employeeEnvelope,
   } = input
 
   const earliestStart = new Date(now.getTime() + settings.minAdvanceBookingMinutes * 60_000)
@@ -68,12 +105,13 @@ export function listAvailableSlots(input: ListAvailableSlotsInput): AvailableSlo
   let cursor = fromDateYmd
 
   while (cursor <= toDateYmd) {
-    const open = resolveOpenIntervalsForDate({
+    const open = resolveOpenForDay({
       dateYmd: cursor,
       timeZone,
       weekly,
       holidays,
       dayExceptions,
+      employeeEnvelope,
     })
     const [y, m, d] = cursor.split('-').map(Number)
 
@@ -127,15 +165,17 @@ export function isSlotAvailable(input: {
   settings: BookingSettingsInput
   now: Date
   enforceAdvanceRestrictions?: boolean
+  employeeEnvelope?: EmployeeAvailabilityEnvelope
 }): boolean {
   const endAt = new Date(input.startAt.getTime() + input.durationMinutes * 60_000)
   const dateYmd = calendarDateInTimeZone(input.startAt, input.timeZone)
-  const open = resolveOpenIntervalsForDate({
+  const open = resolveOpenForDay({
     dateYmd,
     timeZone: input.timeZone,
     weekly: input.weekly,
     holidays: input.holidays,
     dayExceptions: input.dayExceptions,
+    employeeEnvelope: input.employeeEnvelope,
   })
 
   const localPartsHour = Number(
