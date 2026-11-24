@@ -23,6 +23,7 @@ import {
 } from '@mui/material'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import ContentCutOutlinedIcon from '@mui/icons-material/ContentCutOutlined'
+import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined'
 import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined'
 import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined'
 import ScheduleOutlinedIcon from '@mui/icons-material/ScheduleOutlined'
@@ -82,6 +83,7 @@ export type AdminSettingsPageProps = {
   onServicesClick: () => void
   onHomepageClick: () => void
   onOpeningHoursClick: () => void
+  onActivityLogsClick: () => void
   expireBusy: boolean
   expireMessage: string | null
   expireError: string | null
@@ -683,6 +685,7 @@ export const AdminSettingsPage: React.FunctionComponent<AdminSettingsPageProps> 
   onServicesClick,
   onHomepageClick,
   onOpeningHoursClick,
+  onActivityLogsClick,
   expireBusy,
   expireMessage,
   expireError,
@@ -731,6 +734,13 @@ export const AdminSettingsPage: React.FunctionComponent<AdminSettingsPageProps> 
           title={t('admin.homepage')}
           hint={t('admin.homepageSubtitle')}
           onClick={onHomepageClick}
+        />
+        <Divider />
+        <SettingsLink
+          icon={<HistoryOutlinedIcon />}
+          title={t('admin.activityLogsLinkTitle')}
+          hint={t('admin.activityLogsLinkHint')}
+          onClick={onActivityLogsClick}
         />
       </Paper>
 

@@ -182,6 +182,12 @@ service cloud.firestore {
       match /integrations/{integrationId} {
         allow read, write: if false;
       }
+
+      match /activityLogs/{logId} {
+        // Written exclusively by Cloud Functions (Admin SDK); admins can inspect logs.
+        allow read: if isAdmin();
+        allow write: if false;
+      }
     }
   }
 }

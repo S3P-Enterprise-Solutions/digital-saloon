@@ -4,6 +4,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https'
 
 import { assertAdmin, assertOperator, assertPrimaryAdmin } from '../authz'
 import { functionsRegion, getSalonId, isEmployeeManagementEnabled } from '../config'
+import { recordActivityLog } from '../logging/activityLog'
 import { isObject } from '../schemas'
 
 export function assertEmployeeManagementFeatureEnabled(): void {
@@ -215,6 +216,15 @@ export const createFirstSalonAdmin = onCall({ region: functionsRegion }, async (
     throw error
   }
 
+  await recordActivityLog({
+    request,
+    action: 'admin_staff_created',
+    source: 'server',
+    path: '/admin/settings',
+    details: { targetRole: 'primary_admin', targetEmail: email },
+    db,
+  })
+
   return { uid, email, displayName, isPrimaryAdmin: true, createdAt }
 })
 
@@ -260,6 +270,15 @@ export const createEmployeeAccount = onCall({ region: functionsRegion }, async (
       .catch(() => undefined)
     throw error
   }
+
+  await recordActivityLog({
+    request,
+    action: 'admin_staff_created',
+    source: 'server',
+    path: '/admin/settings',
+    details: { targetRole: 'employee', targetEmail: email },
+    db,
+  })
 
   return { uid, email, displayName, firstName, lastName, role: 'employee' as const, createdAt }
 })

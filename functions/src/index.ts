@@ -46,10 +46,12 @@ import {
   syncGoogleCalendarSchedule,
 } from './googleCalendar/functions'
 import { functionsRegion, getSalonId } from './config'
+import { logActivity } from './logging/activityLog'
 
 initializeApp()
 
 export {
+  logActivity,
   getAvailableSlots,
   createReservation,
   createManualReservation,

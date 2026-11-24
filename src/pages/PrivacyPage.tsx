@@ -19,6 +19,7 @@ const sections: readonly PrivacySection[] = [
   { title: 'privacy.bookingTitle', body: 'privacy.bookingBody' },
   { title: 'privacy.emailTitle', body: 'privacy.emailBody' },
   { title: 'privacy.hostingTitle', body: 'privacy.hostingBody' },
+  { title: 'privacy.logsTitle', body: 'privacy.logsBody' },
   { title: 'privacy.storageTitle', body: 'privacy.storageBody' },
   { title: 'privacy.fontsTitle', body: 'privacy.fontsBody' },
   { title: 'privacy.retentionTitle', body: 'privacy.retentionBody' },

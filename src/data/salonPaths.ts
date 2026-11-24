@@ -59,3 +59,7 @@ export function employeeWorkingHoursDocPath(
 export function employeeDayExceptionsCollectionPath(salonId: string, employeeUid: string): string {
   return `${employeesCollectionPath(salonId)}/${employeeUid}/dayExceptions`
 }
+
+export function activityLogsCollectionPath(salonId: string): string {
+  return `salons/${salonId}/activityLogs`
+}
