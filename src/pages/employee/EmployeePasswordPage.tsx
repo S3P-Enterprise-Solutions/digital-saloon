@@ -2,6 +2,7 @@ import type * as React from 'react'
 import { useState } from 'react'
 import { Alert, Button, Stack, TextField, Typography } from '@mui/material'
 
+import { translateEmployeeCallableError } from '../../data/employeeCallableErrors'
 import { useLocale } from '../../i18n'
 
 export type EmployeePasswordPageProps = {
@@ -44,7 +45,7 @@ export const EmployeePasswordPage: React.FunctionComponent<EmployeePasswordPageP
             setDone(true)
           })
           .catch((err: unknown) => {
-            setError(err instanceof Error ? err.message : String(err))
+            setError(translateEmployeeCallableError(err, t))
           })
       }}
     >

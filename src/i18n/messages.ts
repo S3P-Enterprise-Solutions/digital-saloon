@@ -358,6 +358,8 @@ export type Messages = {
   'admin.employeesManageSubtitle': string
   'admin.employeesNavTitle': string
   'admin.employeesNavHint': string
+  'admin.employeesAccessButton': string
+  'admin.employeesAccessTitle': string
   'admin.employeesCreateAccountTitle': string
   'admin.employeesCreateAccountHint': string
   'admin.employeesLinkAdminTitle': string
@@ -369,6 +371,8 @@ export type Messages = {
   'admin.employeesListTitle': string
   'admin.employeesLoadError': string
   'admin.employeesListEmpty': string
+  'admin.employeesProfileTitle': string
+  'admin.employeesProfileHint': string
   'admin.employeesBookableTitle': string
   'admin.employeesBookableHint': string
   'admin.employeesBookableOn': string
@@ -376,6 +380,9 @@ export type Messages = {
   'admin.employeesBookableAuthBlocked': string
   'admin.employeesAuthTitle': string
   'admin.employeesAuthHint': string
+  'admin.employeesAuthManageButton': string
+  'admin.employeesAccountTitle': string
+  'admin.employeesAccountManageButton': string
   'admin.employeesAuthEnabled': string
   'admin.employeesAuthDisabled': string
   'admin.employeesSetPassword': string
@@ -387,12 +394,18 @@ export type Messages = {
   'admin.employeesHoursTitle': string
   'admin.employeesHoursHint': string
   'admin.employeesDayExceptionTitle': string
+  'admin.employeesDayExceptionHint': string
   'admin.employeesDayExceptionDate': string
   'admin.employeesDayExceptionAdd': string
   'admin.employeesDayExceptionEdit': string
   'admin.employeesDayExceptionEmpty': string
   'admin.employeesDayExceptionSave': string
   'admin.employeesDayExceptionDelete': string
+  'admin.employeesDayExceptionAllDay': string
+  'admin.employeesDayExceptionPartial': string
+  'admin.employeesDayExceptionOpenThen': string
+  'admin.employeesDayExceptionAbsentThen': string
+  'admin.employeesDayExceptionDefaultName': string
   'admin.employeesBookablePreviewTitle': string
   'admin.employeesBookablePreviewHint': string
   'admin.employeesBookablePreviewError': string
@@ -400,6 +413,16 @@ export type Messages = {
   'admin.employeesBookablePreviewServices': string
   'admin.employeesSoftRemove': string
   'admin.employeesRemoved': string
+  'admin.employeesError.firstNameInvalid': string
+  'admin.employeesError.lastNameInvalid': string
+  'admin.employeesError.emailInvalid': string
+  'admin.employeesError.passwordTooShort': string
+  'admin.employeesError.alreadyExists': string
+  'admin.employeesError.notFound': string
+  'admin.employeesError.featureDisabled': string
+  'admin.employeesError.authDisabledBookable': string
+  'admin.employeesError.mustBeAdmin': string
+  'admin.employeesError.failed': string
   'admin.primaryAdminBadge': string
   'admin.accountDisplayName': string
   'admin.accountEmail': string
@@ -762,7 +785,7 @@ export const de: Messages = {
   'employee.hoursHint':
     'Pflege Sie Ihre buchbaren Öffnungszeiten. Ungültige Intervalle werden abgelehnt.',
   'employee.hoursError': 'Arbeitszeiten konnten nicht geladen werden.',
-  'employee.dayExceptionTitle': 'Tagesausnahmen',
+  'employee.dayExceptionTitle': 'Abwesenheiten',
   'employee.servicesTitle': 'Zugewiesene Dienstleistungen',
   'employee.servicesHint': 'Nur Leseansicht — Änderungen nimmt die Salonleitung vor.',
   'employee.servicesError': 'Dienstleistungen konnten nicht geladen werden.',
@@ -939,6 +962,8 @@ export const de: Messages = {
     'Buchbare Profile, Dienste und Zugänge für Stylist*innen verwalten.',
   'admin.employeesNavTitle': 'Mitarbeiter*innen',
   'admin.employeesNavHint': 'Konten anlegen, Admins verknüpfen, Buchbarkeit und Dienste.',
+  'admin.employeesAccessButton': 'Zugang',
+  'admin.employeesAccessTitle': 'Zugang verwalten',
   'admin.employeesCreateAccountTitle': 'Neues Mitarbeiter-Konto',
   'admin.employeesCreateAccountHint':
     'Legt einen neuen Login mit Rolle „Mitarbeiter“ und einem buchbaren Profil an.',
@@ -952,6 +977,8 @@ export const de: Messages = {
   'admin.employeesListTitle': 'Alle Profile',
   'admin.employeesLoadError': 'Mitarbeiter konnten nicht geladen werden.',
   'admin.employeesListEmpty': 'Noch keine Mitarbeiter-Profile vorhanden.',
+  'admin.employeesProfileTitle': 'Profil',
+  'admin.employeesProfileHint': 'Dienste und ob Termine online buchbar sind.',
   'admin.employeesBookableTitle': 'Buchbarkeit',
   'admin.employeesBookableHint':
     'Steuert, ob im Online-Buchungskalender Termine vergeben werden können.',
@@ -959,9 +986,12 @@ export const de: Messages = {
   'admin.employeesBookableOff': 'Nicht buchbar',
   'admin.employeesBookableAuthBlocked':
     'Login ist deaktiviert — zuerst Auth wieder aktivieren, dann Buchbarkeit einschalten.',
-  'admin.employeesAuthTitle': 'Login (Auth)',
+  'admin.employeesAuthTitle': 'Login',
   'admin.employeesAuthHint':
     'Nur das Haupt-Admin-Konto kann Zugänge sperren oder Passwörter setzen.',
+  'admin.employeesAuthManageButton': 'Login verwalten',
+  'admin.employeesAccountTitle': 'Konto',
+  'admin.employeesAccountManageButton': 'Konto verwalten',
   'admin.employeesAuthEnabled': 'Login aktiv',
   'admin.employeesAuthDisabled': 'Login deaktiviert',
   'admin.employeesSetPassword': 'Passwort setzen',
@@ -972,15 +1002,21 @@ export const de: Messages = {
   'admin.employeesServiceAssignmentEmpty': 'Keine Dienste im Katalog.',
   'admin.employeesServiceAssignmentNoEmployees': 'Keine aktiven Profile zum Zuordnen.',
   'admin.employeesHoursTitle': 'Arbeitszeiten',
-  'admin.employeesHoursHint':
-    'Wöchentliche Verfügbarkeit wie bei den Salon-Öffnungszeiten. Geschlossene Tage = kein Intervall.',
-  'admin.employeesDayExceptionTitle': 'Tages-Ausnahmen',
+  'admin.employeesHoursHint': 'Reguläre Wochenzeiten. Geschlossene Tage = kein Intervall.',
+  'admin.employeesDayExceptionTitle': 'Abwesenheiten',
+  'admin.employeesDayExceptionHint':
+    'Persönliche Abwesenheiten (Urlaub, kürzere Tage). Salon-Schließungen gelten automatisch mit.',
   'admin.employeesDayExceptionDate': 'Datum (YYYY-MM-DD)',
-  'admin.employeesDayExceptionAdd': 'Neue Ausnahme',
-  'admin.employeesDayExceptionEdit': 'Ausnahme bearbeiten',
-  'admin.employeesDayExceptionEmpty': 'Keine Tages-Ausnahmen gespeichert.',
-  'admin.employeesDayExceptionSave': 'Ausnahme speichern',
-  'admin.employeesDayExceptionDelete': 'Ausnahme löschen',
+  'admin.employeesDayExceptionAdd': 'Abwesenheit hinzufügen',
+  'admin.employeesDayExceptionEdit': 'Abwesenheit bearbeiten',
+  'admin.employeesDayExceptionEmpty': 'Noch keine Abwesenheiten.',
+  'admin.employeesDayExceptionSave': 'Abwesenheit speichern',
+  'admin.employeesDayExceptionDelete': 'Abwesenheit löschen',
+  'admin.employeesDayExceptionAllDay': 'Ganztags abwesend',
+  'admin.employeesDayExceptionPartial': 'Nur {hours} verfügbar',
+  'admin.employeesDayExceptionOpenThen': 'An diesem Tag verfügbar: {hours}',
+  'admin.employeesDayExceptionAbsentThen': 'An diesem Tag ganz abwesend.',
+  'admin.employeesDayExceptionDefaultName': 'Abwesend',
   'admin.employeesBookablePreviewTitle': 'Öffentliche Buchbarkeits-Projektion',
   'admin.employeesBookablePreviewHint':
     'So erscheinen Stylist*innen in der Kunden-Buchung (Callable listBookableEmployees).',
@@ -989,6 +1025,20 @@ export const de: Messages = {
   'admin.employeesBookablePreviewServices': '{count} Dienste',
   'admin.employeesSoftRemove': 'Profil entfernen',
   'admin.employeesRemoved': 'Entfernt',
+  'admin.employeesError.firstNameInvalid':
+    'Bitte einen gültigen Vornamen eingeben (max. 80 Zeichen).',
+  'admin.employeesError.lastNameInvalid':
+    'Bitte einen gültigen Nachnamen eingeben (max. 80 Zeichen).',
+  'admin.employeesError.emailInvalid': 'Bitte eine gültige E-Mail-Adresse eingeben.',
+  'admin.employeesError.passwordTooShort': 'Das Passwort muss mindestens 8 Zeichen haben.',
+  'admin.employeesError.alreadyExists': 'Für diese Person existiert bereits ein Profil.',
+  'admin.employeesError.notFound': 'Mitarbeiterprofil wurde nicht gefunden.',
+  'admin.employeesError.featureDisabled':
+    'Mitarbeiterverwaltung ist für diesen Salon nicht aktiviert.',
+  'admin.employeesError.authDisabledBookable':
+    'Ein gesperrtes Konto kann nicht buchbar sein. Bitte zuerst den Login freigeben.',
+  'admin.employeesError.mustBeAdmin': 'Nur Admin-Konten können so verknüpft werden.',
+  'admin.employeesError.failed': 'Aktion fehlgeschlagen. Bitte erneut versuchen.',
   'admin.primaryAdminBadge': 'Haupt-Admin',
   'admin.accountDisplayName': 'Name',
   'admin.accountEmail': 'E-Mail',
@@ -1352,7 +1402,7 @@ export const it: Messages = {
   'employee.hoursTitle': 'Orari settimanali',
   'employee.hoursHint': 'Gestisci gli orari prenotabili. Intervalli non validi vengono rifiutati.',
   'employee.hoursError': 'Impossibile caricare gli orari.',
-  'employee.dayExceptionTitle': 'Eccezioni giornaliere',
+  'employee.dayExceptionTitle': 'Assenze',
   'employee.servicesTitle': 'Servizi assegnati',
   'employee.servicesHint': 'Sola lettura — le modifiche le fa la direzione.',
   'employee.servicesError': 'Impossibile caricare i servizi.',
@@ -1526,6 +1576,8 @@ export const it: Messages = {
     'Gestisci profili prenotabili, servizi e accessi per gli stilisti.',
   'admin.employeesNavTitle': 'Collaboratori',
   'admin.employeesNavHint': 'Crea account, collega admin, prenotabilità e servizi.',
+  'admin.employeesAccessButton': 'Accesso',
+  'admin.employeesAccessTitle': 'Gestisci accesso',
   'admin.employeesCreateAccountTitle': 'Nuovo account collaboratore',
   'admin.employeesCreateAccountHint':
     'Crea un login con ruolo “collaboratore” e un profilo prenotabile.',
@@ -1539,6 +1591,8 @@ export const it: Messages = {
   'admin.employeesListTitle': 'Tutti i profili',
   'admin.employeesLoadError': 'Impossibile caricare i collaboratori.',
   'admin.employeesListEmpty': 'Nessun profilo collaboratore presente.',
+  'admin.employeesProfileTitle': 'Profilo',
+  'admin.employeesProfileHint': 'Servizi e se gli appuntamenti sono prenotabili online.',
   'admin.employeesBookableTitle': 'Prenotabilità',
   'admin.employeesBookableHint':
     'Determina se si possono assegnare appuntamenti nel calendario online.',
@@ -1546,8 +1600,11 @@ export const it: Messages = {
   'admin.employeesBookableOff': 'Non prenotabile',
   'admin.employeesBookableAuthBlocked':
     'Accesso disattivato — riattiva prima l’auth, poi la prenotabilità.',
-  'admin.employeesAuthTitle': 'Accesso (Auth)',
+  'admin.employeesAuthTitle': 'Accesso',
   'admin.employeesAuthHint': 'Solo l’admin principale può bloccare accessi o impostare password.',
+  'admin.employeesAuthManageButton': 'Gestisci accesso',
+  'admin.employeesAccountTitle': 'Account',
+  'admin.employeesAccountManageButton': 'Gestisci account',
   'admin.employeesAuthEnabled': 'Accesso attivo',
   'admin.employeesAuthDisabled': 'Accesso disattivato',
   'admin.employeesSetPassword': 'Imposta password',
@@ -1558,15 +1615,21 @@ export const it: Messages = {
   'admin.employeesServiceAssignmentEmpty': 'Nessun servizio nel catalogo.',
   'admin.employeesServiceAssignmentNoEmployees': 'Nessun profilo attivo da assegnare.',
   'admin.employeesHoursTitle': 'Orari di lavoro',
-  'admin.employeesHoursHint':
-    'Disponibilità settimanale come per gli orari del salone. Giorno chiuso = nessun intervallo.',
-  'admin.employeesDayExceptionTitle': 'Eccezioni giornaliere',
+  'admin.employeesHoursHint': 'Orari settimanali regolari. Giorno chiuso = nessun intervallo.',
+  'admin.employeesDayExceptionTitle': 'Assenze',
+  'admin.employeesDayExceptionHint':
+    'Assenze personali (ferie, orari ridotti). Le chiusure del salone valgono già automaticamente.',
   'admin.employeesDayExceptionDate': 'Data (AAAA-MM-GG)',
-  'admin.employeesDayExceptionAdd': 'Nuova eccezione',
-  'admin.employeesDayExceptionEdit': 'Modifica eccezione',
-  'admin.employeesDayExceptionEmpty': 'Nessuna eccezione salvata.',
-  'admin.employeesDayExceptionSave': 'Salva eccezione',
-  'admin.employeesDayExceptionDelete': 'Elimina eccezione',
+  'admin.employeesDayExceptionAdd': 'Aggiungi assenza',
+  'admin.employeesDayExceptionEdit': 'Modifica assenza',
+  'admin.employeesDayExceptionEmpty': 'Nessuna assenza ancora.',
+  'admin.employeesDayExceptionSave': 'Salva assenza',
+  'admin.employeesDayExceptionDelete': 'Elimina assenza',
+  'admin.employeesDayExceptionAllDay': 'Assente tutto il giorno',
+  'admin.employeesDayExceptionPartial': 'Disponibile solo {hours}',
+  'admin.employeesDayExceptionOpenThen': 'Quel giorno disponibile: {hours}',
+  'admin.employeesDayExceptionAbsentThen': 'Quel giorno completamente assente.',
+  'admin.employeesDayExceptionDefaultName': 'Assente',
   'admin.employeesBookablePreviewTitle': 'Proiezione prenotabile pubblica',
   'admin.employeesBookablePreviewHint':
     'Come gli stilisti compaiono nella prenotazione cliente (callable listBookableEmployees).',
@@ -1575,6 +1638,18 @@ export const it: Messages = {
   'admin.employeesBookablePreviewServices': '{count} servizi',
   'admin.employeesSoftRemove': 'Rimuovi profilo',
   'admin.employeesRemoved': 'Rimosso',
+  'admin.employeesError.firstNameInvalid': 'Inserisci un nome valido (max. 80 caratteri).',
+  'admin.employeesError.lastNameInvalid': 'Inserisci un cognome valido (max. 80 caratteri).',
+  'admin.employeesError.emailInvalid': 'Inserisci un indirizzo e-mail valido.',
+  'admin.employeesError.passwordTooShort': 'La password deve avere almeno 8 caratteri.',
+  'admin.employeesError.alreadyExists': 'Esiste già un profilo per questa persona.',
+  'admin.employeesError.notFound': 'Profilo collaboratore non trovato.',
+  'admin.employeesError.featureDisabled':
+    'La gestione collaboratori non è attiva per questo salone.',
+  'admin.employeesError.authDisabledBookable':
+    'Un account disabilitato non può essere prenotabile. Riattiva prima il login.',
+  'admin.employeesError.mustBeAdmin': 'Solo gli account admin possono essere collegati così.',
+  'admin.employeesError.failed': 'Operazione non riuscita. Riprova.',
   'admin.primaryAdminBadge': 'Admin principale',
   'admin.accountDisplayName': 'Nome',
   'admin.accountEmail': 'E-mail',

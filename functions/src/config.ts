@@ -30,7 +30,7 @@ export function getBrandKey(): 'kimm' | 'salon1500' | 'hairboutique' {
  */
 const employeeManagementByBrand: Record<ReturnType<typeof getBrandKey>, boolean> = {
   kimm: false,
-  salon1500: false,
+  salon1500: true,
   hairboutique: false,
 }
 

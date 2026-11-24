@@ -18,7 +18,7 @@ export const salon1500Module: BrandModule = {
   profile: salon1500Profile,
   features: {
     balayage: true,
-    employeeManagement: false,
+    employeeManagement: true,
   },
   featureContent: {
     balayage: salon1500BalayageContent,

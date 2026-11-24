@@ -1,4 +1,5 @@
 import { getApps, initializeApp } from 'firebase-admin/app'
+import { getAuth } from 'firebase-admin/auth'
 import { getFirestore, type Firestore } from 'firebase-admin/firestore'
 
 import { demoProjectId, emulatorHost, emulatorPorts } from '../src/data/emulatorPorts'
@@ -8,6 +9,7 @@ let db: Firestore | null = null
 /** Admin SDK against the local Firestore emulator (Playwright Node process). */
 export function emulatorFirestore(): Firestore {
   process.env.FIRESTORE_EMULATOR_HOST = `${emulatorHost}:${emulatorPorts.firestore}`
+  process.env.FIREBASE_AUTH_EMULATOR_HOST ??= `${emulatorHost}:${emulatorPorts.auth}`
   if (!getApps().length) {
     initializeApp({ projectId: demoProjectId })
   }
@@ -234,6 +236,47 @@ export async function getEmployeeUidByEmail(
   const snap = await salonDoc(salonId).collection('employees').where('email', '==', email).get()
   if (snap.empty) return null
   return snap.docs[0]?.id ?? null
+}
+
+export async function getEmployeeDoc(
+  employeeUid: string,
+  salonId = 'pilot',
+): Promise<Record<string, unknown> | null> {
+  const snap = await salonDoc(salonId).collection('employees').doc(employeeUid).get()
+  return snap.exists ? (snap.data() ?? null) : null
+}
+
+/** Ensure the employee is bookable for Herrenhaarschnitt (id `haircut`) with salon hours. */
+export async function ensureEmployeeReadyForHaircutBooking(
+  employeeUid: string,
+  salonId = 'pilot',
+): Promise<void> {
+  await salonDoc(salonId)
+    .collection('employees')
+    .doc(employeeUid)
+    .set(
+      {
+        serviceIds: ['haircut'],
+        active: true,
+        authDisabled: false,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    )
+  await copySalonOpeningHoursToEmployee(employeeUid, salonId)
+}
+
+/** Re-enable Auth + clear authDisabled (UI remount can race after disable). */
+export async function enableEmployeeAuth(employeeUid: string, salonId = 'pilot'): Promise<void> {
+  emulatorFirestore()
+  await getAuth().updateUser(employeeUid, { disabled: false })
+  await salonDoc(salonId).collection('employees').doc(employeeUid).set(
+    {
+      authDisabled: false,
+      updatedAt: new Date().toISOString(),
+    },
+    { merge: true },
+  )
 }
 
 export async function getReservation(

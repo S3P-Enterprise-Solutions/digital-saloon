@@ -66,3 +66,17 @@ test('isEmployeeManagementEnabled is false for kimm when env unset', () => {
     },
   )
 })
+
+test('isEmployeeManagementEnabled is true for salon1500 when env unset', () => {
+  withEnv(
+    {
+      EMPLOYEE_MANAGEMENT_ENABLED: undefined,
+      BRAND: 'salon1500',
+      SALON_ID: 'salon1500',
+    },
+    () => {
+      assert.equal(getBrandKey(), 'salon1500')
+      assert.equal(isEmployeeManagementEnabled(), true)
+    },
+  )
+})

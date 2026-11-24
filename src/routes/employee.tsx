@@ -129,6 +129,9 @@ export const employeeIndexRoute = createRoute({
 
 const EmployeeHoursRoute: React.FunctionComponent = () => {
   const { user } = useAuth()
+  const salon = useSalon()
+  const timeZone = salon.data?.timezone ?? 'Europe/Vienna'
+  const todayYmd = todayYmdInTimeZone(timeZone)
   const employeeUid = user?.uid ?? null
   const employeeWeekly = useEmployeeWorkingHours(employeeUid, employeeUid !== null)
   const employeeExceptions = useEmployeeDayExceptions(employeeUid, employeeUid !== null)
@@ -163,6 +166,7 @@ const EmployeeHoursRoute: React.FunctionComponent = () => {
 
   return (
     <EmployeeHoursPage
+      todayYmd={todayYmd}
       employeeWeekly={employeeWeekly.data}
       employeeWeeklyLoading={employeeWeekly.isLoading}
       employeeWeeklyError={employeeWeekly.isError}

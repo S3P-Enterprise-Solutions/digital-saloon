@@ -1,31 +1,22 @@
 import type * as React from 'react'
 import { useState } from 'react'
-import {
-  Alert,
-  Box,
-  Button,
-  FormControlLabel,
-  IconButton,
-  Stack,
-  Switch,
-  TextField,
-  Typography,
-} from '@mui/material'
+import { Alert, Box, Button, IconButton, Stack, Typography } from '@mui/material'
+import AddIcon from '@mui/icons-material/Add'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
 
-import {
-  dayExceptionOpenIntervalsValid,
-  defaultDayInterval,
-} from '../data/employeeWorkingHoursForm'
+import { AbsenceDialog } from './AbsenceDialog'
+import { translateEmployeeCallableError } from '../data/employeeCallableErrors'
+import { employeeDayExceptionsOf } from '../data/employeeAbsenceSave'
 import type { EmployeeDayExceptionWithId } from '../data/employeeSchedule'
+import type { OpeningHoursByWeekday } from '../data/openingHours'
+import type { AbsenceSave } from '../data/openingHoursForm'
 import type { TimeInterval } from '../data/schemas'
 import { useLocale } from '../i18n'
 
-import { IntervalsEditor } from './IntervalsEditor'
-
-const datePattern = /^\d{4}-\d{2}-\d{2}$/
-
 export type EmployeeDayExceptionFormProps = {
+  todayYmd: string
+  weekly: OpeningHoursByWeekday | undefined
+  weeklyLoading?: boolean
   exceptions: EmployeeDayExceptionWithId[] | undefined
   exceptionsLoading: boolean
   exceptionsError: boolean
@@ -43,7 +34,25 @@ export type EmployeeDayExceptionFormProps = {
 const formatHours = (intervals: readonly TimeInterval[]): string =>
   intervals.map((interval) => `${interval.start}–${interval.end}`).join(', ')
 
+function useDateFormatters() {
+  const { intlLocale } = useLocale()
+  const format = new Intl.DateTimeFormat(intlLocale, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
+  const toDate = (ymd: string) => new Date(`${ymd}T12:00:00.000Z`)
+  return {
+    date: (ymd: string) => format.format(toDate(ymd)),
+  }
+}
+
 export const EmployeeDayExceptionForm: React.FunctionComponent<EmployeeDayExceptionFormProps> = ({
+  todayYmd,
+  weekly,
+  weeklyLoading = false,
   exceptions,
   exceptionsLoading,
   exceptionsError,
@@ -53,178 +62,106 @@ export const EmployeeDayExceptionForm: React.FunctionComponent<EmployeeDayExcept
   onDelete,
 }) => {
   const { t } = useLocale()
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [date, setDate] = useState('')
-  const [closed, setClosed] = useState(false)
-  const [intervals, setIntervals] = useState<TimeInterval[]>([{ ...defaultDayInterval }])
-  const [showValidation, setShowValidation] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
-
-  const dateValid = datePattern.test(date)
-  const intervalsValid = dayExceptionOpenIntervalsValid(closed, intervals)
-  const formValid = dateValid && intervalsValid
-
-  const resetForm = () => {
-    setEditingId(null)
-    setDate('')
-    setClosed(false)
-    setIntervals([{ ...defaultDayInterval }])
-    setShowValidation(false)
-    setFormError(null)
-  }
-
-  const loadException = (exception: EmployeeDayExceptionWithId) => {
-    setEditingId(exception.id)
-    setDate(exception.date)
-    setClosed(exception.closed)
-    setIntervals(
-      exception.closed || exception.intervals.length === 0
-        ? [{ ...defaultDayInterval }]
-        : exception.intervals.map((interval) => ({ ...interval })),
-    )
-    setShowValidation(false)
-    setFormError(null)
-  }
+  const formatDate = useDateFormatters()
+  const [dialogKey, setDialogKey] = useState<number | null>(null)
+  const [listError, setListError] = useState<string | null>(null)
 
   const sorted = exceptions?.slice().sort((a, b) => a.date.localeCompare(b.date)) ?? []
 
+  const handleAddAbsence = async (absence: AbsenceSave) => {
+    const items = employeeDayExceptionsOf(absence)
+    for (const item of items) {
+      await onSave(item)
+    }
+  }
+
   return (
-    <Stack spacing={2}>
+    <Stack spacing={1.5}>
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        spacing={1.5}
+        sx={{ justifyContent: 'flex-end', alignItems: { sm: 'flex-start' } }}
+      >
+        <Button
+          variant="outlined"
+          startIcon={<AddIcon />}
+          disabled={busy || disabled || weeklyLoading}
+          onClick={() => setDialogKey(Date.now())}
+          sx={{ alignSelf: { xs: 'stretch', sm: 'flex-start' } }}
+        >
+          {t('hours.addAbsence')}
+        </Button>
+      </Stack>
+
       {exceptionsLoading ? (
         <Typography variant="body2" color="text.secondary">
           {t('admin.openingHoursLoading')}
         </Typography>
       ) : null}
       {exceptionsError ? <Alert severity="error">{t('admin.openingHoursError')}</Alert> : null}
+      {listError ? <Alert severity="error">{listError}</Alert> : null}
       {sorted.length > 0 ? (
-        <Stack component="ul" spacing={1} sx={{ listStyle: 'none', m: 0, p: 0 }}>
-          {sorted.map((exception) => (
-            <Box
-              component="li"
-              key={exception.id}
-              sx={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 1,
-                py: 1,
-                borderBottom: 1,
-                borderColor: 'divider',
-              }}
-            >
-              <Box sx={{ flex: 1 }}>
-                <Typography sx={{ fontWeight: 600 }}>{exception.date}</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {exception.closed
-                    ? t('admin.closed')
-                    : formatHours(exception.intervals) || t('admin.closed')}
-                </Typography>
-              </Box>
-              <Button
-                size="small"
-                disabled={busy || disabled}
-                onClick={() => loadException(exception)}
-              >
-                {t('admin.edit')}
-              </Button>
-              <IconButton
-                size="small"
-                aria-label={`${t('admin.employeesDayExceptionDelete')}: ${exception.date}`}
-                disabled={busy || disabled}
-                onClick={() => {
-                  setFormError(null)
-                  void onDelete(exception.id).catch((err: unknown) => {
-                    setFormError(err instanceof Error ? err.message : String(err))
-                  })
-                  if (editingId === exception.id) resetForm()
+        <Stack component="ul" spacing={0} sx={{ listStyle: 'none', m: 0, p: 0 }}>
+          {sorted.map((exception) => {
+            const title = formatDate.date(exception.date)
+            const detail = exception.closed
+              ? t('admin.employeesDayExceptionAllDay')
+              : t('admin.employeesDayExceptionPartial', {
+                  hours: formatHours(exception.intervals),
+                })
+            return (
+              <Box
+                component="li"
+                key={exception.id}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  py: 1.25,
+                  borderBottom: 1,
+                  borderColor: 'divider',
                 }}
               >
-                <DeleteOutlinedIcon fontSize="small" />
-              </IconButton>
-            </Box>
-          ))}
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 600 }}>{title}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {detail}
+                  </Typography>
+                </Box>
+                <IconButton
+                  size="small"
+                  aria-label={`${t('hours.deleteAbsence')}: ${title}`}
+                  disabled={busy || disabled}
+                  onClick={() => {
+                    setListError(null)
+                    void onDelete(exception.id).catch((err: unknown) => {
+                      setListError(translateEmployeeCallableError(err, t))
+                    })
+                  }}
+                >
+                  <DeleteOutlinedIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            )
+          })}
         </Stack>
       ) : !exceptionsLoading && !exceptionsError ? (
         <Typography variant="body2" color="text.secondary">
-          {t('admin.employeesDayExceptionEmpty')}
+          {t('hours.absencesEmpty')}
         </Typography>
       ) : null}
 
-      <Box
-        component="form"
-        noValidate
-        onSubmit={(event) => {
-          event.preventDefault()
-          setShowValidation(true)
-          setFormError(null)
-          if (!formValid || disabled) return
-          const exceptionId =
-            editingId ??
-            (typeof crypto !== 'undefined' && 'randomUUID' in crypto
-              ? crypto.randomUUID()
-              : `exc-${Date.now()}`)
-          void onSave({
-            exceptionId,
-            date,
-            closed,
-            intervals: closed ? undefined : intervals,
-          })
-            .then(() => resetForm())
-            .catch((err: unknown) => {
-              setFormError(err instanceof Error ? err.message : String(err))
-            })
-        }}
-      >
-        <Typography variant="subtitle2" sx={{ mb: 1.5, fontWeight: 600 }}>
-          {editingId ? t('admin.employeesDayExceptionEdit') : t('admin.employeesDayExceptionAdd')}
-        </Typography>
-        <Stack spacing={2} sx={{ maxWidth: 480 }}>
-          <TextField
-            size="small"
-            label={t('admin.employeesDayExceptionDate')}
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            error={showValidation && !dateValid}
-            helperText={showValidation && !dateValid ? t('hours.dateRequired') : undefined}
-            slotProps={{ htmlInput: { pattern: '^\\d{4}-\\d{2}-\\d{2}$' } }}
-          />
-          <FormControlLabel
-            control={
-              <Switch
-                checked={closed}
-                onChange={(_, checked) => {
-                  setClosed(checked)
-                  if (!checked && intervals.length === 0) {
-                    setIntervals([{ ...defaultDayInterval }])
-                  }
-                }}
-              />
-            }
-            label={t('admin.closed')}
-          />
-          {!closed ? (
-            <IntervalsEditor
-              intervals={intervals}
-              label={t('admin.employeesDayExceptionTitle')}
-              onChange={setIntervals}
-              allowEmpty
-            />
-          ) : null}
-          {showValidation && !closed && !intervalsValid ? (
-            <Alert severity="error">{t('hours.checkIntervals')}</Alert>
-          ) : null}
-          <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
-            <Button type="submit" variant="outlined" disabled={busy || disabled}>
-              {busy ? t('admin.saving') : t('admin.employeesDayExceptionSave')}
-            </Button>
-            {editingId ? (
-              <Button variant="text" disabled={busy} onClick={resetForm}>
-                {t('hours.dialogCancel')}
-              </Button>
-            ) : null}
-          </Stack>
-          {formError ? <Alert severity="error">{formError}</Alert> : null}
-        </Stack>
-      </Box>
+      {dialogKey !== null ? (
+        <AbsenceDialog
+          key={dialogKey}
+          open
+          todayYmd={todayYmd}
+          weekly={weekly}
+          variant="employee"
+          onClose={() => setDialogKey(null)}
+          onSubmit={handleAddAbsence}
+        />
+      ) : null}
     </Stack>
   )
 }

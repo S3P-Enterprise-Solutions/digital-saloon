@@ -28,7 +28,6 @@ import { useSetEmployeeAuthDisabled } from '../hooks/useSetEmployeeAuthDisabled'
 import { useSetEmployeeBookable } from '../hooks/useSetEmployeeBookable'
 import { useSetEmployeePassword } from '../hooks/useSetEmployeePassword'
 import { useDeleteEmployeeDayException } from '../hooks/useDeleteEmployeeDayException'
-import { useListBookableEmployees } from '../hooks/useListBookableEmployees'
 import { useSaveEmployeeDayException } from '../hooks/useSaveEmployeeDayException'
 import { useEmployeeDayExceptions } from '../hooks/useEmployeeDayExceptions'
 import { useEmployeeWorkingHours } from '../hooks/useEmployeeWorkingHours'
@@ -933,6 +932,8 @@ export const adminEmployeesRoute = createRoute({
   component: function AdminEmployeesRoute() {
     const navigate = useNavigate()
     const { user, isOperator } = useAuth()
+    const salon = useSalon()
+    const salonTimezone = salon.data?.timezone ?? 'Europe/Vienna'
     const profile = useUserProfile(!isOperator && user ? user.uid : null)
     const isPrimaryAdmin = !isOperator && profile.data?.isPrimaryAdmin === true
     const employeesQuery = useAdminEmployees(true)
@@ -948,7 +949,6 @@ export const adminEmployeesRoute = createRoute({
     const saveWeeklyWorkingHours = useSaveEmployeeWeeklyWorkingHours()
     const saveDayException = useSaveEmployeeDayException()
     const deleteDayException = useDeleteEmployeeDayException()
-    const bookablePreview = useListBookableEmployees(true)
     const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
     const employeeHours = useEmployeeWorkingHours(selectedEmployeeId, selectedEmployeeId !== null)
     const employeeExceptions = useEmployeeDayExceptions(
@@ -1018,9 +1018,7 @@ export const adminEmployeesRoute = createRoute({
         onDeleteDayException={async (input) => {
           await deleteDayException.mutateAsync(input)
         }}
-        bookablePreview={bookablePreview.data}
-        bookablePreviewLoading={bookablePreview.isLoading}
-        bookablePreviewError={bookablePreview.isError}
+        todayYmd={todayYmdInTimeZone(salonTimezone)}
         bookableBusy={setBookable.isPending}
         authBusy={setAuthDisabled.isPending}
         profileBusy={updateProfile.isPending}

@@ -10,6 +10,7 @@ import type { TimeInterval } from '../../data/schemas'
 import { useLocale } from '../../i18n'
 
 export type EmployeeHoursPageProps = {
+  todayYmd: string
   employeeWeekly: EmployeeWorkingHoursByWeekday | undefined
   employeeWeeklyLoading: boolean
   employeeWeeklyError: boolean
@@ -29,6 +30,7 @@ export type EmployeeHoursPageProps = {
 }
 
 export const EmployeeHoursPage: React.FunctionComponent<EmployeeHoursPageProps> = ({
+  todayYmd,
   employeeWeekly,
   employeeWeeklyLoading,
   employeeWeeklyError,
@@ -66,6 +68,9 @@ export const EmployeeHoursPage: React.FunctionComponent<EmployeeHoursPageProps> 
         {t('employee.dayExceptionTitle')}
       </Typography>
       <EmployeeDayExceptionForm
+        todayYmd={todayYmd}
+        weekly={employeeWeekly}
+        weeklyLoading={employeeWeeklyLoading}
         exceptions={employeeDayExceptions}
         exceptionsLoading={employeeDayExceptionsLoading}
         exceptionsError={employeeDayExceptionsError}
