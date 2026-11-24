@@ -114,31 +114,6 @@ export const OpenBand = styled('div')({
   backgroundColor: brand.paper,
 })
 
-export const AddSlot = styled('button')(({ theme }) => ({
-  position: 'absolute',
-  left: 2,
-  right: 2,
-  zIndex: 2,
-  display: 'flex',
-  alignItems: 'center',
-  padding: theme.spacing(0, 1),
-  border: '1px dashed transparent',
-  borderRadius: 3,
-  background: 'none',
-  color: 'transparent',
-  font: 'inherit',
-  fontSize: '0.75rem',
-  fontWeight: 600,
-  fontVariantNumeric: 'tabular-nums',
-  cursor: 'pointer',
-  '&:hover, &:focus-visible': {
-    borderColor: brand.orange,
-    backgroundColor: 'rgba(226, 112, 31, 0.08)',
-    color: brand.orangeDeep,
-    outline: 'none',
-  },
-}))
-
 export const Entry = styled('button')(({ theme }) => ({
   position: 'absolute',
   zIndex: 3,

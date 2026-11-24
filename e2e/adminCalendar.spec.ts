@@ -22,10 +22,6 @@ test.describe('admin reservations with seeded weeks @smoke', () => {
   })
 
   test('admin completes and cancels seeded appointments', async ({ page }) => {
-    page.on('dialog', (dialog) => {
-      void dialog.accept()
-    })
-
     const toComplete = await findFutureDemoReservation('CONFIRMED')
     await page.goto(`/admin/reservations/${toComplete.id}`)
     await expect(page.getByText(`${toComplete.firstName} ${toComplete.lastName}`)).toBeVisible()
@@ -36,6 +32,7 @@ test.describe('admin reservations with seeded weeks @smoke', () => {
     const toCancel = await findFutureDemoReservation('CONFIRMED')
     await page.goto(`/admin/reservations/${toCancel.id}`)
     await page.getByRole('button', { name: 'Stornieren' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Ja, stornieren' }).click()
     await expect.poll(async () => getReservationStatus(toCancel.id)).toBe('CANCELLED')
     await expect(page.getByText('Storniert')).toBeVisible()
   })

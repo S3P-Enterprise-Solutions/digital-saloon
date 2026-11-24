@@ -96,6 +96,9 @@ jobs:
           SALON_ID: ${{ matrix.salonId }}
           OPERATOR_EMAIL: ${{ secrets.OPERATOR_EMAIL }}
           OPERATOR_PASSWORD: ${{ secrets.OPERATOR_PASSWORD }}
+          PUBLIC_APP_URL: ${{ vars[format('PUBLIC_APP_URL_{0}', matrix.brand)] }}
+          SMTP_USER: ${{ secrets[format('SMTP_USER_{0}', matrix.brand)] }}
+          SMTP_PASS: ${{ secrets[format('SMTP_PASS_{0}', matrix.brand)] }}
         run: |
           if [ -z "$SERVICE_ACCOUNT_JSON" ]; then
             echo "Skipping deploy for ${{ matrix.brand }}: secret ${{ matrix.serviceAccountSecret }} is not set."
@@ -109,6 +112,15 @@ jobs:
             fi
             if [ -n "$OPERATOR_PASSWORD" ]; then
               echo "OPERATOR_PASSWORD=$OPERATOR_PASSWORD"
+            fi
+            if [ -n "$PUBLIC_APP_URL" ]; then
+              echo "PUBLIC_APP_URL=$PUBLIC_APP_URL"
+            fi
+            if [ -n "$SMTP_USER" ]; then
+              echo "SMTP_USER=$SMTP_USER"
+            fi
+            if [ -n "$SMTP_PASS" ]; then
+              echo "SMTP_PASS=$SMTP_PASS"
             fi
           } > "functions/.env.${{ matrix.projectId }}"
           printf '%s' "$SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/sa.json"

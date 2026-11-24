@@ -366,13 +366,14 @@ export async function seedSalonData(firestore, config = salonSeedConfig()) {
   await seedDemoWeek(salonRef, services, config.timezone)
 
   const seededServiceIds = new Set(services.map((service) => service.id))
-  for (const service of services) {
+  for (const [index, service] of services.entries()) {
     const { id, ...fields } = service
     await salonRef
       .collection('services')
       .doc(id)
       .set({
         ...fields,
+        sortOrder: index,
         active: true,
         createdAt: now,
         updatedAt: now,

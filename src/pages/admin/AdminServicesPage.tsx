@@ -7,6 +7,7 @@ import {
   CircularProgress,
   FormControlLabel,
   FormHelperText,
+  IconButton,
   InputAdornment,
   Stack,
   Switch,
@@ -14,16 +15,20 @@ import {
   Typography,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown'
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp'
 
 import { fieldIssueMessages } from '../../components/fieldIssueMessages'
 import {
   bilingualServiceName,
   emptyServiceFormInput,
   formatServiceDurationRange,
+  nextServiceSortOrder,
   serviceFormInputOf,
-  sortServicesForAdmin,
+  sortServicesByOrder,
   validateServiceForm,
   type ServiceDraft,
+  type ServiceFormDraft,
   type ServiceFormField,
   type ServiceFormInput,
 } from '../../data/serviceForm'
@@ -36,11 +41,13 @@ export type AdminServicesPageProps = {
   isLoading: boolean
   isError: boolean
   saving: boolean
+  moving: boolean
   /**
    * Creates (`serviceId: null`) or updates a service and resolves with its id;
    * rejects with an Error on failure.
    */
   onSave: (serviceId: string | null, draft: ServiceDraft) => Promise<string>
+  onMove: (serviceId: string, direction: 'up' | 'down') => Promise<void>
   onBackClick: () => void
 }
 
@@ -50,7 +57,7 @@ type ServiceEditorFormProps = {
   title: string
   initial: ServiceFormInput
   saving: boolean
-  onSave: (draft: ServiceDraft) => Promise<void>
+  onSave: (draft: ServiceFormDraft) => Promise<void>
   onCancel: () => void
 }
 
@@ -226,13 +233,16 @@ export const AdminServicesPage: React.FunctionComponent<AdminServicesPageProps> 
   isLoading,
   isError,
   saving,
+  moving,
   onSave,
+  onMove,
   onBackClick,
 }) => {
   const { t, locale, intlLocale } = useLocale()
   const [editor, setEditor] = useState<EditorTarget | null>(null)
   const [savedServiceId, setSavedServiceId] = useState<string | null>(null)
-  const sorted = services ? sortServicesForAdmin(services) : undefined
+  const [moveError, setMoveError] = useState<string | null>(null)
+  const sorted = services ? sortServicesByOrder(services) : undefined
 
   const formatPrice = (cents: number): string =>
     new Intl.NumberFormat(intlLocale, {
@@ -246,10 +256,22 @@ export const AdminServicesPage: React.FunctionComponent<AdminServicesPageProps> 
       ? `${formatPrice(minCents)}–${formatPrice(maxCents)}`
       : formatPrice(minCents)
 
-  const save = async (serviceId: string | null, draft: ServiceDraft): Promise<void> => {
-    const savedId = await onSave(serviceId, draft)
+  const save = async (serviceId: string | null, draft: ServiceFormDraft): Promise<void> => {
+    const sortOrder =
+      serviceId === null
+        ? nextServiceSortOrder(services ?? [])
+        : (services?.find((service) => service.id === serviceId)?.sortOrder ??
+          nextServiceSortOrder(services ?? []))
+    const savedId = await onSave(serviceId, { ...draft, sortOrder })
     setEditor(null)
     setSavedServiceId(savedId)
+  }
+
+  const move = (serviceId: string, direction: 'up' | 'down') => {
+    setMoveError(null)
+    onMove(serviceId, direction).catch((error: unknown) => {
+      setMoveError(error instanceof Error ? error.message : String(error))
+    })
   }
 
   return (
@@ -287,6 +309,9 @@ export const AdminServicesPage: React.FunctionComponent<AdminServicesPageProps> 
 
       {isLoading ? <CircularProgress aria-label={t('admin.servicesLoading')} /> : null}
       {isError ? <Alert severity="error">{t('admin.servicesError')}</Alert> : null}
+      {moveError ? (
+        <Alert severity="error">{t('admin.saveFailed', { message: moveError })}</Alert>
+      ) : null}
 
       {editor?.kind === 'new' ? (
         <ServiceEditorForm
@@ -304,11 +329,34 @@ export const AdminServicesPage: React.FunctionComponent<AdminServicesPageProps> 
 
       {sorted && sorted.length > 0 ? (
         <ServiceList aria-label={t('admin.services')}>
-          {sorted.map((service) => {
+          {sorted.map((service, index) => {
             const editing = editor?.kind === 'edit' && editor.serviceId === service.id
+            const busy = saving || moving || editing
             return (
               <li key={service.id}>
                 <ServiceRow className={service.active ? undefined : 'is-inactive'}>
+                  <div className="service-reorder">
+                    <IconButton
+                      size="small"
+                      aria-label={t('admin.moveServiceUp', {
+                        name: bilingualServiceName(service),
+                      })}
+                      disabled={busy || index === 0}
+                      onClick={() => move(service.id, 'up')}
+                    >
+                      <KeyboardArrowUpIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      aria-label={t('admin.moveServiceDown', {
+                        name: bilingualServiceName(service),
+                      })}
+                      disabled={busy || index === sorted.length - 1}
+                      onClick={() => move(service.id, 'down')}
+                    >
+                      <KeyboardArrowDownIcon fontSize="small" />
+                    </IconButton>
+                  </div>
                   <div className="service-text">
                     <span className="service-name">{bilingualServiceName(service)}</span>
                     {service.active ? null : (
@@ -332,11 +380,12 @@ export const AdminServicesPage: React.FunctionComponent<AdminServicesPageProps> 
                     {formatPriceRange(service.priceCents, service.priceMaxCents)}
                   </span>
                   <Button
+                    className="service-edit"
                     size="small"
                     aria-label={t('admin.editServiceLabel', {
                       name: bilingualServiceName(service),
                     })}
-                    disabled={editing}
+                    disabled={editing || moving}
                     onClick={() => {
                       setSavedServiceId(null)
                       setEditor({ kind: 'edit', serviceId: service.id })

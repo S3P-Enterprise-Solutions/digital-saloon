@@ -5,6 +5,7 @@ import * as v from 'valibot'
 import { bookingFailureOf } from '../data/bookingApi'
 import { addMonths, viennaTodayYmd, weekStartMondayYmd } from '../data/bookingCalendar'
 import { optionalSearchParam } from '../data/schemas'
+import { parseSelectedServiceIds, serializeServiceIds } from '../data/serviceSelection'
 import { localizedServiceName } from '../data/serviceForm'
 import { useActiveServices } from '../hooks/useActiveServices'
 import { useActiveEmployees } from '../hooks/useEmployees'
@@ -25,21 +26,6 @@ const bookSearchSchema = v.object({
   week: optionalSearchParam(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
   month: optionalSearchParam(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
 })
-
-function parseSelectedServiceIds(search: { serviceId?: string; serviceIds?: string }): string[] {
-  if (search.serviceIds) {
-    return Array.from(
-      new Set(
-        search.serviceIds
-          .split(',')
-          .map((item) => item.trim())
-          .filter(Boolean),
-      ),
-    )
-  }
-  if (search.serviceId) return [search.serviceId]
-  return []
-}
 
 export const bookRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -81,8 +67,6 @@ export const bookRoute = createRoute({
         ? crypto.randomUUID()
         : `idemp-${Date.now()}-${Math.random().toString(36).slice(2)}`
     }, [attemptKey])
-
-    const serializeServiceIds = (ids: string[]) => (ids.length > 0 ? ids.join(',') : undefined)
 
     return (
       <BookingWizardPage
@@ -168,21 +152,6 @@ export const bookRoute = createRoute({
             },
             replace: true,
             resetScroll: true,
-          })
-        }}
-        onWeekAnchorChange={(anchorYmd) => {
-          void navigate({
-            to: '/book',
-            search: {
-              serviceIds: serializeServiceIds(selectedServiceIds),
-              step: '2',
-              date: search.date,
-              startAt: search.startAt,
-              week: weekStartMondayYmd(anchorYmd),
-              month: `${anchorYmd.slice(0, 8)}01`,
-            },
-            replace: true,
-            resetScroll: false,
           })
         }}
         onMonthAnchorChange={(anchorYmd) => {

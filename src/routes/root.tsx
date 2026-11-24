@@ -11,10 +11,12 @@ const settingsPaths = [
   '/admin/services',
   '/admin/opening-hours',
   '/admin/holidays',
+  '/admin/homepage',
 ]
 
 function activeAdminNavOf(pathname: string): AdminNavItem | null {
   if (settingsPaths.some((path) => pathname.startsWith(path))) return 'settings'
+  if (pathname.startsWith('/admin/pending')) return 'pending'
   if (pathname.startsWith('/admin')) return 'calendar'
   return null
 }
@@ -57,6 +59,9 @@ const RootRoute: React.FunctionComponent = () => {
       }}
       onAdminClick={() => {
         void navigate({ to: '/admin' })
+      }}
+      onAdminPendingClick={() => {
+        void navigate({ to: '/admin/pending' })
       }}
       onAdminSettingsClick={() => {
         void navigate({ to: '/admin/settings' })

@@ -6,6 +6,7 @@ import {
   confirmReservationAdmin,
   createManualReservationAdmin,
   declineReservationAdmin,
+  updateManualReservationAdmin,
 } from '../data/adminBookingApi'
 import { fetchReservationsInRange } from '../data/reservations'
 import { getSalonId } from '../data/salonConfig'
@@ -57,6 +58,12 @@ export function useAdminReservationActions() {
       void invalidate()
     },
   })
+  const updateManual = useMutation({
+    mutationFn: updateManualReservationAdmin,
+    onSuccess: () => {
+      void invalidate()
+    },
+  })
 
-  return { confirm, decline, cancel, complete, createManual }
+  return { confirm, decline, cancel, complete, createManual, updateManual }
 }

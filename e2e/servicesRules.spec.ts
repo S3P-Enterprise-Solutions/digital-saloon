@@ -85,6 +85,7 @@ async function currentHaircut(): Promise<Record<string, FieldValue>> {
     durationMinutes: Number(service.durationMinutes),
     priceCents: Number(service.priceCents),
     active: Boolean(service.active),
+    sortOrder: Number(service.sortOrder ?? 0),
     createdAt: String(service.createdAt),
     updatedAt: String(service.updatedAt),
   }

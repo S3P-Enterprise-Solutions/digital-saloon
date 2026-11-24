@@ -161,7 +161,7 @@ export async function findServiceByName(
   return doc ? { id: doc.id, ...doc.data() } : null
 }
 
-/** First future PENDING or CONFIRMED reservation of a service. */
+/** First future PENDING or CONFIRMED reservation of a single service (ignores multi-service bookings). */
 export async function findFutureReservationOfService(
   serviceId: string,
   salonId = 'pilot',
@@ -175,12 +175,20 @@ export async function findFutureReservationOfService(
   const nowIso = new Date().toISOString()
   const match = snap.docs
     .map((doc) => ({ id: doc.id, ...doc.data() }) as Record<string, unknown> & { id: string })
-    .filter(
-      (item) =>
-        String(item.startAt) > nowIso && (item.status === 'CONFIRMED' || item.status === 'PENDING'),
-    )
-    .sort((a, b) => String(a.startAt).localeCompare(String(b.startAt)))[0]
-  if (!match) throw new Error(`No future reservation for ${serviceId}`)
+    .filter((item) => {
+      if (String(item.startAt) <= nowIso) return false
+      if (item.status !== 'CONFIRMED' && item.status !== 'PENDING') return false
+      const serviceIds = Array.isArray(item.serviceIds)
+        ? item.serviceIds.map(String)
+        : [String(item.serviceId)]
+      return serviceIds.length === 1 && serviceIds[0] === serviceId
+    })
+    .sort((a, b) => {
+      const seededDelta = Number(Boolean(b.seededDemo)) - Number(Boolean(a.seededDemo))
+      if (seededDelta !== 0) return seededDelta
+      return String(a.startAt).localeCompare(String(b.startAt))
+    })[0]
+  if (!match) throw new Error(`No future single-service reservation for ${serviceId}`)
   return {
     id: match.id,
     firstName: String(match.firstName),

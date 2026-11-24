@@ -37,7 +37,8 @@ function optionalNotes(value: unknown): string | null {
   return trimmed
 }
 
-function resolveServiceIds(data: Record<string, unknown>): {
+/** Exported for unit tests; shared by online and manual create callables. */
+export function resolveServiceIds(data: Record<string, unknown>): {
   serviceId: string
   serviceIds: string[]
 } {
@@ -169,6 +170,8 @@ export const createManualReservation = onCall({ region: functionsRegion }, async
     throw new HttpsError('invalid-argument', 'startAt must be an ISO timestamp.')
   }
 
+  const { serviceId, serviceIds } = resolveServiceIds(data)
+
   const result = await createReservationTransactional(
     {
       firstName: requireString(data.firstName, 'firstName'),
@@ -176,7 +179,8 @@ export const createManualReservation = onCall({ region: functionsRegion }, async
       phone: requireString(data.phone, 'phone'),
       email:
         typeof data.email === 'string' && data.email.trim().length > 0 ? data.email.trim() : null,
-      serviceId: requireString(data.serviceId, 'serviceId'),
+      serviceId,
+      serviceIds,
       employeeId:
         typeof data.employeeId === 'string' && data.employeeId.trim()
           ? data.employeeId.trim()

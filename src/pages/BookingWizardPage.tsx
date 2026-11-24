@@ -1,5 +1,5 @@
 import type * as React from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   Box,
@@ -17,13 +17,10 @@ import {
 } from '@mui/material'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import ExpandLessIcon from '@mui/icons-material/ExpandLess'
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import * as v from 'valibot'
 
 import type { AvailableSlotDto, BookingFailure } from '../data/bookingApi'
 import {
-  addDays,
   addMonths,
   findEarliestAvailableDate,
   monthMatrix,
@@ -42,7 +39,6 @@ import { arePricesVisible } from '../data/salonConfig'
 import {
   formatServiceDurationRange,
   formatServicePriceRange,
-  groupServicesByCategory,
   localizedServiceDescription,
   localizedServiceName,
 } from '../data/serviceForm'
@@ -111,7 +107,6 @@ export type BookingWizardPageProps = {
   onSelectDate: (dateYmd: string) => void
   onSelectTime: (startAt: string) => void
   onClearTime: () => void
-  onWeekAnchorChange: (anchorYmd: string) => void
   onMonthAnchorChange: (anchorYmd: string) => void
   onSubmit: (input: {
     firstName: string
@@ -148,14 +143,12 @@ export const BookingWizardPage: React.FunctionComponent<BookingWizardPageProps> 
   onSelectDate,
   onSelectTime,
   onClearTime,
-  onWeekAnchorChange,
   onMonthAnchorChange,
   onSubmit,
 }) => {
   const { t, locale, intlLocale } = useLocale()
   const pricesVisible = arePricesVisible()
 
-  const [calendarExpanded, setCalendarExpanded] = useState(false)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [phone, setPhone] = useState('')
@@ -163,6 +156,23 @@ export const BookingWizardPage: React.FunctionComponent<BookingWizardPageProps> 
   const [notes, setNotes] = useState('')
   const [privacyAccepted, setPrivacyAccepted] = useState(false)
   const [contactIssue, setContactIssue] = useState<BookingContactIssue | null>(null)
+  const timeSectionRef = useRef<HTMLDivElement | null>(null)
+  const shouldScrollToTimeRef = useRef(false)
+
+  const handleSelectDate = (dateYmd: string) => {
+    if (dateYmd === selectedDate) {
+      timeSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
+    shouldScrollToTimeRef.current = true
+    onSelectDate(dateYmd)
+  }
+
+  useLayoutEffect(() => {
+    if (!shouldScrollToTimeRef.current || selectedDate === null) return
+    shouldScrollToTimeRef.current = false
+    timeSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [selectedDate])
 
   const weekdays = [
     t('book.weekday.mo'),
@@ -198,11 +208,6 @@ export const BookingWizardPage: React.FunctionComponent<BookingWizardPageProps> 
     () => selectedServices.reduce((sum, item) => sum + (item.priceMaxCents ?? item.priceCents), 0),
     [selectedServices],
   )
-  const groupedServices = useMemo(
-    () => groupServicesByCategory(services ?? [], locale, t('book.categoryOther')),
-    [services, locale, t],
-  )
-
   const byDate = useMemo(() => slotsByDate(rangeSlots ?? []), [rangeSlots])
   const daySlots = selectedDate ? (byDate.get(selectedDate) ?? []) : []
   const todayYmd = viennaTodayYmd()
@@ -213,11 +218,6 @@ export const BookingWizardPage: React.FunctionComponent<BookingWizardPageProps> 
     month: 'long',
     timeZone: 'UTC',
   }).format(new Date(Date.UTC(year, monthIndex, 1)))
-  const weekParts = parseYmd(weekAnchorYmd)
-  const collapsedMonthLabel = new Intl.DateTimeFormat(intlLocale, {
-    month: 'long',
-    timeZone: 'UTC',
-  }).format(new Date(Date.UTC(weekParts.year, weekParts.monthIndex, 1)))
 
   useEffect(() => {
     if (step !== 2 || rangeLoading || rangeSlots === undefined) return
@@ -276,106 +276,92 @@ export const BookingWizardPage: React.FunctionComponent<BookingWizardPageProps> 
               <CircularProgress aria-label={t('book.servicesLoading')} size={28} />
             ) : null}
             {servicesError ? <Alert severity="error">{t('book.servicesError')}</Alert> : null}
-            <Stack spacing={3}>
-              {groupedServices.map((group) => (
-                <Box key={group.category}>
-                  <Typography
-                    variant="h3"
-                    sx={{ fontSize: '0.95rem', fontWeight: 700, color: 'text.secondary', mb: 1.25 }}
-                  >
-                    {group.category}
-                  </Typography>
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: {
+                  xs: '1fr',
+                  sm: 'repeat(2, minmax(0, 1fr))',
+                  md: 'repeat(3, minmax(0, 1fr))',
+                },
+                gap: 1.25,
+              }}
+            >
+              {(services ?? []).map((service) => {
+                const selected = selectedServiceIds.includes(service.id)
+                const description = localizedServiceDescription(service, locale)
+                return (
                   <Box
+                    key={service.id}
+                    component="button"
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => onToggleService(service.id)}
                     sx={{
-                      display: 'grid',
-                      gridTemplateColumns: {
-                        xs: '1fr',
-                        sm: 'repeat(2, minmax(0, 1fr))',
-                        md: 'repeat(3, minmax(0, 1fr))',
-                      },
-                      gap: 1.25,
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      justifyContent: 'space-between',
+                      gap: 1,
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      borderRadius: 2,
+                      border: '1.5px solid',
+                      borderColor: selected ? 'primary.main' : 'divider',
+                      bgcolor: selected ? brand.stone : 'background.paper',
+                      p: 1.5,
+                      font: 'inherit',
+                      color: 'inherit',
+                      width: '100%',
+                      height: '100%',
+                      transition: 'border-color 120ms ease, background-color 120ms ease',
                     }}
                   >
-                    {group.services.map((service) => {
-                      const selected = selectedServiceIds.includes(service.id)
-                      const description = localizedServiceDescription(service, locale)
-                      return (
-                        <Box
-                          key={service.id}
-                          component="button"
-                          type="button"
-                          aria-pressed={selected}
-                          onClick={() => onToggleService(service.id)}
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            justifyContent: 'space-between',
-                            gap: 1,
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                            borderRadius: 2,
-                            border: '1.5px solid',
-                            borderColor: selected ? 'primary.main' : 'divider',
-                            bgcolor: selected ? brand.stone : 'background.paper',
-                            p: 1.5,
-                            font: 'inherit',
-                            color: 'inherit',
-                            width: '100%',
-                            height: '100%',
-                            transition: 'border-color 120ms ease, background-color 120ms ease',
-                          }}
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography sx={{ fontWeight: 600, fontSize: '0.95rem', lineHeight: 1.3 }}>
+                        {localizedServiceName(service, locale)}
+                      </Typography>
+                      {description ? (
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          sx={{ mt: 0.25, fontSize: '0.8rem' }}
                         >
-                          <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography
-                              sx={{ fontWeight: 600, fontSize: '0.95rem', lineHeight: 1.3 }}
-                            >
-                              {localizedServiceName(service, locale)}
-                            </Typography>
-                            {description ? (
-                              <Typography
-                                variant="body2"
-                                color="text.secondary"
-                                sx={{ mt: 0.25, fontSize: '0.8rem' }}
-                              >
-                                {description}
-                              </Typography>
-                            ) : null}
-                            <Typography
-                              variant="body2"
-                              color="text.secondary"
-                              sx={{
-                                mt: 0.5,
-                                fontSize: '0.85rem',
-                                fontVariantNumeric: 'tabular-nums',
-                              }}
-                            >
-                              {t('book.durationMinutes', {
-                                minutes: formatServiceDurationRange(
-                                  service.durationMinutes,
-                                  service.durationMaxMinutes,
-                                ),
-                              })}{' '}
-                              ·{' '}
-                              {pricesVisible
-                                ? formatServicePriceRange(service.priceCents, service.priceMaxCents)
-                                : t('price.onRequest')}
-                            </Typography>
-                          </Box>
-                          <Checkbox
-                            checked={selected}
-                            tabIndex={-1}
-                            readOnly
-                            aria-hidden
-                            size="small"
-                            sx={{ p: 0.25 }}
-                          />
-                        </Box>
-                      )
-                    })}
+                          {description}
+                        </Typography>
+                      ) : null}
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{
+                          mt: 0.5,
+                          fontSize: '0.85rem',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}
+                      >
+                        {t('book.durationMinutes', {
+                          minutes: formatServiceDurationRange(
+                            service.durationMinutes,
+                            service.durationMaxMinutes,
+                          ),
+                        })}{' '}
+                        ·{' '}
+                        {pricesVisible
+                          ? formatServicePriceRange(service.priceCents, service.priceMaxCents)
+                          : t('price.onRequest')}
+                      </Typography>
+                    </Box>
+                    <Checkbox
+                      checked={selected}
+                      tabIndex={-1}
+                      readOnly
+                      aria-hidden
+                      size="small"
+                      sx={{ p: 0.25 }}
+                    />
                   </Box>
-                </Box>
-              ))}
-            </Stack>
+                )
+              })}
+            </Box>
           </Paper>
 
           <Paper
@@ -487,34 +473,21 @@ export const BookingWizardPage: React.FunctionComponent<BookingWizardPageProps> 
             >
               <IconButton
                 size="small"
-                aria-label={calendarExpanded ? t('book.monthPrev') : t('book.weekPrev')}
-                onClick={() =>
-                  calendarExpanded
-                    ? onMonthAnchorChange(addMonths(monthAnchorYmd, -1))
-                    : onWeekAnchorChange(addDays(weekAnchorYmd, -7))
-                }
+                aria-label={t('book.monthPrev')}
+                onClick={() => onMonthAnchorChange(addMonths(monthAnchorYmd, -1))}
               >
                 <ChevronLeftIcon />
               </IconButton>
-              <Button
-                color="inherit"
-                onClick={() => setCalendarExpanded((prev) => !prev)}
-                endIcon={calendarExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                aria-label={
-                  calendarExpanded ? t('book.collapseCalendar') : t('book.expandCalendar')
-                }
+              <Typography
+                component="span"
                 sx={{ fontWeight: 600, fontSize: '1.05rem', textTransform: 'capitalize' }}
               >
-                {calendarExpanded ? monthLabel : collapsedMonthLabel}
-              </Button>
+                {monthLabel}
+              </Typography>
               <IconButton
                 size="small"
-                aria-label={calendarExpanded ? t('book.monthNext') : t('book.weekNext')}
-                onClick={() =>
-                  calendarExpanded
-                    ? onMonthAnchorChange(addMonths(monthAnchorYmd, 1))
-                    : onWeekAnchorChange(addDays(weekAnchorYmd, 7))
-                }
+                aria-label={t('book.monthNext')}
+                onClick={() => onMonthAnchorChange(addMonths(monthAnchorYmd, 1))}
               >
                 <ChevronRightIcon />
               </IconButton>
@@ -553,87 +526,49 @@ export const BookingWizardPage: React.FunctionComponent<BookingWizardPageProps> 
               ))}
             </Box>
 
-            {calendarExpanded ? (
-              <Stack spacing={0.5}>
-                {weeks.map((week, weekIndex) => (
-                  <Box
-                    key={weekIndex}
-                    sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5 }}
-                  >
-                    {week.map((ymd, dayIndex) => {
-                      if (!ymd) return <Box key={`empty-${weekIndex}-${dayIndex}`} />
-                      const available = (byDate.get(ymd)?.length ?? 0) > 0
-                      const selected = ymd === selectedDate
-                      const past = ymd < todayYmd
-                      const disabled = !available || past
-                      return (
-                        <Button
-                          key={ymd}
-                          size="small"
-                          disabled={disabled}
-                          variant="text"
-                          onClick={() => onSelectDate(ymd)}
-                          sx={{
-                            minWidth: 36,
-                            width: 36,
-                            height: 36,
-                            mx: 'auto',
-                            p: 0,
-                            borderRadius: '50%',
-                            fontWeight: selected ? 700 : 400,
-                            bgcolor: selected ? 'text.primary' : 'transparent',
-                            color: selected ? 'background.paper' : 'text.primary',
-                            '&:hover': {
-                              bgcolor: selected ? 'text.primary' : 'action.hover',
-                            },
-                            opacity: disabled ? 0.35 : 1,
-                            textDecoration: disabled ? 'line-through' : 'none',
-                          }}
-                        >
-                          {String(parseYmd(ymd).day).padStart(2, '0')}
-                        </Button>
-                      )
-                    })}
-                  </Box>
-                ))}
-              </Stack>
-            ) : (
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5 }}>
-                {currentWeekDays.map((ymd) => {
-                  const available = (byDate.get(ymd)?.length ?? 0) > 0
-                  const selected = ymd === selectedDate
-                  const past = ymd < todayYmd
-                  const disabled = !available || past
-                  return (
-                    <Button
-                      key={ymd}
-                      size="small"
-                      disabled={disabled}
-                      variant="text"
-                      onClick={() => onSelectDate(ymd)}
-                      sx={{
-                        minWidth: 36,
-                        width: 36,
-                        height: 36,
-                        mx: 'auto',
-                        p: 0,
-                        borderRadius: '50%',
-                        fontWeight: selected ? 700 : 400,
-                        bgcolor: selected ? 'text.primary' : 'transparent',
-                        color: selected ? 'background.paper' : 'text.primary',
-                        '&:hover': {
-                          bgcolor: selected ? 'text.primary' : 'action.hover',
-                        },
-                        opacity: disabled ? 0.35 : 1,
-                        textDecoration: disabled ? 'line-through' : 'none',
-                      }}
-                    >
-                      {String(parseYmd(ymd).day).padStart(2, '0')}
-                    </Button>
-                  )
-                })}
-              </Box>
-            )}
+            <Stack spacing={0.5}>
+              {weeks.map((week, weekIndex) => (
+                <Box
+                  key={weekIndex}
+                  sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5 }}
+                >
+                  {week.map((ymd, dayIndex) => {
+                    if (!ymd) return <Box key={`empty-${weekIndex}-${dayIndex}`} />
+                    const available = (byDate.get(ymd)?.length ?? 0) > 0
+                    const selected = ymd === selectedDate
+                    const past = ymd < todayYmd
+                    const disabled = !available || past
+                    return (
+                      <Button
+                        key={ymd}
+                        size="small"
+                        disabled={disabled}
+                        variant="text"
+                        onClick={() => handleSelectDate(ymd)}
+                        sx={{
+                          minWidth: 36,
+                          width: 36,
+                          height: 36,
+                          mx: 'auto',
+                          p: 0,
+                          borderRadius: '50%',
+                          fontWeight: selected ? 700 : 400,
+                          bgcolor: selected ? 'text.primary' : 'transparent',
+                          color: selected ? 'background.paper' : 'text.primary',
+                          '&:hover': {
+                            bgcolor: selected ? 'text.primary' : 'action.hover',
+                          },
+                          opacity: disabled ? 0.35 : 1,
+                          textDecoration: disabled ? 'line-through' : 'none',
+                        }}
+                      >
+                        {String(parseYmd(ymd).day).padStart(2, '0')}
+                      </Button>
+                    )
+                  })}
+                </Box>
+              ))}
+            </Stack>
 
             {!rangeLoading && byDate.size === 0 ? (
               <Alert severity="info" sx={{ mt: 2 }}>
@@ -643,7 +578,12 @@ export const BookingWizardPage: React.FunctionComponent<BookingWizardPageProps> 
           </Paper>
 
           {selectedDate !== null ? (
-            <Paper sx={{ p: { xs: 2, sm: 3 } }} component="section" aria-labelledby="step-time">
+            <Paper
+              ref={timeSectionRef}
+              sx={{ p: { xs: 2, sm: 3 } }}
+              component="section"
+              aria-labelledby="step-time"
+            >
               <Typography id="step-time" variant="h2" sx={{ fontSize: '1.15rem', mb: 2 }}>
                 {t('book.step.time')}
               </Typography>

@@ -53,11 +53,12 @@ service cloud.firestore {
       return data.keys().hasOnly([
           'nameDe', 'nameIt', 'descriptionDe', 'descriptionIt',
           'categoryDe', 'categoryIt',
-          'durationMinutes', 'durationMaxMinutes', 'priceCents', 'priceMaxCents', 'active', 'createdAt', 'updatedAt'
+          'durationMinutes', 'durationMaxMinutes', 'priceCents', 'priceMaxCents',
+          'active', 'sortOrder', 'createdAt', 'updatedAt'
         ])
         && data.keys().hasAll([
           'nameDe', 'nameIt', 'descriptionDe', 'descriptionIt',
-          'durationMinutes', 'priceCents', 'active', 'createdAt', 'updatedAt'
+          'durationMinutes', 'priceCents', 'active', 'sortOrder', 'createdAt', 'updatedAt'
         ])
         && isBoundedString(data.nameDe, 120)
         && isBoundedString(data.nameIt, 120)
@@ -70,6 +71,7 @@ service cloud.firestore {
         && isIntInRange(data.priceCents, 0, 999999)
         && (!('priceMaxCents' in data) || isIntInRange(data.priceMaxCents, 0, 999999))
         && data.active is bool
+        && isIntInRange(data.sortOrder, 0, 9999)
         && isBoundedString(data.createdAt, 40)
         && isBoundedString(data.updatedAt, 40);
     }

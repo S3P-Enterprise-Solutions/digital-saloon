@@ -126,7 +126,10 @@ function foldIcsLine(line: string): string {
   return chunks.join('\r\n')
 }
 
+export type BookingEmailKind = 'confirmation' | 'cancelled' | 'rescheduled'
+
 export type BookingEmailInput = {
+  kind?: BookingEmailKind
   reservationId: string
   to: string
   firstName: string
@@ -135,7 +138,8 @@ export type BookingEmailInput = {
   durationMinutes: number
   startAt: Date
   status: 'PENDING' | 'CONFIRMED'
-  managementToken: string
+  /** Plain token when still known (create / customer manage flows). */
+  managementToken?: string | null
   notes: string | null
   locale?: 'de' | 'it'
   timeZone?: string
@@ -144,11 +148,51 @@ export type BookingEmailInput = {
   salonPhone?: string
 }
 
+export const EMAIL_WAIT_TIMEOUT_MS = 2500
+
+export type ReservationScheduleSnapshot = {
+  startAt: string
+  durationMinutes: number
+  serviceIds: string[]
+}
+
+export function customerEmailOf(data: Record<string, unknown>): string | null {
+  const email = typeof data.email === 'string' ? data.email.trim() : ''
+  return email.includes('@') ? email : null
+}
+
+export function serviceIdsOf(data: Record<string, unknown>): string[] {
+  if (Array.isArray(data.serviceIds) && data.serviceIds.length > 0) {
+    return data.serviceIds.map(String)
+  }
+  const serviceId = data.serviceId
+  return typeof serviceId === 'string' && serviceId.trim().length > 0 ? [serviceId.trim()] : []
+}
+
+/** True when start time, duration, or service set changed — not contact-only edits. */
+export function isReservationScheduleChange(
+  before: ReservationScheduleSnapshot,
+  after: ReservationScheduleSnapshot,
+): boolean {
+  if (before.startAt !== after.startAt) return true
+  if (before.durationMinutes !== after.durationMinutes) return true
+  if (before.serviceIds.length !== after.serviceIds.length) return true
+  const left = [...before.serviceIds].sort()
+  const right = [...after.serviceIds].sort()
+  return left.some((id, index) => id !== right[index])
+}
+
 export function buildBookingIcs(input: BookingEmailInput, manageUrl: string | null): string {
+  const kind = input.kind ?? 'confirmation'
   const isIt = input.locale === 'it'
   const endAt = new Date(input.startAt.getTime() + input.durationMinutes * 60_000)
   const salonName = input.salonName?.trim() || 'SalonFlow'
-  const summary = `${input.serviceName} — ${salonName}`
+  const summary =
+    kind === 'cancelled'
+      ? isIt
+        ? `Annullato: ${input.serviceName} — ${salonName}`
+        : `Storniert: ${input.serviceName} — ${salonName}`
+      : `${input.serviceName} — ${salonName}`
   const descriptionParts = isIt
     ? [
         `Servizio/i: ${input.serviceName}`,
@@ -163,12 +207,18 @@ export function buildBookingIcs(input: BookingEmailInput, manageUrl: string | nu
         ...(manageUrl ? [`Termin verwalten: ${manageUrl}`] : []),
       ]
 
+  const method = kind === 'cancelled' ? 'CANCEL' : 'PUBLISH'
+  const eventStatus =
+    kind === 'cancelled' ? 'CANCELLED' : input.status === 'CONFIRMED' ? 'CONFIRMED' : 'TENTATIVE'
+  // Bump SEQUENCE for updates/cancels so calendar clients replace the original invite.
+  const sequence = kind === 'confirmation' ? 0 : 1
+
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
     'PRODID:-//SalonFlow//Booking//DE',
     'CALSCALE:GREGORIAN',
-    'METHOD:PUBLISH',
+    `METHOD:${method}`,
     'BEGIN:VEVENT',
     `UID:${input.reservationId}@salonflow.local`,
     `DTSTAMP:${formatIcsUtc(new Date())}`,
@@ -177,7 +227,8 @@ export function buildBookingIcs(input: BookingEmailInput, manageUrl: string | nu
     `SUMMARY:${escapeIcsText(summary)}`,
     `DESCRIPTION:${escapeIcsText(descriptionParts.join('\n'))}`,
     ...(input.salonAddress ? [`LOCATION:${escapeIcsText(input.salonAddress)}`] : []),
-    `STATUS:${input.status === 'CONFIRMED' ? 'CONFIRMED' : 'TENTATIVE'}`,
+    `STATUS:${eventStatus}`,
+    `SEQUENCE:${sequence}`,
     'END:VEVENT',
     'END:VCALENDAR',
   ]
@@ -246,23 +297,52 @@ function buildBookingEmailHtml(input: BookingEmailInput, manageUrl: string | nul
     timeZone,
   }).format(endAt)
 
+  const kind = input.kind ?? 'confirmation'
   const isConfirmed = input.status === 'CONFIRMED'
-  const statusLabel = isIt
-    ? isConfirmed
-      ? 'Appuntamento confermato'
-      : 'Richiesta ricevuta'
-    : isConfirmed
-      ? 'Termin bestätigt'
-      : 'Anfrage eingegangen'
-  const statusBg = isConfirmed ? palette.confirmedBadgeBg : palette.primary
-  const statusColor = isConfirmed ? palette.confirmedBadgeText : '#FFFFFF'
-  const introText = isIt
-    ? isConfirmed
-      ? `Ciao ${escapeHtml(input.firstName)}, il tuo appuntamento è confermato.`
-      : `Ciao ${escapeHtml(input.firstName)}, abbiamo ricevuto la tua richiesta e ti contatteremo a breve.`
-    : isConfirmed
-      ? `Hallo ${escapeHtml(input.firstName)}, Ihr Termin ist fest für Sie reserviert.`
-      : `Hallo ${escapeHtml(input.firstName)}, wir haben Ihre Anfrage erhalten und melden uns in Kürze.`
+  const statusLabel =
+    kind === 'cancelled'
+      ? isIt
+        ? 'Appuntamento annullato'
+        : 'Termin storniert'
+      : kind === 'rescheduled'
+        ? isIt
+          ? 'Appuntamento spostato'
+          : 'Termin umgebucht'
+        : isIt
+          ? isConfirmed
+            ? 'Appuntamento confermato'
+            : 'Richiesta ricevuta'
+          : isConfirmed
+            ? 'Termin bestätigt'
+            : 'Anfrage eingegangen'
+  const statusBg =
+    kind === 'cancelled'
+      ? palette.muted
+      : isConfirmed || kind === 'rescheduled'
+        ? palette.confirmedBadgeBg
+        : palette.primary
+  const statusColor =
+    kind === 'cancelled'
+      ? '#FFFFFF'
+      : isConfirmed || kind === 'rescheduled'
+        ? palette.confirmedBadgeText
+        : '#FFFFFF'
+  const introText =
+    kind === 'cancelled'
+      ? isIt
+        ? `Ciao ${escapeHtml(input.firstName)}, il tuo appuntamento è stato annullato.`
+        : `Hallo ${escapeHtml(input.firstName)}, Ihr Termin wurde storniert.`
+      : kind === 'rescheduled'
+        ? isIt
+          ? `Ciao ${escapeHtml(input.firstName)}, il tuo appuntamento è stato spostato. Ecco i nuovi dettagli.`
+          : `Hallo ${escapeHtml(input.firstName)}, Ihr Termin wurde umgebucht. Hier die neuen Details.`
+        : isIt
+          ? isConfirmed
+            ? `Ciao ${escapeHtml(input.firstName)}, il tuo appuntamento è confermato.`
+            : `Ciao ${escapeHtml(input.firstName)}, abbiamo ricevuto la tua richiesta e ti contatteremo a breve.`
+          : isConfirmed
+            ? `Hallo ${escapeHtml(input.firstName)}, Ihr Termin ist fest für Sie reserviert.`
+            : `Hallo ${escapeHtml(input.firstName)}, wir haben Ihre Anfrage erhalten und melden uns in Kürze.`
 
   const labels = isIt
     ? {
@@ -274,7 +354,11 @@ function buildBookingEmailHtml(input: BookingEmailInput, manageUrl: string | nul
         notes: 'La tua nota',
         manageCta: 'Gestisci o annulla appuntamento',
         icsHint:
-          'In allegato trovi il file calendario <strong>termin.ics</strong> per salvare l’appuntamento direttamente nel tuo calendario.',
+          kind === 'cancelled'
+            ? 'In allegato trovi il file calendario <strong>termin.ics</strong> per rimuovere l’appuntamento dal tuo calendario.'
+            : kind === 'rescheduled'
+              ? 'In allegato trovi il file calendario aggiornato <strong>termin.ics</strong> con il nuovo orario.'
+              : 'In allegato trovi il file calendario <strong>termin.ics</strong> per salvare l’appuntamento direttamente nel tuo calendario.',
       }
     : {
         timeSuffix: ' Uhr',
@@ -285,7 +369,11 @@ function buildBookingEmailHtml(input: BookingEmailInput, manageUrl: string | nul
         notes: 'Ihre Notiz',
         manageCta: 'Termin verwalten oder stornieren',
         icsHint:
-          'Im Anhang finden Sie die Kalenderdatei <strong>termin.ics</strong>, um den Termin direkt in Ihren Kalender einzutragen.',
+          kind === 'cancelled'
+            ? 'Im Anhang finden Sie die Kalenderdatei <strong>termin.ics</strong>, um den Termin aus Ihrem Kalender zu entfernen.'
+            : kind === 'rescheduled'
+              ? 'Im Anhang finden Sie die aktualisierte Kalenderdatei <strong>termin.ics</strong> mit der neuen Zeit.'
+              : 'Im Anhang finden Sie die Kalenderdatei <strong>termin.ics</strong>, um den Termin direkt in Ihren Kalender einzutragen.',
       }
 
   const notesRow = input.notes
@@ -304,14 +392,15 @@ function buildBookingEmailHtml(input: BookingEmailInput, manageUrl: string | nul
       </tr>`
     : ''
 
-  const manageSection = manageUrl
-    ? `
+  const manageSection =
+    manageUrl && kind !== 'cancelled'
+      ? `
       <div style="margin-top:24px;">
         <a href="${escapeHtml(manageUrl)}" style="display:inline-block;background-color:${palette.primary};color:#FFFFFF;text-decoration:none;font-weight:600;font-size:14px;padding:12px 20px;border-radius:2px;">
           ${labels.manageCta}
         </a>
       </div>`
-    : ''
+      : ''
 
   const footerContact = [input.salonAddress, input.salonPhone]
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
@@ -384,11 +473,12 @@ function buildBookingEmailHtml(input: BookingEmailInput, manageUrl: string | nul
 }
 
 /**
- * Sends at most one confirmation/request email per newly created online booking.
+ * Sends one booking lifecycle email (confirmation, cancel, or reschedule).
  * Transport is chosen by `resolveEmailTransport` (Mail-Catcher → SMTP → Resend);
  * no-ops when nothing is configured, and never throws.
  */
-export async function sendBookingConfirmationEmail(input: BookingEmailInput): Promise<void> {
+export async function sendBookingLifecycleEmail(input: BookingEmailInput): Promise<void> {
+  const kind = input.kind ?? 'confirmation'
   const salonName = input.salonName?.trim() || 'SalonFlow'
   const transport = resolveEmailTransport(process.env, salonName)
   if (transport.kind === 'none') {
@@ -406,21 +496,30 @@ export async function sendBookingConfirmationEmail(input: BookingEmailInput): Pr
 
   const isConfirmed = input.status === 'CONFIRMED'
   const subject = isIt
-    ? isConfirmed
-      ? `${salonName}: Conferma appuntamento del ${whenFormatted}`
-      : `${salonName}: Richiesta di appuntamento del ${whenFormatted}`
-    : isConfirmed
-      ? `${salonName}: Terminbestätigung am ${whenFormatted}`
-      : `${salonName}: Terminanfrage am ${whenFormatted}`
+    ? kind === 'cancelled'
+      ? `${salonName}: Appuntamento annullato del ${whenFormatted}`
+      : kind === 'rescheduled'
+        ? `${salonName}: Appuntamento spostato al ${whenFormatted}`
+        : isConfirmed
+          ? `${salonName}: Conferma appuntamento del ${whenFormatted}`
+          : `${salonName}: Richiesta di appuntamento del ${whenFormatted}`
+    : kind === 'cancelled'
+      ? `${salonName}: Termin storniert am ${whenFormatted}`
+      : kind === 'rescheduled'
+        ? `${salonName}: Termin umgebucht auf ${whenFormatted}`
+        : isConfirmed
+          ? `${salonName}: Terminbestätigung am ${whenFormatted}`
+          : `${salonName}: Terminanfrage am ${whenFormatted}`
 
   const publicBaseUrl = process.env.PUBLIC_APP_URL?.trim().replace(/\/+$/, '')
-  const manageUrl = publicBaseUrl
-    ? `${publicBaseUrl}/manage/${encodeURIComponent(input.managementToken)}`
-    : null
+  const token = input.managementToken?.trim()
+  const manageUrl =
+    publicBaseUrl && token ? `${publicBaseUrl}/manage/${encodeURIComponent(token)}` : null
 
-  const html = buildBookingEmailHtml(input, manageUrl)
-  const icsContent = buildBookingIcs(input, manageUrl)
+  const html = buildBookingEmailHtml({ ...input, kind }, manageUrl)
+  const icsContent = buildBookingIcs({ ...input, kind }, manageUrl)
   const icsBase64 = Buffer.from(icsContent, 'utf8').toString('base64')
+  const icsContentType = `text/calendar; charset=utf-8; method=${kind === 'cancelled' ? 'CANCEL' : 'PUBLISH'}`
 
   try {
     if (transport.kind === 'mailCatcher') {
@@ -435,7 +534,7 @@ export async function sendBookingConfirmationEmail(input: BookingEmailInput): Pr
           attachments: [
             {
               filename: 'termin.ics',
-              contentType: 'text/calendar; charset=utf-8; method=PUBLISH',
+              contentType: icsContentType,
               content: icsBase64,
             },
           ],
@@ -457,7 +556,7 @@ export async function sendBookingConfirmationEmail(input: BookingEmailInput): Pr
           {
             filename: 'termin.ics',
             content: icsContent,
-            contentType: 'text/calendar; charset=utf-8; method=PUBLISH',
+            contentType: icsContentType,
           },
         ],
       })
@@ -473,7 +572,7 @@ export async function sendBookingConfirmationEmail(input: BookingEmailInput): Pr
         {
           filename: 'termin.ics',
           content: Buffer.from(icsContent, 'utf8'),
-          contentType: 'text/calendar; charset=utf-8; method=PUBLISH',
+          contentType: icsContentType,
         },
       ],
     })
@@ -483,4 +582,19 @@ export async function sendBookingConfirmationEmail(input: BookingEmailInput): Pr
   } catch (error) {
     console.error('[email] Failed to send booking email:', error)
   }
+}
+
+/** @deprecated Prefer `sendBookingLifecycleEmail`; kept for create-reservation call sites. */
+export async function sendBookingConfirmationEmail(input: BookingEmailInput): Promise<void> {
+  await sendBookingLifecycleEmail({ ...input, kind: input.kind ?? 'confirmation' })
+}
+
+/** Caps wait so callables stay responsive if SMTP/Resend is slow. */
+export async function sendBookingEmailWithBudget(input: BookingEmailInput): Promise<void> {
+  await Promise.race([
+    sendBookingLifecycleEmail(input),
+    new Promise<void>((resolve) => {
+      setTimeout(resolve, EMAIL_WAIT_TIMEOUT_MS)
+    }),
+  ])
 }

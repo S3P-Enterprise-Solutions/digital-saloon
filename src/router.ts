@@ -7,6 +7,7 @@ import {
   adminIndexRoute,
   adminManualRoute,
   adminOpeningHoursRoute,
+  adminPendingRoute,
   adminReservationDetailRoute,
   adminReservationsRoute,
   adminRoute,
@@ -39,6 +40,7 @@ export const router = createRouter({
     adminRoute.addChildren([
       adminIndexRoute,
       adminCalendarRoute,
+      adminPendingRoute,
       adminReservationsRoute,
       adminReservationDetailRoute,
       adminManualRoute,

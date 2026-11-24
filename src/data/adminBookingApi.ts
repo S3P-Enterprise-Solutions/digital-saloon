@@ -70,7 +70,7 @@ export async function completeReservationAdmin(reservationId: string): Promise<P
 }
 
 export async function createManualReservationAdmin(input: {
-  serviceId: string
+  serviceIds: string[]
   employeeId?: string | null
   startAt: string
   firstName: string
@@ -80,13 +80,53 @@ export async function createManualReservationAdmin(input: {
   internalNote: string | null
   idempotencyKey: string
 }): Promise<CreateReservationResult> {
+  const serviceIds = Array.from(new Set(input.serviceIds.map((id) => id.trim()).filter(Boolean)))
+  if (serviceIds.length === 0) {
+    throw new Error('serviceIds must not be empty')
+  }
+  const payload = {
+    ...input,
+    serviceIds,
+    serviceId: serviceIds[0],
+  }
   try {
-    const callable = httpsCallable<typeof input, CreateReservationResult>(
+    const callable = httpsCallable<typeof payload, CreateReservationResult>(
       firebaseFunctions,
       'createManualReservation',
     )
-    const result = await callable(input)
+    const result = await callable(payload)
     return result.data
+  } catch (error) {
+    throw new Error(callableErrorMessage(error), { cause: error })
+  }
+}
+
+export async function updateManualReservationAdmin(input: {
+  reservationId: string
+  serviceIds: string[]
+  startAt: string
+  firstName: string
+  lastName: string
+  phone: string
+  email: string | null
+  internalNote: string | null
+}): Promise<PublicReservation> {
+  const serviceIds = Array.from(new Set(input.serviceIds.map((id) => id.trim()).filter(Boolean)))
+  if (serviceIds.length === 0) {
+    throw new Error('serviceIds must not be empty')
+  }
+  const payload = {
+    ...input,
+    serviceIds,
+    serviceId: serviceIds[0],
+  }
+  try {
+    const callable = httpsCallable<typeof payload, { reservation: PublicReservation }>(
+      firebaseFunctions,
+      'adminUpdateReservation',
+    )
+    const result = await callable(payload)
+    return result.data.reservation
   } catch (error) {
     throw new Error(callableErrorMessage(error), { cause: error })
   }

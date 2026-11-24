@@ -28,6 +28,7 @@ test('buildBookingIcs generates valid RFC 5545 calendar event', () => {
   assert.match(ics, /DTSTART:20261118T130000Z\r\n/)
   assert.match(ics, /DTEND:20261118T141500Z\r\n/)
   assert.match(ics, /STATUS:CONFIRMED\r\n/)
+  assert.match(ics, /SEQUENCE:0\r\n/)
   assert.match(ics, /LOCATION:Via Piave 71\\, 39012 Meran\r\n/)
   assert.match(ics, /END:VCALENDAR\r\n$/)
 })

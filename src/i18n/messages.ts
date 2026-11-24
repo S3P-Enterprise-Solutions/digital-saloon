@@ -1,5 +1,6 @@
 export type Messages = {
   'nav.staffCalendar': string
+  'nav.staffPending': string
   'nav.staffSettings': string
   'nav.staffLogin': string
   'nav.signedInAs': string
@@ -8,6 +9,8 @@ export type Messages = {
   'nav.language': string
   'nav.book': string
   'nav.home': string
+  'app.pullToRefresh': string
+  'app.refreshing': string
 
   'home.place': string
   'home.intro': string
@@ -105,12 +108,6 @@ export type Messages = {
   'book.selectedServicesCount': string
   'book.totalDuration': string
   'book.totalPrice': string
-  'book.categoryOther': string
-  'book.weekPrev': string
-  'book.weekNext': string
-  'book.expandCalendar': string
-  'book.collapseCalendar': string
-  'book.noSlotsWeek': string
   'book.email': string
   'book.notes': string
   'book.notesPlaceholder': string
@@ -195,6 +192,10 @@ export type Messages = {
   'admin.calendar': string
   'admin.reservations': string
   'admin.time': string
+  'admin.timeFreeLabel': string
+  'admin.nextFreeSlotHint': string
+  'admin.nextFreeSlotTag': string
+  'admin.currentSlotKept': string
   'admin.customer': string
   'admin.status': string
   'admin.open': string
@@ -214,6 +215,7 @@ export type Messages = {
   'admin.calendarLoading': string
   'admin.detailTitle': string
   'admin.backToCalendar': string
+  'admin.backToPending': string
   'admin.detailLoading': string
   'admin.notFound': string
   'admin.source': string
@@ -223,6 +225,18 @@ export type Messages = {
   'admin.decline': string
   'admin.complete': string
   'admin.cancel': string
+  'admin.quickDetails': string
+  'admin.reschedule': string
+  'admin.cancelConfirmTitle': string
+  'admin.cancelConfirmBody': string
+  'admin.cancelConfirmAction': string
+  'admin.declineConfirmTitle': string
+  'admin.declineConfirmBody': string
+  'admin.declineConfirmAction': string
+  'admin.dialogDismiss': string
+  'admin.editReservationTitle': string
+  'admin.editReservationSubtitle': string
+  'admin.saveReservation': string
   'admin.manualTitle': string
   'admin.manualSubtitle': string
   'admin.back': string
@@ -238,6 +252,8 @@ export type Messages = {
   'admin.noServices': string
   'admin.newService': string
   'admin.editServiceLabel': string
+  'admin.moveServiceUp': string
+  'admin.moveServiceDown': string
   'admin.edit': string
   'admin.editServiceTitle': string
   'admin.servicesKeepHint': string
@@ -412,8 +428,6 @@ export type Messages = {
   'admin.totalRevenue': string
   'admin.plannerLabel': string
   'admin.plannerLegend': string
-  'admin.plannerAddAt': string
-  'admin.plannerAddHint': string
   'admin.plannerDayFree': string
   'admin.plannerCount': string
   'admin.plannerCountOne': string
@@ -451,6 +465,7 @@ export type MessageKey = keyof Messages
 
 export const de: Messages = {
   'nav.staffCalendar': 'Kalender',
+  'nav.staffPending': 'Anfragen',
   'nav.staffSettings': 'Einstellungen',
   'nav.staffLogin': 'Login für das Team',
   'nav.signedInAs': 'Angemeldet als {email}',
@@ -459,6 +474,8 @@ export const de: Messages = {
   'nav.language': 'Sprache',
   'nav.book': 'Termin buchen',
   'nav.home': 'KIMM Hair, zur Startseite',
+  'app.pullToRefresh': 'Zum Aktualisieren nach unten ziehen',
+  'app.refreshing': 'Wird aktualisiert…',
 
   'home.place': 'Friseur in Meran',
   'home.intro':
@@ -570,12 +587,6 @@ export const de: Messages = {
   'book.selectedServicesCount': '{count} gewählt',
   'book.totalDuration': 'Gesamtdauer: {minutes} Min',
   'book.totalPrice': 'Gesamtpreis: {price}',
-  'book.categoryOther': 'Weitere Leistungen',
-  'book.weekPrev': 'Vorherige Woche',
-  'book.weekNext': 'Nächste Woche',
-  'book.expandCalendar': 'Monatsansicht aufklappen',
-  'book.collapseCalendar': 'Wochenansicht einklappen',
-  'book.noSlotsWeek': 'In dieser Woche sind keine Termine frei. Bitte nächste Woche prüfen.',
   'book.email': 'E-Mail-Adresse',
   'book.notes': 'Notizen / Wünsche (optional)',
   'book.notesPlaceholder': 'Hinweise oder Wünsche an den Friseur…',
@@ -635,7 +646,7 @@ export const de: Messages = {
   'manage.cancel': 'Stornieren',
   'manage.cancelling': 'Wird storniert…',
   'manage.immutable': 'Dieser Termin kann nicht mehr geändert werden.',
-  'manage.pickTime': 'Neue Uhrzeit wählen',
+  'manage.pickTime': 'Neuen Termin wählen',
   'manage.slotsLoading': 'Slots laden',
   'manage.noAlternatives': 'Keine Alternativen in den nächsten Tagen.',
   'manage.home': 'Zur Startseite',
@@ -667,6 +678,12 @@ export const de: Messages = {
   'admin.calendar': 'Kalender',
   'admin.reservations': 'Termine',
   'admin.time': 'Zeit',
+  'admin.timeFreeLabel': 'Freie Zeiten',
+  'admin.nextFreeSlotHint':
+    'Nächster freier Termin ist vorausgewählt — andere Zeit einfach antippen.',
+  'admin.nextFreeSlotTag': 'Nächster',
+  'admin.currentSlotKept':
+    'Bisherige Uhrzeit {time} bleibt erhalten, bis Sie eine neue freie Zeit wählen.',
   'admin.customer': 'Kunde',
   'admin.status': 'Status',
   'admin.open': 'Öffnen',
@@ -687,6 +704,7 @@ export const de: Messages = {
   'admin.calendarLoading': 'Kalender laden',
   'admin.detailTitle': 'Termin-Details',
   'admin.backToCalendar': 'Zurück zum Kalender',
+  'admin.backToPending': 'Zurück zu Anfragen',
   'admin.detailLoading': 'Termin laden',
   'admin.notFound': 'Termin nicht gefunden.',
   'admin.source': 'Quelle: {source}',
@@ -696,6 +714,21 @@ export const de: Messages = {
   'admin.decline': 'Ablehnen',
   'admin.complete': 'Als erledigt markieren',
   'admin.cancel': 'Stornieren',
+  'admin.quickDetails': 'Details anzeigen',
+  'admin.reschedule': 'Umbuchen',
+  'admin.cancelConfirmTitle': 'Termin stornieren?',
+  'admin.cancelConfirmBody':
+    'Der Termin wird storniert und der Slot wieder freigegeben. Das lässt sich nicht rückgängig machen.',
+  'admin.cancelConfirmAction': 'Ja, stornieren',
+  'admin.declineConfirmTitle': 'Anfrage ablehnen?',
+  'admin.declineConfirmBody':
+    'Die Anfrage wird abgelehnt und der Slot freigegeben. Der Kunde kann online nicht mehr darüber verfügen.',
+  'admin.declineConfirmAction': 'Ja, ablehnen',
+  'admin.dialogDismiss': 'Abbrechen',
+  'admin.editReservationTitle': 'Termin bearbeiten',
+  'admin.editReservationSubtitle':
+    'Leistungen, Zeit und Kundendaten ändern. Der Termin behält seinen Status.',
+  'admin.saveReservation': 'Änderungen speichern',
   'admin.manualTitle': 'Manueller Termin',
   'admin.manualSubtitle':
     'Für Telefonbuchungen — wird sofort bestätigt. Advance-Limits gelten nicht.',
@@ -712,6 +745,8 @@ export const de: Messages = {
   'admin.noServices': 'Noch keine Leistungen.',
   'admin.newService': 'Neue Leistung',
   'admin.editServiceLabel': '{name} bearbeiten',
+  'admin.moveServiceUp': '{name} nach oben',
+  'admin.moveServiceDown': '{name} nach unten',
   'admin.edit': 'Bearbeiten',
   'admin.editServiceTitle': 'Leistung bearbeiten',
   'admin.servicesKeepHint':
@@ -896,8 +931,6 @@ export const de: Messages = {
   'admin.totalRevenue': 'Umsatz',
   'admin.plannerLabel': 'Wochenkalender',
   'admin.plannerLegend': 'Legende',
-  'admin.plannerAddAt': 'Termin eintragen am {date} um {time}',
-  'admin.plannerAddHint': 'Freie Zeit anklicken, um einen Termin einzutragen.',
   'admin.plannerDayFree': 'Noch frei',
   'admin.plannerCount': '{count} Termine',
   'admin.plannerCountOne': '1 Termin',
@@ -937,6 +970,7 @@ export const de: Messages = {
 
 export const it: Messages = {
   'nav.staffCalendar': 'Calendario',
+  'nav.staffPending': 'Richieste',
   'nav.staffSettings': 'Impostazioni',
   'nav.staffLogin': 'Accesso per il team',
   'nav.signedInAs': 'Accesso come {email}',
@@ -945,6 +979,8 @@ export const it: Messages = {
   'nav.language': 'Lingua',
   'nav.book': 'Prenota',
   'nav.home': 'KIMM Hair, vai alla home',
+  'app.pullToRefresh': 'Trascina verso il basso per aggiornare',
+  'app.refreshing': 'Aggiornamento…',
 
   'home.place': 'Parrucchiere a Merano',
   'home.intro':
@@ -1053,12 +1089,6 @@ export const it: Messages = {
   'book.selectedServicesCount': '{count} selezionati',
   'book.totalDuration': 'Durata totale: {minutes} min',
   'book.totalPrice': 'Prezzo totale: {price}',
-  'book.categoryOther': 'Altri servizi',
-  'book.weekPrev': 'Settimana precedente',
-  'book.weekNext': 'Settimana successiva',
-  'book.expandCalendar': 'Espandi vista mensile',
-  'book.collapseCalendar': 'Comprimi vista settimanale',
-  'book.noSlotsWeek': 'Nessun appuntamento libero in questa settimana. Prova la prossima.',
   'book.email': 'Indirizzo e-mail',
   'book.notes': 'Note / desideri (opzionale)',
   'book.notesPlaceholder': 'Indicazioni o desideri per il parrucchiere…',
@@ -1118,7 +1148,7 @@ export const it: Messages = {
   'manage.cancel': 'Cancella',
   'manage.cancelling': 'Cancellazione…',
   'manage.immutable': 'Questo appuntamento non può più essere modificato.',
-  'manage.pickTime': 'Scegli un nuovo orario',
+  'manage.pickTime': 'Scegli un nuovo appuntamento',
   'manage.slotsLoading': 'Caricamento orari',
   'manage.noAlternatives': 'Nessuna alternativa nei prossimi giorni.',
   'manage.home': 'Torna alla home',
@@ -1150,6 +1180,11 @@ export const it: Messages = {
   'admin.calendar': 'Calendario',
   'admin.reservations': 'Appuntamenti',
   'admin.time': 'Orario',
+  'admin.timeFreeLabel': 'Orari liberi',
+  'admin.nextFreeSlotHint':
+    'Il prossimo appuntamento libero è preselezionato — tocca un altro orario per cambiarlo.',
+  'admin.nextFreeSlotTag': 'Prossimo',
+  'admin.currentSlotKept': 'L’orario attuale {time} resta finché non scegli un nuovo slot libero.',
   'admin.customer': 'Cliente',
   'admin.status': 'Stato',
   'admin.open': 'Apri',
@@ -1170,6 +1205,7 @@ export const it: Messages = {
   'admin.calendarLoading': 'Caricamento calendario',
   'admin.detailTitle': 'Dettagli appuntamento',
   'admin.backToCalendar': 'Torna al calendario',
+  'admin.backToPending': 'Torna alle richieste',
   'admin.detailLoading': 'Caricamento appuntamento',
   'admin.notFound': 'Appuntamento non trovato.',
   'admin.source': 'Origine: {source}',
@@ -1179,6 +1215,21 @@ export const it: Messages = {
   'admin.decline': 'Rifiuta',
   'admin.complete': 'Segna come completato',
   'admin.cancel': 'Annulla',
+  'admin.quickDetails': 'Mostra dettagli',
+  'admin.reschedule': 'Riprogramma',
+  'admin.cancelConfirmTitle': 'Annullare l’appuntamento?',
+  'admin.cancelConfirmBody':
+    'L’appuntamento verrà annullato e lo slot liberato. Non si può annullare questa azione.',
+  'admin.cancelConfirmAction': 'Sì, annulla',
+  'admin.declineConfirmTitle': 'Rifiutare la richiesta?',
+  'admin.declineConfirmBody':
+    'La richiesta verrà rifiutata e lo slot liberato. Il cliente non potrà più gestirla online.',
+  'admin.declineConfirmAction': 'Sì, rifiuta',
+  'admin.dialogDismiss': 'Chiudi',
+  'admin.editReservationTitle': 'Modifica appuntamento',
+  'admin.editReservationSubtitle':
+    'Modifica servizi, orario e dati del cliente. Lo stato dell’appuntamento resta invariato.',
+  'admin.saveReservation': 'Salva modifiche',
   'admin.manualTitle': 'Appuntamento manuale',
   'admin.manualSubtitle':
     'Per prenotazioni telefoniche — confermato subito. I limiti di anticipo non valgono.',
@@ -1195,6 +1246,8 @@ export const it: Messages = {
   'admin.noServices': 'Nessun servizio ancora.',
   'admin.newService': 'Nuovo servizio',
   'admin.editServiceLabel': 'Modifica {name}',
+  'admin.moveServiceUp': 'Sposta {name} in alto',
+  'admin.moveServiceDown': 'Sposta {name} in basso',
   'admin.edit': 'Modifica',
   'admin.editServiceTitle': 'Modifica servizio',
   'admin.servicesKeepHint':
@@ -1376,8 +1429,6 @@ export const it: Messages = {
   'admin.totalRevenue': 'Fatturato',
   'admin.plannerLabel': 'Calendario settimanale',
   'admin.plannerLegend': 'Legenda',
-  'admin.plannerAddAt': 'Inserisci appuntamento {date} alle {time}',
-  'admin.plannerAddHint': 'Clicca su un orario libero per inserire un appuntamento.',
   'admin.plannerDayFree': 'Ancora libero',
   'admin.plannerCount': '{count} appuntamenti',
   'admin.plannerCountOne': '1 appuntamento',

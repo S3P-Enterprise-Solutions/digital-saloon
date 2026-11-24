@@ -2,7 +2,6 @@ import type * as React from 'react'
 
 import type { ReservationStatus } from '../data/schemas'
 import {
-  addSlotStepMinutes,
   formatBookedTime,
   hhmmOfMinute,
   type PlannerBlockedEntry,
@@ -13,7 +12,6 @@ import {
 import { useLocale } from '../i18n'
 import type { MessageKey } from '../i18n'
 import {
-  AddSlot,
   BlockedEntry,
   DayColumn,
   DayHeader,
@@ -30,8 +28,7 @@ import {
 
 export type WeekPlannerProps = {
   plan: WeekPlan
-  onSelectReservation: (reservationId: string) => void
-  onAddAt: (dateYmd: string, startTime: string) => void
+  onSelectReservation: (reservationId: string, anchorEl: HTMLElement) => void
 }
 
 const entryClass: Partial<Record<ReservationStatus, string>> = {
@@ -50,7 +47,7 @@ function dateAt(dateYmd: string): Date {
 type PlannerEntryButtonProps = {
   entry: PlannerEntry
   gridStartMinute: number
-  onSelect: (reservationId: string) => void
+  onSelect: (reservationId: string, anchorEl: HTMLElement) => void
 }
 
 const PlannerEntryButton: React.FunctionComponent<PlannerEntryButtonProps> = ({
@@ -84,7 +81,9 @@ const PlannerEntryButton: React.FunctionComponent<PlannerEntryButtonProps> = ({
         alignItems: height < compactEntryHeight ? 'center' : 'flex-start',
         gap: height < compactEntryHeight ? 6 : 1,
       }}
-      onClick={() => onSelect(reservation.id)}
+      onClick={(event) => {
+        onSelect(reservation.id, event.currentTarget)
+      }}
     >
       <span className="entry-time">{hhmmOfMinute(entry.startMinute)}</span>
       <span className="entry-name">{name}</span>
@@ -98,9 +97,7 @@ type PlannerDayColumnProps = {
   gridStartMinute: number
   gridEndMinute: number
   nowMinute: number | null
-  addLabel: (dateYmd: string, time: string) => string
-  onSelectReservation: (reservationId: string) => void
-  onAddAt: (dateYmd: string, startTime: string) => void
+  onSelectReservation: (reservationId: string, anchorEl: HTMLElement) => void
 }
 
 const PlannerBlockedBlock: React.FunctionComponent<{
@@ -134,9 +131,7 @@ const PlannerDayColumn: React.FunctionComponent<PlannerDayColumnProps> = ({
   gridStartMinute,
   gridEndMinute,
   nowMinute,
-  addLabel,
   onSelectReservation,
-  onAddAt,
 }) => (
   <DayColumn data-date={day.dateYmd}>
     {day.openIntervals.map((interval) => (
@@ -148,24 +143,6 @@ const PlannerDayColumn: React.FunctionComponent<PlannerDayColumnProps> = ({
         }}
       />
     ))}
-    {day.addStartMinutes.map((minute) => {
-      const time = hhmmOfMinute(minute)
-      return (
-        <AddSlot
-          key={minute}
-          type="button"
-          tabIndex={-1}
-          aria-label={addLabel(day.dateYmd, time)}
-          style={{
-            top: (minute - gridStartMinute) * pixelsPerMinute + 1,
-            height: addSlotStepMinutes * pixelsPerMinute - 2,
-          }}
-          onClick={() => onAddAt(day.dateYmd, time)}
-        >
-          + {time}
-        </AddSlot>
-      )
-    })}
     {day.blockedEntries.map((entry) => (
       <PlannerBlockedBlock
         key={entry.block.id}
@@ -191,7 +168,6 @@ const PlannerDayColumn: React.FunctionComponent<PlannerDayColumnProps> = ({
 export const WeekPlanner: React.FunctionComponent<WeekPlannerProps> = ({
   plan,
   onSelectReservation,
-  onAddAt,
 }) => {
   const { t, intlLocale } = useLocale()
   const gridStartMinute = plan.firstHour * 60
@@ -214,8 +190,6 @@ export const WeekPlanner: React.FunctionComponent<WeekPlannerProps> = ({
     month: 'long',
     timeZone: 'UTC',
   })
-  const addLabel = (dateYmd: string, time: string): string =>
-    t('admin.plannerAddAt', { date: longDateFormat.format(dateAt(dateYmd)), time })
 
   const dayTotal = (day: PlannerDay): string => {
     if (day.count === 0) {
@@ -266,9 +240,7 @@ export const WeekPlanner: React.FunctionComponent<WeekPlannerProps> = ({
               gridStartMinute={gridStartMinute}
               gridEndMinute={gridEndMinute}
               nowMinute={day.isToday ? nowMinute : null}
-              addLabel={addLabel}
               onSelectReservation={onSelectReservation}
-              onAddAt={onAddAt}
             />
           ))}
         </PlannerGrid>
@@ -295,7 +267,6 @@ export const WeekPlanner: React.FunctionComponent<WeekPlannerProps> = ({
           <span className="swatch is-closed" />
           {t('admin.closed')}
         </li>
-        <li>{t('admin.plannerAddHint')}</li>
       </Legend>
     </div>
   )

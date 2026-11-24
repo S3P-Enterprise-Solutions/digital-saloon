@@ -337,6 +337,219 @@ export async function createReservationTransactional(
   }
 }
 
+export type UpdateReservationInput = {
+  reservationId: string
+  firstName: string
+  lastName: string
+  phone: string
+  email: string | null
+  serviceId: string
+  serviceIds?: string[]
+  startAt: Date
+  internalNote: string | null
+  enforceAdvanceRestrictions: boolean
+  now?: Date
+}
+
+export type UpdateReservationResult =
+  | {
+      ok: true
+      reservationId: string
+      status: 'PENDING' | 'CONFIRMED'
+      serviceName: string
+      durationMinutes: number
+    }
+  | {
+      ok: false
+      code: 'UNAVAILABLE' | 'SERVICE_INACTIVE' | 'NOT_FOUND' | 'INACTIVE'
+      message: string
+    }
+
+/**
+ * Admin edit: change services, time, and customer fields for an active reservation.
+ * Moves the slot lock when `startAt` changes.
+ */
+export async function updateReservationTransactional(
+  input: UpdateReservationInput,
+  db: Firestore = getFirestore(),
+  salonId?: string,
+): Promise<UpdateReservationResult> {
+  const context = await loadSalonContext(db, salonId)
+  const now = input.now ?? new Date()
+  const reservationRef = db
+    .collection('salons')
+    .doc(context.salonId)
+    .collection('reservations')
+    .doc(input.reservationId)
+
+  const existingSnap = await reservationRef.get()
+  if (!existingSnap.exists) {
+    return { ok: false, code: 'NOT_FOUND', message: 'Reservation not found.' }
+  }
+  const existing = existingSnap.data()!
+  const status = String(existing.status)
+  if (status !== 'PENDING' && status !== 'CONFIRMED') {
+    return { ok: false, code: 'INACTIVE', message: 'Reservation cannot be edited.' }
+  }
+
+  const requestedServiceIds =
+    input.serviceIds && input.serviceIds.length > 0 ? input.serviceIds : [input.serviceId]
+  const resolvedServices = await loadActiveServicesForBooking(
+    db,
+    context.salonId,
+    requestedServiceIds,
+  )
+  if (!resolvedServices.ok) {
+    return resolvedServices
+  }
+
+  const { durationMinutes, priceCents, serviceName, serviceIds } = resolvedServices
+  const newStartAt = input.startAt
+  const newEndAt = new Date(newStartAt.getTime() + durationMinutes * 60_000)
+  const oldStartAt = new Date(String(existing.startAt))
+  const empId =
+    typeof existing.employeeId === 'string' && existing.employeeId.trim()
+      ? existing.employeeId.trim()
+      : null
+  const oldLockRef = db
+    .collection('salons')
+    .doc(context.salonId)
+    .collection('slotLocks')
+    .doc(lockIdForStart(oldStartAt, empId))
+  const newLockRef = db
+    .collection('salons')
+    .doc(context.salonId)
+    .collection('slotLocks')
+    .doc(lockIdForStart(newStartAt, empId))
+  const updatedAt = now.toISOString()
+  const sameLock = oldLockRef.path === newLockRef.path
+
+  try {
+    await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(reservationRef)
+      if (!fresh.exists) throw new Error('NOT_FOUND')
+      const freshData = fresh.data()!
+      const freshStatus = String(freshData.status)
+      if (freshStatus !== 'PENDING' && freshStatus !== 'CONFIRMED') throw new Error('INACTIVE')
+
+      const newLockSnap = await tx.get(newLockRef)
+      if (newLockSnap.exists && newLockSnap.data()?.reservationId !== input.reservationId) {
+        throw new Error('UNAVAILABLE')
+      }
+
+      const overlapSnap = await tx.get(
+        db
+          .collection('salons')
+          .doc(context.salonId)
+          .collection('reservations')
+          .where('startAt', '<', newEndAt.toISOString()),
+      )
+      const busyFromReservations = overlapSnap.docs
+        .filter((doc) => {
+          if (doc.id === input.reservationId) return false
+          const data = doc.data()
+          if (data.status !== 'PENDING' && data.status !== 'CONFIRMED') return false
+          if (empId && data.employeeId && String(data.employeeId) !== empId) return false
+          return new Date(String(data.endAt)).getTime() > newStartAt.getTime()
+        })
+        .map((doc) => ({
+          startAt: new Date(String(doc.data().startAt)),
+          endAt: new Date(String(doc.data().endAt)),
+        }))
+
+      const blocksSnap = await tx.get(
+        db
+          .collection('salons')
+          .doc(context.salonId)
+          .collection('blockedSlots')
+          .where('startAt', '<', newEndAt.toISOString()),
+      )
+      const busyFromBlocks = blocksSnap.docs
+        .filter((doc) => {
+          const data = doc.data()
+          if (empId && data.employeeId && String(data.employeeId) !== empId) return false
+          return new Date(String(data.endAt)).getTime() > newStartAt.getTime()
+        })
+        .map((doc) => ({
+          startAt: new Date(String(doc.data().startAt)),
+          endAt: new Date(String(doc.data().endAt)),
+        }))
+
+      const oldLockSnap = await tx.get(oldLockRef)
+
+      const available = isSlotAvailable({
+        startAt: newStartAt,
+        durationMinutes,
+        timeZone: context.timeZone,
+        weekly: context.weekly,
+        holidays: context.holidays,
+        dayExceptions: context.dayExceptions,
+        busy: [...busyFromReservations, ...busyFromBlocks],
+        settings: context.settings,
+        now,
+        enforceAdvanceRestrictions: input.enforceAdvanceRestrictions,
+      })
+      if (!available) throw new Error('UNAVAILABLE')
+
+      if (!sameLock) {
+        if (oldLockSnap.exists && oldLockSnap.data()?.reservationId === input.reservationId) {
+          tx.delete(oldLockRef)
+        }
+        tx.set(newLockRef, {
+          reservationId: input.reservationId,
+          startAt: newStartAt.toISOString(),
+          endAt: newEndAt.toISOString(),
+          createdAt: updatedAt,
+        })
+      } else {
+        tx.set(newLockRef, {
+          reservationId: input.reservationId,
+          startAt: newStartAt.toISOString(),
+          endAt: newEndAt.toISOString(),
+          createdAt: String(newLockSnap.data()?.createdAt ?? updatedAt),
+        })
+      }
+
+      tx.update(reservationRef, {
+        firstName: input.firstName,
+        lastName: input.lastName,
+        phone: input.phone,
+        email: input.email,
+        serviceId: serviceIds[0],
+        serviceIds,
+        serviceName,
+        durationMinutes,
+        priceCents,
+        startAt: newStartAt.toISOString(),
+        endAt: newEndAt.toISOString(),
+        internalNote: input.internalNote,
+        updatedAt,
+      })
+    })
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'UNAVAILABLE') {
+        return { ok: false, code: 'UNAVAILABLE', message: 'Timeslot is not available.' }
+      }
+      if (error.message === 'NOT_FOUND') {
+        return { ok: false, code: 'NOT_FOUND', message: 'Reservation not found.' }
+      }
+      if (error.message === 'INACTIVE') {
+        return { ok: false, code: 'INACTIVE', message: 'Reservation cannot be edited.' }
+      }
+    }
+    throw error
+  }
+
+  return {
+    ok: true,
+    reservationId: input.reservationId,
+    status: status === 'PENDING' ? 'PENDING' : 'CONFIRMED',
+    serviceName,
+    durationMinutes,
+  }
+}
+
 export async function previewAvailableSlots(input: {
   serviceId?: string
   serviceIds?: string[]
@@ -348,6 +561,8 @@ export async function previewAvailableSlots(input: {
   salonId?: string
   context?: SalonContext
   enforceAdvanceRestrictions?: boolean
+  /** Admin edit: ignore this reservation while using selected services’ duration. */
+  excludeReservationId?: string
   /**
    * Moving an existing booking: use its stored duration (the service may have
    * changed or been deactivated since) and ignore its own time as busy.
@@ -391,7 +606,7 @@ export async function previewAvailableSlots(input: {
       context.salonId,
       rangeStart,
       rangeEnd,
-      input.reschedule?.reservationId,
+      input.excludeReservationId ?? input.reschedule?.reservationId,
       empId,
     )
     const slots = listAvailableSlots({

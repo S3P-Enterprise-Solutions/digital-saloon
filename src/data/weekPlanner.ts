@@ -6,8 +6,6 @@ import type { BlockedSlotWithId } from './blockedSlots'
 import type { ReservationWithId } from './reservations'
 import type { ReservationStatus, Weekday } from './schemas'
 
-export const addSlotStepMinutes = 30
-
 const plannedStatuses: ReadonlySet<ReservationStatus> = new Set([
   'PENDING',
   'CONFIRMED',
@@ -34,8 +32,6 @@ export type PlannerDay = {
   openIntervals: MinuteInterval[]
   entries: PlannerEntry[]
   blockedEntries: PlannerBlockedEntry[]
-  /** Start minutes where a new appointment can be entered (open, free, not in the past). */
-  addStartMinutes: number[]
   count: number
   bookedMinutes: number
 }
@@ -234,24 +230,6 @@ export function planWeek({
       latest = Math.max(latest, interval.endMinute)
     }
 
-    const blocking = entries.filter((entry) => entry.reservation.status !== 'COMPLETED')
-    const addStartMinutes: number[] = []
-    if (dateYmd >= current.dateYmd) {
-      for (const interval of openIntervals) {
-        for (
-          let minute = interval.startMinute;
-          minute + addSlotStepMinutes <= interval.endMinute;
-          minute += addSlotStepMinutes
-        ) {
-          const inPast = dateYmd === current.dateYmd && minute <= current.minute
-          const taken =
-            blocking.some((entry) => entry.startMinute <= minute && minute < entry.endMinute) ||
-            blockedEntries.some((entry) => entry.startMinute <= minute && minute < entry.endMinute)
-          if (!inPast && !taken) addStartMinutes.push(minute)
-        }
-      }
-    }
-
     const bookedMinutes = entries.reduce(
       (sum, entry) => sum + entry.endMinute - entry.startMinute,
       0,
@@ -267,7 +245,6 @@ export function planWeek({
       openIntervals,
       entries,
       blockedEntries,
-      addStartMinutes,
       count: entries.length,
       bookedMinutes,
     }

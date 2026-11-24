@@ -1,9 +1,11 @@
 import type * as React from 'react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Alert,
   Box,
   Button,
+  Checkbox,
+  Chip,
   CircularProgress,
   MenuItem,
   Paper,
@@ -14,30 +16,44 @@ import {
 
 import type { AvailableSlotDto } from '../../data/bookingApi'
 import { formatViennaDate, formatViennaTime } from '../../data/dateFormat'
-import { localizedServiceName } from '../../data/serviceForm'
 import type { EmployeeWithId } from '../../data/employees'
+import { arePricesVisible } from '../../data/salonConfig'
+import { formatServicePriceRange, localizedServiceName } from '../../data/serviceForm'
 import type { ServiceWithId } from '../../data/services'
 import { useLocale } from '../../i18n'
+import { brand } from '../../theme'
+
+export type AdminManualBookingInitialCustomer = {
+  firstName: string
+  lastName: string
+  phone: string
+  email: string
+  internalNote: string
+}
 
 export type AdminManualBookingPageProps = {
+  mode: 'create' | 'edit'
   services: ServiceWithId[] | undefined
   employees?: EmployeeWithId[]
   selectedEmployeeId?: string | null
   onEmployeeChange?: (employeeId: string | null) => void
   dates: string[]
-  selectedServiceId: string | null
+  selectedServiceIds: string[]
   selectedDate: string | null
   /** `HH:MM` picked in the week planner; preselects that slot when it is free. */
   preferredTime: string | null
+  /** Exact ISO start when editing; used if the preferred time chip is not in the free list yet. */
+  preferredStartAt: string | null
+  initialCustomer: AdminManualBookingInitialCustomer | null
   slots: AvailableSlotDto[] | undefined
   slotsLoading: boolean
   isSubmitting: boolean
   submitError: string | null
   onBackClick: () => void
-  onServiceChange: (serviceId: string) => void
+  onToggleService: (serviceId: string) => void
   onDateChange: (dateYmd: string) => void
   onSubmit: (input: {
-    serviceId: string
+    serviceIds: string[]
     employeeId?: string | null
     startAt: string
     firstName: string
@@ -49,42 +65,71 @@ export type AdminManualBookingPageProps = {
 }
 
 export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingPageProps> = ({
+  mode,
   services,
   employees,
   selectedEmployeeId,
   onEmployeeChange,
   dates,
-  selectedServiceId,
+  selectedServiceIds,
   selectedDate,
   preferredTime,
+  preferredStartAt,
+  initialCustomer,
   slots,
   slotsLoading,
   isSubmitting,
   submitError,
   onBackClick,
-  onServiceChange,
+  onToggleService,
   onDateChange,
   onSubmit,
 }) => {
   const { t, locale, intlLocale } = useLocale()
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [email, setEmail] = useState('')
-  const [internalNote, setInternalNote] = useState('')
+  const [firstName, setFirstName] = useState(initialCustomer?.firstName ?? '')
+  const [lastName, setLastName] = useState(initialCustomer?.lastName ?? '')
+  const [phone, setPhone] = useState(initialCustomer?.phone ?? '')
+  const [email, setEmail] = useState(initialCustomer?.email ?? '')
+  const [internalNote, setInternalNote] = useState(initialCustomer?.internalNote ?? '')
   const [pickedStartAt, setStartAt] = useState<string | null>(null)
-  const startAt =
-    pickedStartAt ??
+  const preferredMatchStartAt =
     slots?.find((slot) => formatViennaTime(slot.startAt, 'de-AT') === preferredTime)?.startAt ??
     null
+  const nextFreeStartAt = slots?.[0]?.startAt ?? null
+  // Edit: keep the booking's own start even if it is missing from the free-slot list
+  // (e.g. after a duration change) so saving customer fields cannot silently move time.
+  const startAt =
+    pickedStartAt ??
+    preferredMatchStartAt ??
+    (mode === 'edit' ? preferredStartAt : null) ??
+    (mode === 'create' ? nextFreeStartAt : null)
+  const showsNextFreeSuggestion =
+    mode === 'create' &&
+    startAt !== null &&
+    nextFreeStartAt !== null &&
+    startAt === nextFreeStartAt &&
+    pickedStartAt === null &&
+    preferredMatchStartAt === null
+
+  const selectedServices = useMemo(
+    () => (services ?? []).filter((service) => selectedServiceIds.includes(service.id)),
+    [services, selectedServiceIds],
+  )
+  const totalDurationMinutes = selectedServices.reduce(
+    (sum, service) => sum + service.durationMinutes,
+    0,
+  )
+  const pricesVisible = arePricesVisible()
 
   return (
     <Stack spacing={3}>
       <Paper sx={{ p: 3 }}>
         <Typography variant="h1" gutterBottom>
-          {t('admin.manualTitle')}
+          {mode === 'edit' ? t('admin.editReservationTitle') : t('admin.manualTitle')}
         </Typography>
-        <Typography color="text.secondary">{t('admin.manualSubtitle')}</Typography>
+        <Typography color="text.secondary">
+          {mode === 'edit' ? t('admin.editReservationSubtitle') : t('admin.manualSubtitle')}
+        </Typography>
         <Button onClick={onBackClick} sx={{ mt: 2 }}>
           {t('admin.back')}
         </Button>
@@ -92,19 +137,78 @@ export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingP
 
       <Paper sx={{ p: 3 }}>
         <Stack spacing={2}>
-          <TextField
-            select
-            label={t('admin.service')}
-            value={selectedServiceId ?? ''}
-            onChange={(event) => onServiceChange(event.target.value)}
-            fullWidth
+          <Typography variant="subtitle2">{t('admin.services')}</Typography>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
+              gap: 1,
+            }}
           >
-            {(services ?? []).map((service) => (
-              <MenuItem key={service.id} value={service.id}>
-                {localizedServiceName(service, locale)}
-              </MenuItem>
-            ))}
-          </TextField>
+            {(services ?? []).map((service) => {
+              const selected = selectedServiceIds.includes(service.id)
+              return (
+                <Box
+                  key={service.id}
+                  component="button"
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => {
+                    setStartAt(null)
+                    onToggleService(service.id)
+                  }}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 1,
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    borderRadius: 1.5,
+                    border: '1.5px solid',
+                    borderColor: selected ? 'primary.main' : 'divider',
+                    bgcolor: selected ? brand.stone : 'background.paper',
+                    px: 1.25,
+                    py: 1,
+                    font: 'inherit',
+                    color: 'inherit',
+                    width: '100%',
+                  }}
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 600, fontSize: '0.9rem', lineHeight: 1.3 }}>
+                      {localizedServiceName(service, locale)}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ fontSize: '0.8rem', fontVariantNumeric: 'tabular-nums' }}
+                    >
+                      {t('book.durationMinutes', { minutes: service.durationMinutes })}
+                      {pricesVisible
+                        ? ` · ${formatServicePriceRange(service.priceCents, service.priceMaxCents)}`
+                        : ''}
+                    </Typography>
+                  </Box>
+                  <Checkbox
+                    checked={selected}
+                    tabIndex={-1}
+                    readOnly
+                    aria-hidden
+                    size="small"
+                    sx={{ p: 0.25 }}
+                  />
+                </Box>
+              )
+            })}
+          </Box>
+
+          {selectedServiceIds.length > 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              {t('book.selectedServicesCount', { count: selectedServiceIds.length })} ·{' '}
+              {t('book.totalDuration', { minutes: totalDurationMinutes })}
+            </Typography>
+          ) : null}
 
           {employees && employees.length > 0 && onEmployeeChange ? (
             <TextField
@@ -140,19 +244,50 @@ export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingP
             ))}
           </Box>
 
-          {selectedDate && selectedServiceId ? (
+          {selectedDate && selectedServiceIds.length > 0 ? (
             <>
-              <Typography variant="subtitle2">{t('admin.time')}</Typography>
+              <Typography variant="subtitle2">{t('admin.timeFreeLabel')}</Typography>
               {slotsLoading ? <CircularProgress size={24} /> : null}
+              {showsNextFreeSuggestion ? (
+                <Alert severity="info" sx={{ py: 0.5 }}>
+                  {t('admin.nextFreeSlotHint')}
+                </Alert>
+              ) : null}
+              {mode === 'edit' &&
+              startAt &&
+              slots &&
+              !slots.some((slot) => slot.startAt === startAt) ? (
+                <Alert severity="info" sx={{ py: 0.5 }}>
+                  {t('admin.currentSlotKept', {
+                    time: formatViennaTime(startAt, intlLocale),
+                  })}
+                </Alert>
+              ) : null}
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                {slots?.map((slot) => (
+                {slots?.map((slot, index) => (
                   <Button
                     key={slot.startAt}
                     size="small"
                     variant={startAt === slot.startAt ? 'contained' : 'outlined'}
                     onClick={() => setStartAt(slot.startAt)}
+                    sx={{ gap: 0.75 }}
                   >
                     {formatViennaTime(slot.startAt, intlLocale)}
+                    {index === 0 ? (
+                      <Chip
+                        size="small"
+                        label={t('admin.nextFreeSlotTag')}
+                        color={startAt === slot.startAt ? 'default' : 'primary'}
+                        variant={startAt === slot.startAt ? 'filled' : 'outlined'}
+                        sx={{
+                          height: 20,
+                          fontSize: '0.7rem',
+                          bgcolor: startAt === slot.startAt ? 'rgba(255,255,255,0.22)' : undefined,
+                          color: startAt === slot.startAt ? 'inherit' : undefined,
+                          '& .MuiChip-label': { px: 0.75 },
+                        }}
+                      />
+                    ) : null}
                   </Button>
                 ))}
               </Box>
@@ -204,16 +339,16 @@ export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingP
             variant="contained"
             disabled={
               isSubmitting ||
-              !selectedServiceId ||
+              selectedServiceIds.length === 0 ||
               !startAt ||
               firstName.trim().length === 0 ||
               lastName.trim().length === 0 ||
               phone.trim().length === 0
             }
             onClick={() => {
-              if (!selectedServiceId || !startAt) return
+              if (selectedServiceIds.length === 0 || !startAt) return
               onSubmit({
-                serviceId: selectedServiceId,
+                serviceIds: selectedServiceIds,
                 ...(selectedEmployeeId ? { employeeId: selectedEmployeeId } : {}),
                 startAt,
                 firstName: firstName.trim(),
@@ -224,7 +359,11 @@ export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingP
               })
             }}
           >
-            {isSubmitting ? t('admin.saving') : t('admin.createReservation')}
+            {isSubmitting
+              ? t('admin.saving')
+              : mode === 'edit'
+                ? t('admin.saveReservation')
+                : t('admin.createReservation')}
           </Button>
         </Stack>
       </Paper>

@@ -13,10 +13,6 @@ function plannerEntries(page: Page) {
   return planner(page).getByRole('button', { name: /^\d{2}:\d{2}–\d{2}:\d{2}, / })
 }
 
-function addSlots(page: Page) {
-  return planner(page).getByRole('button', { name: /^Termin eintragen am / })
-}
-
 test.describe('admin week planner @smoke', () => {
   test.beforeEach(async ({ page }) => {
     await signInAsDemo(page)
@@ -68,13 +64,41 @@ test.describe('admin week planner @smoke', () => {
     ).toBeVisible()
 
     await page.getByRole('button', { name: 'Diese Woche' }).click()
-    await expect(page).not.toHaveURL(/week=/)
+    await expect(page).toHaveURL(new RegExp(`week=${weekStart}`))
     await expect(
       page.getByRole('heading', { level: 1, name: weekHeading(weekStart) }),
     ).toBeVisible()
   })
 
-  test('shows open requests in the grid and opens an appointment', async ({ page }) => {
+  test('keeps the selected week in the URL across reload and back from details', async ({
+    page,
+  }) => {
+    const weekStart = addCalendarDays(plannerDefaultWeek(), 7)
+    await page.goto(`/admin?week=${weekStart}`)
+    await expect(
+      page.getByRole('heading', { level: 1, name: weekHeading(weekStart) }),
+    ).toBeVisible()
+
+    await page.reload()
+    await expect(page).toHaveURL(new RegExp(`week=${weekStart}`))
+    await expect(
+      page.getByRole('heading', { level: 1, name: weekHeading(weekStart) }),
+    ).toBeVisible()
+
+    const entry = plannerEntries(page).first()
+    await expect(entry).toBeVisible()
+    await entry.click()
+    await page.getByRole('menuitem', { name: 'Details anzeigen' }).click()
+    await expect(page).toHaveURL(new RegExp(`/admin/reservations/.*week=${weekStart}`))
+
+    await page.getByRole('button', { name: 'Zurück zum Kalender' }).click()
+    await expect(page).toHaveURL(new RegExp(`week=${weekStart}`))
+    await expect(
+      page.getByRole('heading', { level: 1, name: weekHeading(weekStart) }),
+    ).toBeVisible()
+  })
+
+  test('shows open requests in the grid and opens details via quick menu', async ({ page }) => {
     const pending = await findFutureDemoReservation('PENDING')
     await page.goto(`/admin?week=${pending.startAt.slice(0, 10)}`)
 
@@ -84,46 +108,76 @@ test.describe('admin week planner @smoke', () => {
     await expect(entry.first()).toBeVisible()
     await entry.first().click()
 
+    const menu = page.getByRole('menu')
+    await expect(menu.getByRole('menuitem', { name: 'Details anzeigen' })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: 'Umbuchen' })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: /Stornieren/ })).toHaveCount(0)
+
+    await menu.getByRole('menuitem', { name: 'Details anzeigen' }).click()
     await expect(page).toHaveURL(/\/admin\/reservations\//)
     await expect(page.getByRole('heading', { name: 'Termin-Details' })).toBeVisible()
     await expect(page.getByText('Ausstehend')).toBeVisible()
   })
 
-  test('enters an appointment by clicking a free time', async ({ page }) => {
-    const weekStart = addCalendarDays(plannerDefaultWeek(), 7)
-    const lastName = `Raster${Date.now().toString().slice(-6)}`
-    await page.goto(`/admin?week=${weekStart}`)
+  test('opens edit form from calendar quick menu and saves customer changes', async ({ page }) => {
+    const confirmed = await findFutureDemoReservation('CONFIRMED')
+    const newLastName = `Umbuch${Date.now().toString().slice(-5)}`
+    await page.goto(`/admin?week=${confirmed.startAt.slice(0, 10)}`)
 
-    const slot = addSlots(page).first()
-    await expect(slot).toBeAttached()
-    const label = (await slot.getAttribute('aria-label')) ?? ''
-    const time = /um (\d{2}:\d{2})$/.exec(label)?.[1]
-    expect(time).toBeTruthy()
-    await slot.click()
+    const entry = planner(page).getByRole('button', {
+      name: new RegExp(`${confirmed.firstName} ${confirmed.lastName}, .*, Bestätigt$`),
+    })
+    await expect(entry.first()).toBeVisible()
+    await entry.first().click()
+    await page.getByRole('menuitem', { name: 'Umbuchen' }).click()
 
-    await expect(page).toHaveURL(new RegExp(`/admin/manual\\?.*time=${time?.replace(':', '%3A')}`))
-    await page.getByLabel('Leistung').click()
-    await page.getByRole('option', { name: /^Herrenhaarschnitt/ }).click()
-    await expect(page.getByRole('button', { name: time, exact: true })).toHaveClass(
-      /MuiButton-contained/,
-    )
+    await expect(page).toHaveURL(new RegExp(`/admin/manual\\?.*reservationId=${confirmed.id}`))
+    await expect(page.getByRole('heading', { name: 'Termin bearbeiten' })).toBeVisible()
+    await expect(page.getByLabel('Vorname')).toHaveValue(confirmed.firstName)
+    await expect(page.getByLabel('Nachname')).toHaveValue(confirmed.lastName)
 
-    await page.getByLabel('Vorname').fill('Raster')
-    await page.getByLabel('Nachname').fill(lastName)
-    await page.getByLabel('Telefon').fill('+39 333 1112222')
-    await page.getByRole('button', { name: 'Termin anlegen' }).click()
-    await expect(page).toHaveURL(/\/admin\/reservations\//)
+    await page.getByLabel('Nachname').fill(newLastName)
+    await page.getByRole('button', { name: 'Änderungen speichern' }).click()
 
-    await page.goto(`/admin?week=${weekStart}`)
-    await expect(
-      planner(page).getByRole('button', {
-        name: new RegExp(`^${time}–\\d{2}:\\d{2}, Raster ${lastName}, Herrenhaarschnitt`),
-      }),
-    ).toBeVisible()
+    await expect(page).toHaveURL(new RegExp(`/admin/reservations/${confirmed.id}`))
+    await expect(page.getByText(`${confirmed.firstName} ${newLastName}`)).toBeVisible()
+    await expect(page.getByText('Bestätigt')).toBeVisible()
   })
 
-  test('confirms an open request from the list next to the calendar', async ({ page }) => {
-    await page.goto('/admin')
+  test('cancel from details requires MUI dialog confirmation', async ({ page }) => {
+    const confirmed = await findFutureDemoReservation('CONFIRMED')
+    await page.goto(`/admin/reservations/${confirmed.id}`)
+    await expect(page.getByRole('heading', { name: 'Termin-Details' })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Stornieren' }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByRole('heading', { name: 'Termin stornieren?' })).toBeVisible()
+
+    await dialog.getByRole('button', { name: 'Abbrechen' }).click()
+    await expect(dialog).toHaveCount(0)
+    await expect
+      .poll(async () => getReservationStatus(confirmed.id), { timeout: 10_000 })
+      .toBe('CONFIRMED')
+
+    await page.getByRole('button', { name: 'Stornieren' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Ja, stornieren' }).click()
+    await expect
+      .poll(async () => getReservationStatus(confirmed.id), { timeout: 15_000 })
+      .toBe('CANCELLED')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(page.getByText('Storniert', { exact: true })).toBeVisible()
+  })
+
+  test('does not offer clickable free-time slots in the planner', async ({ page }) => {
+    await page.goto(`/admin?week=${addCalendarDays(plannerDefaultWeek(), 7)}`)
+    await expect(planner(page)).toBeVisible()
+    await expect(planner(page).getByRole('button', { name: /^Termin eintragen am / })).toHaveCount(
+      0,
+    )
+  })
+
+  test('confirms an open request from the pending page', async ({ page }) => {
+    await page.goto('/admin/pending')
     const pending = await findFutureDemoReservation('PENDING')
     const requests = page.getByRole('region', { name: 'Offene Anfragen' })
     const request = requests
@@ -151,9 +205,13 @@ test.describe('admin week planner @smoke', () => {
     await page.goto('/admin')
     const views = page.getByRole('group', { name: 'Ansicht' })
     await views.getByRole('button', { name: 'Liste' }).click()
-    await expect(page).toHaveURL(/\/admin\/reservations$/)
+    await expect(page).toHaveURL(/\/admin\/reservations\?week=/)
     await views.getByRole('button', { name: 'Woche' }).click()
-    await expect(page).toHaveURL(/\/admin$/)
+    await expect(page).toHaveURL(/\/admin\?week=/)
+
+    await page.getByRole('banner').getByRole('button', { name: 'Anfragen' }).click()
+    await expect(page).toHaveURL(/\/admin\/pending$/)
+    await expect(page.getByRole('heading', { name: /Offene Anfragen/ })).toBeVisible()
 
     await page.getByRole('banner').getByRole('button', { name: 'Einstellungen' }).click()
     await expect(page).toHaveURL(/\/admin\/settings$/)

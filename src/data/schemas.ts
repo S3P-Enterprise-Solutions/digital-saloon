@@ -55,6 +55,8 @@ export const serviceSchema = v.object({
   priceCents: v.pipe(v.number(), v.integer(), v.minValue(0)),
   priceMaxCents: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
   active: v.boolean(),
+  /** Lower values appear first in booking, price list, and admin. */
+  sortOrder: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(9999)),
   createdAt: v.string(),
   updatedAt: v.string(),
 })

@@ -4,6 +4,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { functionsRegion, getSalonId } from '../config'
 import { isSlotAvailable } from '../domain/availability'
 import { isObject } from '../schemas'
+import { notifyCustomerCancelled, notifyCustomerRescheduled } from './customerNotify'
 import { findReservationByManagementToken, toPublicReservationView } from './findByToken'
 import { lockIdForStart } from './reservationWrite'
 import { syncReservationToGoogleCalendar } from '../googleCalendar/sync'
@@ -42,12 +43,13 @@ export const cancelReservation = onCall({ region: functionsRegion }, async (requ
     throw new HttpsError('not-found', 'Reservation not found or token invalid.')
   }
 
-  if (!ACTIVE.has(String(doc.data().status))) {
+  const beforeData = doc.data()
+  if (!ACTIVE.has(String(beforeData.status))) {
     throw new HttpsError('failed-precondition', 'Reservation cannot be cancelled.')
   }
 
-  const startAt = new Date(String(doc.data().startAt))
-  const cancelEmpId = typeof doc.data().employeeId === 'string' ? doc.data().employeeId : null
+  const startAt = new Date(String(beforeData.startAt))
+  const cancelEmpId = typeof beforeData.employeeId === 'string' ? beforeData.employeeId : null
   const lockRef = db
     .collection('salons')
     .doc(salonId)
@@ -68,7 +70,13 @@ export const cancelReservation = onCall({ region: functionsRegion }, async (requ
   })
 
   await syncReservationToGoogleCalendar(doc.id, db, salonId)
-  await syncReservationToGoogleCalendar(doc.id, db, salonId)
+  const salon = await loadSalonContext(db, salonId)
+  await notifyCustomerCancelled({
+    reservationId: doc.id,
+    data: beforeData,
+    salon,
+    managementToken: token,
+  })
   const after = await doc.ref.get()
   return {
     reservation: toPublicReservationView({
@@ -98,16 +106,18 @@ export const rescheduleReservation = onCall({ region: functionsRegion }, async (
     throw new HttpsError('not-found', 'Reservation not found or token invalid.')
   }
 
-  const data = doc.data()
-  if (!ACTIVE.has(String(data.status))) {
+  const beforeData = doc.data()
+  if (!ACTIVE.has(String(beforeData.status))) {
     throw new HttpsError('failed-precondition', 'Reservation cannot be rescheduled.')
   }
 
-  const durationMinutes = Number(data.durationMinutes)
+  const durationMinutes = Number(beforeData.durationMinutes)
   const newEndAt = new Date(newStartAt.getTime() + durationMinutes * 60_000)
-  const oldStartAt = new Date(String(data.startAt))
+  const oldStartAt = new Date(String(beforeData.startAt))
   const empId =
-    typeof data.employeeId === 'string' && data.employeeId.trim() ? data.employeeId.trim() : null
+    typeof beforeData.employeeId === 'string' && beforeData.employeeId.trim()
+      ? beforeData.employeeId.trim()
+      : null
   const context = await loadSalonContext(db, salonId)
   const now = new Date()
   const oldLockRef = db
@@ -218,10 +228,18 @@ export const rescheduleReservation = onCall({ region: functionsRegion }, async (
   }
 
   const after = await doc.ref.get()
+  const afterData = after.data() ?? {}
+  await notifyCustomerRescheduled({
+    reservationId: doc.id,
+    before: beforeData,
+    after: afterData,
+    salon: context,
+    managementToken: token,
+  })
   return {
     reservation: toPublicReservationView({
       id: after.id,
-      data: () => after.data()!,
+      data: () => afterData,
     } as typeof doc),
   }
 })

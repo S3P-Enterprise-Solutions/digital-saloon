@@ -2,7 +2,8 @@ import type * as React from 'react'
 import { Alert, Box, Button, CircularProgress, Paper, Stack, Typography } from '@mui/material'
 
 import type { AvailableSlotDto, PublicReservation } from '../data/bookingApi'
-import { formatViennaDateTime, formatViennaTime } from '../data/dateFormat'
+import { slotsByDate } from '../data/bookingCalendar'
+import { formatViennaDate, formatViennaDateTime, formatViennaTime } from '../data/dateFormat'
 import { useLocale } from '../i18n'
 import type { MessageKey } from '../i18n'
 
@@ -43,6 +44,8 @@ export const ManageReservationPage: React.FunctionComponent<ManageReservationPag
 }) => {
   const { t, intlLocale } = useLocale()
   const canChange = reservation?.status === 'PENDING' || reservation?.status === 'CONFIRMED'
+  const rescheduleByDate = slotsByDate(rescheduleSlots ?? [])
+  const rescheduleDates = Array.from(rescheduleByDate.keys()).sort()
 
   return (
     <Stack spacing={3}>
@@ -107,18 +110,27 @@ export const ManageReservationPage: React.FunctionComponent<ManageReservationPag
             {t('manage.pickTime')}
           </Typography>
           {rescheduleLoading ? <CircularProgress aria-label={t('manage.slotsLoading')} /> : null}
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            {rescheduleSlots?.map((slot) => (
-              <Button
-                key={slot.startAt}
-                variant="outlined"
-                disabled={reschedulePending}
-                onClick={() => onReschedule(slot.startAt)}
-              >
-                {formatViennaTime(slot.startAt, intlLocale)}
-              </Button>
+          <Stack spacing={2}>
+            {rescheduleDates.map((ymd) => (
+              <Box key={ymd}>
+                <Typography sx={{ fontWeight: 600, mb: 1 }}>
+                  {formatViennaDate(ymd, intlLocale)}
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {(rescheduleByDate.get(ymd) ?? []).map((startAt) => (
+                    <Button
+                      key={startAt}
+                      variant="outlined"
+                      disabled={reschedulePending}
+                      onClick={() => onReschedule(startAt)}
+                    >
+                      {formatViennaTime(startAt, intlLocale)}
+                    </Button>
+                  ))}
+                </Box>
+              </Box>
             ))}
-          </Box>
+          </Stack>
           {rescheduleSlots && rescheduleSlots.length === 0 ? (
             <Alert severity="info">{t('manage.noAlternatives')}</Alert>
           ) : null}

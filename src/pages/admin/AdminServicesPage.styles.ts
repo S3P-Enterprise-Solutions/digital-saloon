@@ -14,10 +14,16 @@ export const ServiceList = styled('ul')(({ theme }) => ({
 
 export const ServiceRow = styled('div')(({ theme }) => ({
   display: 'grid',
-  gridTemplateColumns: '1fr auto auto auto',
-  columnGap: theme.spacing(3),
-  alignItems: 'baseline',
+  gridTemplateColumns: 'auto 1fr auto auto auto',
+  columnGap: theme.spacing(2),
+  alignItems: 'center',
   padding: theme.spacing(2, 0),
+  '& .service-reorder': {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 0,
+    marginLeft: theme.spacing(-1),
+  },
   '& .service-name': {
     fontWeight: 600,
     fontSize: '1.0625rem',
@@ -55,10 +61,12 @@ export const ServiceRow = styled('div')(({ theme }) => ({
     color: brand.espressoMuted,
   },
   [theme.breakpoints.down('sm')]: {
-    gridTemplateColumns: '1fr auto',
+    gridTemplateColumns: 'auto 1fr auto',
     rowGap: theme.spacing(0.5),
-    '& .service-text': { gridColumn: '1 / -1' },
-    '& .service-duration': { gridColumn: 1 },
+    '& .service-text': { gridColumn: '2 / -1' },
+    '& .service-duration': { gridColumn: 2 },
+    '& .service-price': { gridColumn: 3 },
+    '& .service-edit': { gridColumn: '2 / -1', justifySelf: 'start' },
   },
 }))
 

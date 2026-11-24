@@ -14,8 +14,10 @@ import {
 import { alpha } from '@mui/material/styles'
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined'
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined'
+import MarkEmailUnreadOutlinedIcon from '@mui/icons-material/MarkEmailUnreadOutlined'
 import MenuIcon from '@mui/icons-material/Menu'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
+import { useQueryClient } from '@tanstack/react-query'
 
 import { getActiveBrand } from '../data/brands'
 import { telHref } from '../data/phone'
@@ -24,10 +26,11 @@ import { useLocale } from '../i18n'
 import { localeLabels, locales } from '../i18n'
 import { brand } from '../theme'
 import { FooterLink, Header, LanguageSwitch, NavIconButton, NavLink } from './AppShell.styles'
+import { PullToRefresh } from './PullToRefresh'
 import { HeaderWordmark } from './Wordmark'
 
 /** Staff header entry matching the current page; `null` outside the admin area. */
-export type AdminNavItem = 'calendar' | 'settings'
+export type AdminNavItem = 'calendar' | 'pending' | 'settings'
 
 export type AppShellProps = {
   salon: Salon | null
@@ -41,6 +44,7 @@ export type AppShellProps = {
   onLoginClick: () => void
   onPrivacyClick: () => void
   onAdminClick: () => void
+  onAdminPendingClick: () => void
   onAdminSettingsClick: () => void
   onSignOutClick: () => void
   children: React.ReactNode
@@ -57,11 +61,13 @@ export const AppShell: React.FunctionComponent<AppShellProps> = ({
   onLoginClick,
   onPrivacyClick,
   onAdminClick,
+  onAdminPendingClick,
   onAdminSettingsClick,
   onSignOutClick,
   children,
 }) => {
   const { locale, setLocale, t } = useLocale()
+  const queryClient = useQueryClient()
   const activeBrand = getActiveBrand()
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState<HTMLElement | null>(null)
 
@@ -97,6 +103,22 @@ export const AppShell: React.FunctionComponent<AppShellProps> = ({
                   sx={{ display: { xs: 'inline-flex', sm: 'none' } }}
                 >
                   <CalendarMonthOutlinedIcon />
+                </NavIconButton>
+                <NavLink
+                  type="button"
+                  aria-current={activeAdminNav === 'pending' ? 'page' : undefined}
+                  onClick={onAdminPendingClick}
+                  sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+                >
+                  {t('nav.staffPending')}
+                </NavLink>
+                <NavIconButton
+                  aria-label={t('nav.staffPending')}
+                  aria-current={activeAdminNav === 'pending' ? 'page' : undefined}
+                  onClick={onAdminPendingClick}
+                  sx={{ display: { xs: 'inline-flex', sm: 'none' } }}
+                >
+                  <MarkEmailUnreadOutlinedIcon />
                 </NavIconButton>
                 <NavLink
                   type="button"
@@ -199,14 +221,23 @@ export const AppShell: React.FunctionComponent<AppShellProps> = ({
         </Container>
       </Header>
 
-      <Box component="main" sx={{ flexGrow: 1 }}>
-        {contentWidth === 'full' ? (
-          children
-        ) : (
-          <Container maxWidth={contentWidth === 'wide' ? 'lg' : 'md'} sx={{ py: { xs: 4, sm: 6 } }}>
-            {children}
-          </Container>
-        )}
+      <Box component="main" sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+        <PullToRefresh
+          onRefresh={async () => {
+            await queryClient.invalidateQueries()
+          }}
+        >
+          {contentWidth === 'full' ? (
+            children
+          ) : (
+            <Container
+              maxWidth={contentWidth === 'wide' ? 'lg' : 'md'}
+              sx={{ py: { xs: 4, sm: 6 } }}
+            >
+              {children}
+            </Container>
+          )}
+        </PullToRefresh>
       </Box>
 
       <Box component="footer" sx={{ bgcolor: brand.espresso, color: brand.paper, py: 5 }}>

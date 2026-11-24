@@ -7,10 +7,11 @@ import {
   emptyServiceFormInput,
   localizedServiceDescription,
   localizedServiceName,
+  nextServiceSortOrder,
   normalizeServiceDocument,
   parsePriceCents,
   serviceFormInputOf,
-  sortServicesForAdmin,
+  sortServicesByOrder,
   splitBilingual,
   validateServiceForm,
   type ServiceFormInput,
@@ -63,10 +64,12 @@ describe('splitBilingual / normalizeServiceDocument', () => {
       durationMinutes: 120,
       priceCents: 8500,
       active: true,
+      sortOrder: 2,
       createdAt: 'a',
       updatedAt: 'b',
     })
     expect(v.is(serviceSchema, bilingual)).toBe(true)
+    expect(bilingual.sortOrder).toBe(2)
     expect(localizedServiceName(bilingual, 'it')).toBe('Colore')
     expect(localizedServiceDescription(bilingual, 'it')).toBe('Tinta')
     expect(localizedServiceDescription(bilingual, 'de')).toBe('')
@@ -122,7 +125,7 @@ describe('validateServiceForm', () => {
     const result = validateServiceForm(validInput)
     expect(result.ok).toBe(true)
     if (result.ok) {
-      const stamped = { ...result.value, createdAt: 'now', updatedAt: 'now' }
+      const stamped = { ...result.value, sortOrder: 0, createdAt: 'now', updatedAt: 'now' }
       expect(v.is(serviceSchema, stamped)).toBe(true)
       expect(bilingualServiceName(result.value)).toBe('Herrenschnitt / Taglio uomo')
     }
@@ -243,34 +246,67 @@ describe('serviceFormInputOf', () => {
       durationMinutes: 120,
       priceCents: 8505,
       active: false,
+      sortOrder: 0,
     }
     const input = serviceFormInputOf(service)
     expect(input.price).toBe('85,05')
     expect(serviceFormInputOf({ ...service, priceCents: 8500 }).price).toBe('85')
-    expect(validateServiceForm(input)).toEqual({ ok: true, value: service })
+    expect(validateServiceForm(input)).toEqual({
+      ok: true,
+      value: {
+        nameDe: 'Farbe',
+        nameIt: 'Colore',
+        descriptionDe: 'Ansatz',
+        descriptionIt: 'Radice',
+        durationMinutes: 120,
+        priceCents: 8505,
+        active: false,
+      },
+    })
 
     const ranged = { ...service, durationMaxMinutes: 150, priceMaxCents: 11000 }
     const rangedInput = serviceFormInputOf(ranged)
     expect(rangedInput.durationMax).toBe('150')
     expect(rangedInput.priceMax).toBe('110')
-    expect(validateServiceForm(rangedInput)).toEqual({ ok: true, value: ranged })
+    expect(validateServiceForm(rangedInput)).toEqual({
+      ok: true,
+      value: {
+        nameDe: 'Farbe',
+        nameIt: 'Colore',
+        descriptionDe: 'Ansatz',
+        descriptionIt: 'Radice',
+        durationMinutes: 120,
+        durationMaxMinutes: 150,
+        priceCents: 8505,
+        priceMaxCents: 11000,
+        active: false,
+      },
+    })
   })
 })
 
-describe('sortServicesForAdmin', () => {
-  it('lists bookable services by price and inactive ones last', () => {
+describe('sortServicesByOrder', () => {
+  it('orders by sortOrder then German name', () => {
     const base = {
       descriptionDe: '',
       descriptionIt: '',
       durationMinutes: 30,
+      priceCents: 1000,
       active: true,
       nameIt: 'x',
     }
-    const sorted = sortServicesForAdmin([
-      { ...base, nameDe: 'Farbe', priceCents: 8500 },
-      { ...base, nameDe: 'Alt', priceCents: 100, active: false },
-      { ...base, nameDe: 'Schnitt', priceCents: 2600 },
+    const sorted = sortServicesByOrder([
+      { ...base, nameDe: 'Farbe', sortOrder: 2 },
+      { ...base, nameDe: 'Bart', sortOrder: 1 },
+      { ...base, nameDe: 'Schnitt', sortOrder: 1 },
     ])
-    expect(sorted.map((service) => service.nameDe)).toEqual(['Schnitt', 'Farbe', 'Alt'])
+    expect(sorted.map((service) => service.nameDe)).toEqual(['Bart', 'Schnitt', 'Farbe'])
+  })
+})
+
+describe('nextServiceSortOrder', () => {
+  it('returns 0 for an empty list and max+1 otherwise', () => {
+    expect(nextServiceSortOrder([])).toBe(0)
+    expect(nextServiceSortOrder([{ sortOrder: 0 }, { sortOrder: 3 }])).toBe(4)
   })
 })

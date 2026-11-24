@@ -91,7 +91,7 @@ export const HomePage: React.FunctionComponent<HomePageProps> = ({
   const today = parseYmd(viennaTodayYmd())
   const todayIndex =
     (new Date(Date.UTC(today.year, today.monthIndex, today.day)).getUTCDay() + 6) % 7
-  const sortedServices = services ? [...services].sort((a, b) => a.priceCents - b.priceCents) : []
+  const sortedServices = services ?? []
   const galleryImages = resolveGalleryImages(homepageConfig, activeBrand.gallery)
   const customSections = homepageConfig?.customSections ?? []
 

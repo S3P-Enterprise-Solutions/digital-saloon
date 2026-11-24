@@ -6,6 +6,7 @@ import { createEmployeeAccount, createFirstSalonAdmin, getStaffOverview } from '
 import { assertSignedIn } from './authz'
 import {
   adminCancelReservation,
+  adminUpdateReservation,
   completeReservation,
   confirmReservation,
   declineReservation,
@@ -45,6 +46,7 @@ export {
   confirmReservation,
   declineReservation,
   adminCancelReservation,
+  adminUpdateReservation,
   completeReservation,
   processPendingReservations,
   processPendingReservationsSchedule,

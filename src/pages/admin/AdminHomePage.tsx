@@ -1,4 +1,5 @@
 import type * as React from 'react'
+import { useState } from 'react'
 import {
   Alert,
   Box,
@@ -6,21 +7,24 @@ import {
   Chip,
   CircularProgress,
   IconButton,
-  Paper,
+  ListItemIcon,
+  ListItemText,
+  Menu,
+  MenuItem,
   Stack,
   Typography,
 } from '@mui/material'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
+import EventNoteIcon from '@mui/icons-material/EventNote'
+import EditCalendarIcon from '@mui/icons-material/EditCalendar'
 
 import { AdminViewSwitch } from '../../components/AdminViewSwitch'
 import { WeekPlanner } from '../../components/WeekPlanner'
-import { formatViennaDateTime } from '../../data/dateFormat'
 import type { EmployeeWithId } from '../../data/employees'
-import type { ReservationWithId } from '../../data/reservations'
 import { formatBookedTime, type WeekPlan } from '../../data/weekPlanner'
 import { useLocale } from '../../i18n'
-import { PendingItem, Toolbar, WeekTitle, WeekTotals } from './AdminHomePage.styles'
+import { Toolbar, WeekTitle, WeekTotals } from './AdminHomePage.styles'
 
 export type AdminHomePageProps = {
   weekTitle: string
@@ -29,16 +33,12 @@ export type AdminHomePageProps = {
   plan: WeekPlan | undefined
   planLoading: boolean
   planError: boolean
-  pending: ReservationWithId[] | undefined
-  confirmingReservationId: string | null
-  confirmError: string | null
   onPrevWeekClick: () => void
   onNextWeekClick: () => void
   onThisWeekClick: () => void
-  onSelectReservation: (reservationId: string) => void
-  onConfirmReservation: (reservationId: string) => void
+  onOpenReservationDetails: (reservationId: string) => void
+  onEditReservation: (reservationId: string) => void
   onAddReservationClick: () => void
-  onAddReservationAt: (dateYmd: string, startTime: string) => void
   onListViewClick: () => void
   employees?: EmployeeWithId[]
   selectedEmployeeId?: string | null
@@ -52,22 +52,23 @@ export const AdminHomePage: React.FunctionComponent<AdminHomePageProps> = ({
   plan,
   planLoading,
   planError,
-  pending,
-  confirmingReservationId,
-  confirmError,
   onPrevWeekClick,
   onNextWeekClick,
   onThisWeekClick,
-  onSelectReservation,
-  onConfirmReservation,
+  onOpenReservationDetails,
+  onEditReservation,
   onAddReservationClick,
-  onAddReservationAt,
   onListViewClick,
   employees,
   selectedEmployeeId,
   onSelectEmployee,
 }) => {
   const { t, intlLocale } = useLocale()
+  const [menu, setMenu] = useState<{
+    reservationId: string
+    anchorEl: HTMLElement
+    canEdit: boolean
+  } | null>(null)
   const revenue = new Intl.NumberFormat(intlLocale, {
     style: 'currency',
     currency: 'EUR',
@@ -162,75 +163,63 @@ export const AdminHomePage: React.FunctionComponent<AdminHomePageProps> = ({
         {plan ? (
           <WeekPlanner
             plan={plan}
-            onSelectReservation={onSelectReservation}
-            onAddAt={onAddReservationAt}
+            onSelectReservation={(reservationId, anchorEl) => {
+              const entry = plan.days
+                .flatMap((day) => day.entries)
+                .find((item) => item.reservation.id === reservationId)
+              const status = entry?.reservation.status
+              setMenu({
+                reservationId,
+                anchorEl,
+                canEdit: status === 'PENDING' || status === 'CONFIRMED',
+              })
+            }}
           />
         ) : null}
+        <Menu
+          anchorEl={menu?.anchorEl ?? null}
+          open={menu !== null}
+          onClose={() => {
+            setMenu(null)
+          }}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+        >
+          <MenuItem
+            onClick={() => {
+              if (!menu) return
+              const { reservationId } = menu
+              setMenu(null)
+              onOpenReservationDetails(reservationId)
+            }}
+          >
+            <ListItemIcon>
+              <EventNoteIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>{t('admin.quickDetails')}</ListItemText>
+          </MenuItem>
+          {menu?.canEdit ? (
+            <MenuItem
+              onClick={() => {
+                if (!menu) return
+                const { reservationId } = menu
+                setMenu(null)
+                onEditReservation(reservationId)
+              }}
+            >
+              <ListItemIcon>
+                <EditCalendarIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>{t('admin.reschedule')}</ListItemText>
+            </MenuItem>
+          ) : null}
+        </Menu>
         {planLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
             <CircularProgress aria-label={t('admin.calendarLoading')} />
           </Box>
         ) : null}
       </Box>
-
-      <Paper component="section" aria-label={t('admin.statPending')} sx={{ p: { xs: 2, sm: 3 } }}>
-        <Typography variant="h2" sx={{ fontSize: '1.25rem', mb: 2 }}>
-          {t('admin.statPending')}
-          {pending && pending.length > 0 ? (
-            <Box component="span" sx={{ color: 'text.secondary', fontWeight: 400, ml: 1 }}>
-              {pending.length}
-            </Box>
-          ) : null}
-        </Typography>
-        {pending && pending.length === 0 ? (
-          <Typography color="text.secondary">{t('admin.pendingEmpty')}</Typography>
-        ) : null}
-        {confirmError ? (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {confirmError}
-          </Alert>
-        ) : null}
-        <Box
-          component="ul"
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))',
-            gap: { xs: 2, sm: 2.5 },
-            listStyle: 'none',
-            m: 0,
-            p: 0,
-          }}
-        >
-          {pending?.map((reservation) => (
-            <PendingItem key={reservation.id}>
-              <Box sx={{ minWidth: 0, maxWidth: '100%' }}>
-                <Typography sx={{ fontWeight: 600 }}>
-                  {reservation.firstName} {reservation.lastName}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {formatViennaDateTime(reservation.startAt, intlLocale)}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" noWrap>
-                  {reservation.serviceName}
-                </Typography>
-              </Box>
-              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                <Button
-                  size="small"
-                  variant="contained"
-                  disabled={confirmingReservationId !== null}
-                  onClick={() => onConfirmReservation(reservation.id)}
-                >
-                  {t('admin.confirm')}
-                </Button>
-                <Button size="small" onClick={() => onSelectReservation(reservation.id)}>
-                  {t('admin.open')}
-                </Button>
-              </Stack>
-            </PendingItem>
-          ))}
-        </Box>
-      </Paper>
     </Stack>
   )
 }

@@ -112,10 +112,12 @@ describe('schemas', () => {
       durationMinutes: 30,
       priceCents: 2500,
       active: true,
+      sortOrder: 0,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     })
 
     expect(service.priceCents).toBe(2500)
+    expect(service.sortOrder).toBe(0)
   })
 })

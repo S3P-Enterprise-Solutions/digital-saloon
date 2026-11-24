@@ -95,6 +95,7 @@ test.describe('admin settings @smoke', () => {
     await expect(page.getByRole('heading', { name: /Anfrage eingegangen/ })).toBeVisible()
 
     await signInAsDemo(page)
+    await page.goto('/admin/pending')
     await expect(
       page.getByRole('region', { name: 'Offene Anfragen' }).getByText(`Manuell ${lastName}`),
     ).toBeVisible()

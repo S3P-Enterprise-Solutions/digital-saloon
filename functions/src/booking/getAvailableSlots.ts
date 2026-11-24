@@ -62,6 +62,15 @@ export const getAvailableSlots = onCall({ region: functionsRegion }, async (requ
     }
   }
 
+  let excludeReservationId: string | undefined
+  if (
+    typeof data.excludeReservationId === 'string' &&
+    data.excludeReservationId.trim().length > 0
+  ) {
+    await assertAdmin(request)
+    excludeReservationId = data.excludeReservationId.trim()
+  }
+
   const slots = await previewAvailableSlots({
     ...(serviceId ? { serviceId } : {}),
     ...(serviceIds.length > 0 ? { serviceIds } : {}),
@@ -70,6 +79,7 @@ export const getAvailableSlots = onCall({ region: functionsRegion }, async (requ
     toDateYmd,
     salonId: getSalonId(),
     enforceAdvanceRestrictions,
+    ...(excludeReservationId ? { excludeReservationId } : {}),
     reschedule,
   })
 
