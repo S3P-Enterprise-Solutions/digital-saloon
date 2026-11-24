@@ -3,40 +3,28 @@ import { Box, Button, CircularProgress, Container, Link, Typography } from '@mui
 
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 
-import { parseYmd, viennaTodayYmd } from '../data/bookingCalendar'
-import { isSectionVisible, resolveGalleryImages } from '../data/homepageConfig'
-import { getActiveBrand } from '../data/brands'
-import type { OpeningHoursByWeekday } from '../data/openingHours'
-import { arePricesVisible } from '../data/salonConfig'
+import { parseYmd, viennaTodayYmd } from '../../data/bookingCalendar'
+import { isSectionVisible, resolveGalleryImages } from '../../data/homepageConfig'
+import { arePricesVisible } from '../../data/salonConfig'
 import {
   formatServiceDurationRange,
   formatServicePriceRange,
   localizedServiceDescription,
   localizedServiceName,
-} from '../data/serviceForm'
-import { telHref } from '../data/phone'
-import type { HomepageConfig, Salon, Weekday } from '../data/schemas'
-import type { ServiceWithId } from '../data/services'
-import { HeroWordmark } from '../components/Wordmark'
-import { useLocale } from '../i18n'
-import { brand } from '../theme'
+} from '../../data/serviceForm'
+import { telHref } from '../../data/phone'
+import type { Salon, Weekday } from '../../data/schemas'
+import { HeroWordmark } from './shell'
+import { useLocale } from '../../i18n'
+import { createSalonTheme } from '../createSalonTheme'
 import { HoursList, PriceList, PriceRow } from './HomePage.styles'
-import { HairboutiqueHomePage } from './HairboutiqueHomePage'
-import { Salon1500HomePage } from './Salon1500HomePage'
+import type { HomePageProps } from '../types'
+import { kimmProfile } from './profile'
 
-export type HomePageProps = {
-  salon: Salon | null
-  services: ServiceWithId[] | undefined
-  servicesLoading: boolean
-  servicesError: boolean
-  openingHours: OpeningHoursByWeekday | undefined
-  openingHoursLoading: boolean
-  openingHoursError: boolean
-  homepageConfig?: HomepageConfig
-  onEditHomepageClick?: () => void
-  onBookClick: () => void
-  onServiceClick: (serviceId: string) => void
-}
+const { brandColors: brand } = createSalonTheme({
+  colors: kimmProfile.colors,
+  typography: kimmProfile.typography,
+})
 
 const weekdaysFromMonday: readonly Weekday[] = [
   'monday',
@@ -68,42 +56,8 @@ export const HomePage: React.FunctionComponent<HomePageProps> = ({
   onServiceClick,
 }) => {
   const { t, locale, intlLocale } = useLocale()
-  const activeBrand = getActiveBrand()
+  const activeBrand = kimmProfile
   const pricesVisible = arePricesVisible()
-
-  if (activeBrand.key === 'hairboutique') {
-    return (
-      <HairboutiqueHomePage
-        brandProfile={activeBrand}
-        salon={salon}
-        services={services}
-        servicesLoading={servicesLoading}
-        servicesError={servicesError}
-        openingHours={openingHours}
-        homepageConfig={homepageConfig}
-        onEditHomepageClick={onEditHomepageClick}
-        onBookClick={onBookClick}
-        onServiceClick={onServiceClick}
-      />
-    )
-  }
-
-  if (activeBrand.key === 'salon1500') {
-    return (
-      <Salon1500HomePage
-        brandProfile={activeBrand}
-        salon={salon}
-        services={services}
-        servicesLoading={servicesLoading}
-        servicesError={servicesError}
-        openingHours={openingHours}
-        homepageConfig={homepageConfig}
-        onEditHomepageClick={onEditHomepageClick}
-        onBookClick={onBookClick}
-        onServiceClick={onServiceClick}
-      />
-    )
-  }
 
   const weekdayFormat = new Intl.DateTimeFormat(intlLocale, { weekday: 'long', timeZone: 'UTC' })
   const today = parseYmd(viennaTodayYmd())

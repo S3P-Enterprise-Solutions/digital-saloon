@@ -5,26 +5,13 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 
-import type { BrandProfile } from '../data/brands'
-import { isSectionVisible, resolveGalleryImages } from '../data/homepageConfig'
-import type { OpeningHoursByWeekday } from '../data/openingHours'
-import { telHref } from '../data/phone'
-import type { HomepageConfig, Salon } from '../data/schemas'
-import type { ServiceWithId } from '../data/services'
-import { useLocale } from '../i18n'
+import { isSectionVisible, resolveGalleryImages } from '../../data/homepageConfig'
+import { telHref } from '../../data/phone'
+import type { Salon } from '../../data/schemas'
+import { useLocale } from '../../i18n'
 
-export type Salon1500HomePageProps = {
-  brandProfile: BrandProfile
-  salon: Salon | null
-  services: ServiceWithId[] | undefined
-  servicesLoading: boolean
-  servicesError: boolean
-  openingHours: OpeningHoursByWeekday | undefined
-  homepageConfig?: HomepageConfig
-  onEditHomepageClick?: () => void
-  onBookClick: () => void
-  onServiceClick: (serviceId: string) => void
-}
+import type { HomePageProps } from '../types'
+import { salon1500Profile } from './profile'
 
 const SCRIPT_FONT = '"Luxurious Script", "Cormorant SC", Georgia, serif'
 const BODY_FONT = '"Roboto Condensed", "Helvetica Neue", Arial, sans-serif'
@@ -35,8 +22,7 @@ function mapsHref(salon: Salon): string {
   )}`
 }
 
-export const Salon1500HomePage: React.FunctionComponent<Salon1500HomePageProps> = ({
-  brandProfile,
+export const HomePage: React.FunctionComponent<HomePageProps> = ({
   salon,
   homepageConfig,
   onEditHomepageClick,
@@ -47,7 +33,7 @@ export const Salon1500HomePage: React.FunctionComponent<Salon1500HomePageProps> 
   const [stylesIndex, setStylesIndex] = useState(0)
   const [stylesPaused, setStylesPaused] = useState(false)
 
-  const heroImages = brandProfile.heroSlides
+  const heroImages = salon1500Profile.heroSlides
   useEffect(() => {
     if (heroImages.length <= 1) return
     const timer = window.setInterval(() => {
@@ -57,7 +43,7 @@ export const Salon1500HomePage: React.FunctionComponent<Salon1500HomePageProps> 
   }, [heroImages.length])
 
   const currentHero = heroImages[heroIndex]
-  const galleryImages = resolveGalleryImages(homepageConfig, brandProfile.gallery)
+  const galleryImages = resolveGalleryImages(homepageConfig, salon1500Profile.gallery)
   const customSections = homepageConfig?.customSections ?? []
   const galleryCount = galleryImages.length
   const visibleStyleCount = Math.min(3, galleryCount)
@@ -130,10 +116,10 @@ export const Salon1500HomePage: React.FunctionComponent<Salon1500HomePageProps> 
             }}
           />
           <Container maxWidth="md" sx={{ position: 'relative', zIndex: 1, py: { xs: 7, md: 10 } }}>
-            {brandProfile.logoUrl ? (
+            {salon1500Profile.logoUrl ? (
               <Box
                 component="img"
-                src={brandProfile.logoUrl}
+                src={salon1500Profile.logoUrl}
                 alt="Salon 1500 Logo"
                 sx={{
                   width: { xs: 110, sm: 136 },
@@ -171,7 +157,7 @@ export const Salon1500HomePage: React.FunctionComponent<Salon1500HomePageProps> 
                 mb: 4,
               }}
             >
-              {brandProfile.heroIntro[locale]}
+              {salon1500Profile.heroIntro[locale]}
             </Typography>
             <Button
               variant="contained"
@@ -325,7 +311,7 @@ export const Salon1500HomePage: React.FunctionComponent<Salon1500HomePageProps> 
                 gap: 4,
               }}
             >
-              {brandProfile.stylists.map((stylist) => (
+              {salon1500Profile.stylists.map((stylist) => (
                 <Box
                   key={stylist.name}
                   sx={{
@@ -495,15 +481,15 @@ export const Salon1500HomePage: React.FunctionComponent<Salon1500HomePageProps> 
                     {salon.email}
                   </Link>
                 </Typography>
-                {brandProfile.instagramUrl ? (
+                {salon1500Profile.instagramUrl ? (
                   <Typography sx={{ mb: 1 }}>
                     <Link
-                      href={brandProfile.instagramUrl}
+                      href={salon1500Profile.instagramUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       sx={{ color: '#000000', fontWeight: 600, textDecorationColor: '#DFBFA4' }}
                     >
-                      Instagram: {brandProfile.instagramHandle ?? brandProfile.instagramUrl}
+                      Instagram: {salon1500Profile.instagramHandle ?? salon1500Profile.instagramUrl}
                     </Link>
                   </Typography>
                 ) : null}

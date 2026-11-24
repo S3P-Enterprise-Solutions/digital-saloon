@@ -65,17 +65,30 @@ function layerOf(file: string): string {
 }
 
 const allowedLayerImports: Readonly<Record<string, readonly string[]>> = {
-  'theme.ts': [],
+  'theme.ts': ['brands'],
   'firebase.ts': ['data'],
   auth: ['firebase.ts'],
   i18n: [],
-  data: ['firebase.ts', 'i18n'],
+  data: ['firebase.ts', 'i18n', 'brands'],
+  brands: ['data', 'i18n', 'components', 'features'],
+  features: ['data', 'i18n', 'hooks', 'components'],
   hooks: ['data', 'firebase.ts', 'i18n'],
-  components: ['hooks', 'data', 'theme.ts', 'i18n'],
-  pages: ['components', 'hooks', 'data', 'auth', 'theme.ts', 'i18n'],
-  routes: ['pages', 'components', 'hooks', 'data', 'auth', 'firebase.ts', 'theme.ts', 'i18n'],
-  'router.ts': ['routes'],
-  'main.tsx': ['router.ts', 'routes', 'auth', 'theme.ts', 'i18n'],
+  components: ['hooks', 'data', 'theme.ts', 'i18n', 'brands'],
+  pages: ['components', 'hooks', 'data', 'auth', 'theme.ts', 'i18n', 'brands'],
+  routes: [
+    'pages',
+    'components',
+    'hooks',
+    'data',
+    'auth',
+    'firebase.ts',
+    'theme.ts',
+    'i18n',
+    'brands',
+    'features',
+  ],
+  'router.ts': ['routes', 'brands'],
+  'main.tsx': ['router.ts', 'routes', 'auth', 'theme.ts', 'i18n', 'brands'],
 }
 
 describe('architecture', () => {
@@ -136,5 +149,72 @@ describe('architecture', () => {
     walk(entryPoint)
     const unused = productionFiles.filter((file) => !reachable.has(file))
     expect(unused).toEqual([])
+  })
+
+  it('shared core does not import concrete brand modules', () => {
+    const brandModulePath = /^brands\/(kimm|salon1500)(\/|$)/
+    const violations = productionFiles.flatMap((file) => {
+      if (file === 'brands/active.ts' || brandModulePath.test(file)) return []
+      return (imports.get(file) ?? [])
+        .filter((item) => brandModulePath.test(item.target))
+        .map((item) => `${file} → ${item.target}`)
+    })
+    expect(violations).toEqual([])
+  })
+
+  it('features do not import brands', () => {
+    const violations = productionFiles
+      .filter((file) => file.startsWith('features/'))
+      .flatMap((file) =>
+        (imports.get(file) ?? [])
+          .filter((item) => item.target.startsWith('brands/'))
+          .map((item) => `${file} → ${item.target}`),
+      )
+    expect(violations).toEqual([])
+  })
+
+  it('brand modules do not import other brand modules', () => {
+    const violations = productionFiles.flatMap((file) => {
+      const match = /^brands\/(kimm|salon1500)\//.exec(file)
+      if (!match) return []
+      const own = match[1]
+      const other = own === 'kimm' ? 'salon1500' : 'kimm'
+      return (imports.get(file) ?? [])
+        .filter((item) => item.target.startsWith(`brands/${other}/`))
+        .map((item) => `${file} → ${item.target}`)
+    })
+    expect(violations).toEqual([])
+  })
+
+  it('router assembles feature routes via buildFeatureRoutes', () => {
+    const routerSource = fs.readFileSync(path.join(sourceRoot, 'router.ts'), 'utf8')
+    expect(routerSource).toMatch(/buildFeatureRoutes/)
+    expect(routerSource).not.toMatch(/from ['"]\.\/routes\/balayage['"]/)
+  })
+
+  it('each brand module satisfies the BrandModule contract', async () => {
+    const { kimmModule } = await import('./brands/kimm/module')
+    const { salon1500Module } = await import('./brands/salon1500/module')
+    for (const module of [kimmModule, salon1500Module]) {
+      expect(module).toMatchObject({
+        key: expect.any(String),
+        features: expect.any(Object),
+        profile: expect.objectContaining({ name: expect.any(String) }),
+        theme: expect.anything(),
+        HomePage: expect.any(Function),
+      })
+    }
+  })
+
+  it('brand-key conditionals only appear in the brand key loader', () => {
+    const allowlist = new Set(['brands/brandKey.ts'])
+    const pattern =
+      /(?:===|!==)\s*['"](?:kimm|salon1500)['"]|['"](?:kimm|salon1500)['"]\s*(?:===|!==)|isSalon1500|brand\.key\s*===/
+    const violations = productionFiles.flatMap((file) => {
+      if (allowlist.has(file)) return []
+      const source = withoutComments(fs.readFileSync(path.join(sourceRoot, file), 'utf8'))
+      return pattern.test(source) ? [file] : []
+    })
+    expect(violations).toEqual([])
   })
 })

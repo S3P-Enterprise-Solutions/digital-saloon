@@ -1,6 +1,12 @@
 import { styled } from '@mui/material/styles'
 
-import { brand } from '../theme'
+import { createSalonTheme } from '../createSalonTheme'
+import { kimmProfile } from './profile'
+
+const { brandColors: brand } = createSalonTheme({
+  colors: kimmProfile.colors,
+  typography: kimmProfile.typography,
+})
 
 export const PriceList = styled('ul')(({ theme }) => ({
   display: 'grid',

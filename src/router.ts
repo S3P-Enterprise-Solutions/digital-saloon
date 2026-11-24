@@ -1,5 +1,6 @@
 import { createRouter } from '@tanstack/react-router'
 
+import { getActiveBrandModule } from './brands/active'
 import {
   adminCalendarRoute,
   adminHolidaysRoute,
@@ -14,9 +15,9 @@ import {
   adminServicesRoute,
   adminSettingsRoute,
 } from './routes/admin'
-import { balayageRoute } from './routes/balayage'
 import { bookRoute } from './routes/book'
 import { bookingConfirmedRoute } from './routes/bookingConfirmed'
+import { buildFeatureRoutes } from './routes/buildFeatureRoutes'
 import { homeRoute } from './routes/home'
 import { loginRoute } from './routes/login'
 import { manageRoute } from './routes/manage'
@@ -25,12 +26,14 @@ import { privacyRoute } from './routes/privacy'
 import { rootRoute } from './routes/root'
 import { RouteError } from './routes/routeError'
 
+const featureRoutes = buildFeatureRoutes(rootRoute, getActiveBrandModule())
+
 export const router = createRouter({
   scrollRestoration: true,
   defaultErrorComponent: RouteError,
   routeTree: rootRoute.addChildren([
     homeRoute,
-    balayageRoute,
+    ...featureRoutes,
     bookRoute,
     bookingConfirmedRoute,
     myBookingsRoute,

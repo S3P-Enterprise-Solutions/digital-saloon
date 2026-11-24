@@ -2,126 +2,57 @@ import type * as React from 'react'
 import { useEffect, useState } from 'react'
 import { Box, Button, Container, Typography } from '@mui/material'
 
-import { arePricesVisible } from '../data/salonConfig'
-import { useLocale } from '../i18n'
+import { arePricesVisible } from '../../data/salonConfig'
+import { useLocale } from '../../i18n'
+
+import type { BalayageContent } from './content'
 
 export type BalayagePageProps = {
+  content: BalayageContent
   onSelectPackage: (serviceId: string) => void
   onBookClick: () => void
 }
 
-const SCRIPT_FONT = '"Luxurious Script", "Cormorant SC", Georgia, serif'
-const BODY_FONT = '"Roboto Condensed", "Helvetica Neue", Arial, sans-serif'
-
-const BALAYAGE_PACKAGES = [
-  {
-    id: 'balayage-xs',
-    size: 'XS',
-    title: 'Paket XS',
-    subtitleDe: 'Dezente Lichtreflexe & Face-Framing',
-    subtitleIt: 'Riflessi delicati e face-framing',
-    duration: '180 min',
-    price: '140€',
-    includesDe: ['Typgerechte Beratung', 'Partielles Balayage / Face-Framing', 'Glossing & Finish'],
-    includesIt: [
-      'Consulenza personalizzata',
-      'Balayage parziale / face-framing',
-      'Glossing e finish',
-    ],
-  },
-  {
-    id: 'balayage-s',
-    size: 'S',
-    title: 'Paket S',
-    subtitleDe: 'Natürliches Balayage für feines bis mittleres Haar',
-    subtitleIt: 'Balayage naturale per capelli fini o medi',
-    duration: '180 min',
-    price: '150€',
-    includesDe: ['Typgerechte Beratung', 'Klassisches Balayage', 'Glossing, Pflege & Föhnen'],
-    includesIt: ['Consulenza personalizzata', 'Balayage classico', 'Glossing, cura e piega'],
-  },
-  {
-    id: 'balayage-m',
-    size: 'M',
-    title: 'Paket M',
-    subtitleDe: 'Mehrdimensionale Farbverläufe & Intensivpflege',
-    subtitleIt: 'Sfumature multidimensionali e cura intensiva',
-    duration: '210 min',
-    price: '170€-180€',
-    includesDe: [
-      'Ausführliche Farbberatung',
-      'Full Balayage & Root Shadow',
-      'Glossing, Intensivpflege & Styling',
-    ],
-    includesIt: [
-      'Consulenza colore dedicata',
-      'Full Balayage e root shadow',
-      'Glossing, trattamento e styling',
-    ],
-  },
-  {
-    id: 'balayage-l',
-    size: 'L',
-    title: 'Paket L',
-    subtitleDe: 'Komplett-Transformation für langes oder kräftiges Haar',
-    subtitleIt: 'Trasformazione completa per capelli lunghi o folti',
-    duration: '240 – 300 min',
-    price: '200€-250€',
-    includesDe: [
-      'Umfassende Farb- & Schnittberatung',
-      'Full Balayage (High-Density)',
-      'Glossing, Bond-Care & Styling',
-    ],
-    includesIt: [
-      'Consulenza colore e taglio',
-      'Full Balayage alta densità',
-      'Glossing, bond-care e styling',
-    ],
-  },
-] as const
-
-const MODEL_SLIDES = [
-  'https://salon1500.it/wp-content/uploads/2024/01/Balayage-3-Models-scaled.jpg',
-  'https://salon1500.it/wp-content/uploads/2024/01/Balayage-Balkon-scaled.jpg',
-  'https://salon1500.it/wp-content/uploads/2024/01/Balayage-Studio-Haare-fliegen-scaled.jpg',
-  'https://salon1500.it/wp-content/uploads/2024/01/Balayage-Zaun-scaled.jpg',
-] as const
-
 export const BalayagePage: React.FunctionComponent<BalayagePageProps> = ({
+  content,
   onSelectPackage,
   onBookClick,
 }) => {
   const { t, locale } = useLocale()
   const pricesVisible = arePricesVisible()
   const [modelIndex, setModelIndex] = useState(0)
+  const packages = content.packages
+  const modelSlides = content.heroImageUrls
+  const { scriptFont, bodyFont, accent, surface, ink, muted } = content.appearance
 
   useEffect(() => {
+    if (modelSlides.length <= 1) return
     const timer = window.setInterval(() => {
-      setModelIndex((prev) => (prev + 1) % MODEL_SLIDES.length)
+      setModelIndex((prev) => (prev + 1) % modelSlides.length)
     }, 5000)
     return () => window.clearInterval(timer)
-  }, [])
+  }, [modelSlides.length])
 
   return (
-    <Box sx={{ fontFamily: BODY_FONT, color: '#000000', bgcolor: '#FFFFFF' }}>
+    <Box sx={{ fontFamily: bodyFont, color: ink, bgcolor: '#FFFFFF' }}>
       <Box
         component="section"
         sx={{
-          bgcolor: '#FAF6F2',
+          bgcolor: surface,
           py: { xs: 6, md: 9 },
           textAlign: 'center',
-          borderBottom: '1px solid #DFBFA4',
+          borderBottom: `1px solid ${accent}`,
         }}
       >
         <Container maxWidth="md">
           <Typography
             component="h1"
             sx={{
-              fontFamily: SCRIPT_FONT,
+              fontFamily: scriptFont,
               fontSize: { xs: '4.5rem', sm: '6.5rem', md: '8rem' },
               fontWeight: 100,
               lineHeight: 0.95,
-              color: '#000000',
+              color: ink,
               mb: 2,
             }}
           >
@@ -129,11 +60,11 @@ export const BalayagePage: React.FunctionComponent<BalayagePageProps> = ({
           </Typography>
           <Typography
             sx={{
-              fontFamily: BODY_FONT,
+              fontFamily: bodyFont,
               fontSize: { xs: '1.1rem', md: '1.3rem' },
               fontWeight: 300,
               fontStyle: 'italic',
-              color: '#54595F',
+              color: muted,
               maxWidth: '46ch',
               mx: 'auto',
             }}
@@ -147,10 +78,10 @@ export const BalayagePage: React.FunctionComponent<BalayagePageProps> = ({
         <Typography
           component="h2"
           sx={{
-            fontFamily: SCRIPT_FONT,
+            fontFamily: scriptFont,
             fontSize: { xs: '3rem', md: '4rem' },
             fontWeight: 400,
-            color: '#54595F',
+            color: muted,
             textAlign: 'center',
             mb: 5,
           }}
@@ -165,14 +96,14 @@ export const BalayagePage: React.FunctionComponent<BalayagePageProps> = ({
             gap: 3.5,
           }}
         >
-          {BALAYAGE_PACKAGES.map((pkg) => {
+          {packages.map((pkg) => {
             const subtitle = locale === 'it' ? pkg.subtitleIt : pkg.subtitleDe
             const includes = locale === 'it' ? pkg.includesIt : pkg.includesDe
             return (
               <Box
                 key={pkg.id}
                 sx={{
-                  border: '1px solid #DFBFA4',
+                  border: `1px solid ${accent}`,
                   bgcolor: '#FFFFFF',
                   display: 'flex',
                   flexDirection: 'column',
@@ -181,10 +112,10 @@ export const BalayagePage: React.FunctionComponent<BalayagePageProps> = ({
               >
                 <Box
                   sx={{
-                    bgcolor: '#FAF6F2',
+                    bgcolor: surface,
                     px: 3.5,
                     py: 3,
-                    borderBottom: '1px solid #DFBFA4',
+                    borderBottom: `1px solid ${accent}`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -195,16 +126,16 @@ export const BalayagePage: React.FunctionComponent<BalayagePageProps> = ({
                     <Typography
                       component="h3"
                       sx={{
-                        fontFamily: '"Cormorant SC", Georgia, serif',
+                        fontFamily: scriptFont,
                         fontSize: '1.85rem',
                         fontWeight: 600,
-                        color: '#000000',
+                        color: ink,
                         lineHeight: 1.1,
                       }}
                     >
                       {pkg.title}
                     </Typography>
-                    <Typography sx={{ color: '#54595F', fontSize: '0.95rem', mt: 0.5 }}>
+                    <Typography sx={{ color: muted, fontSize: '0.95rem', mt: 0.5 }}>
                       {subtitle}
                     </Typography>
                   </Box>
@@ -213,15 +144,15 @@ export const BalayagePage: React.FunctionComponent<BalayagePageProps> = ({
                       width: 52,
                       height: 52,
                       flexShrink: 0,
-                      border: '1px solid #000000',
+                      border: `1px solid ${ink}`,
                       bgcolor: '#FFFFFF',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontFamily: '"Cormorant SC", Georgia, serif',
+                      fontFamily: scriptFont,
                       fontSize: '1.25rem',
                       fontWeight: 600,
-                      color: '#000000',
+                      color: ink,
                     }}
                   >
                     {pkg.size}
@@ -239,14 +170,12 @@ export const BalayagePage: React.FunctionComponent<BalayagePageProps> = ({
                       borderBottom: '1px solid rgba(0,0,0,0.1)',
                     }}
                   >
-                    <Typography sx={{ color: '#54595F', fontSize: '1rem' }}>
-                      {pkg.duration}
-                    </Typography>
+                    <Typography sx={{ color: muted, fontSize: '1rem' }}>{pkg.duration}</Typography>
                     <Typography
                       sx={{
                         fontSize: '1.5rem',
                         fontWeight: 600,
-                        color: '#000000',
+                        color: ink,
                         fontVariantNumeric: 'tabular-nums',
                       }}
                     >
@@ -260,7 +189,7 @@ export const BalayagePage: React.FunctionComponent<BalayagePageProps> = ({
                       m: 0,
                       mb: 3,
                       pl: 2.25,
-                      color: '#54595F',
+                      color: muted,
                       fontSize: '0.95rem',
                       lineHeight: 1.75,
                       flex: 1,
@@ -276,12 +205,12 @@ export const BalayagePage: React.FunctionComponent<BalayagePageProps> = ({
                     fullWidth
                     onClick={() => onSelectPackage(pkg.id)}
                     sx={{
-                      bgcolor: '#000000',
+                      bgcolor: ink,
                       color: '#FFFFFF',
                       borderRadius: 0,
                       py: 1.25,
                       letterSpacing: '0.04em',
-                      '&:hover': { bgcolor: '#2B2B2B' },
+                      '&:hover': { bgcolor: ink },
                     }}
                   >
                     {t('home.book')}
@@ -298,8 +227,8 @@ export const BalayagePage: React.FunctionComponent<BalayagePageProps> = ({
             size="large"
             onClick={onBookClick}
             sx={{
-              borderColor: '#000000',
-              color: '#000000',
+              borderColor: ink,
+              color: ink,
               borderRadius: 0,
               px: 4,
               py: 1.25,
@@ -310,23 +239,22 @@ export const BalayagePage: React.FunctionComponent<BalayagePageProps> = ({
         </Box>
       </Container>
 
-      {/* Models showcase matching salon1500.it/balayage/ without cropping */}
       <Box
         component="section"
         sx={{
-          bgcolor: '#FAF6F2',
+          bgcolor: surface,
           py: { xs: 6, md: 9 },
-          borderTop: '1px solid #DFBFA4',
+          borderTop: `1px solid ${accent}`,
         }}
       >
         <Container maxWidth="lg">
           <Typography
             component="h2"
             sx={{
-              fontFamily: SCRIPT_FONT,
+              fontFamily: scriptFont,
               fontSize: { xs: '3rem', md: '4rem' },
               fontWeight: 400,
-              color: '#54595F',
+              color: muted,
               textAlign: 'center',
               mb: 4,
             }}
@@ -339,8 +267,8 @@ export const BalayagePage: React.FunctionComponent<BalayagePageProps> = ({
               position: 'relative',
               maxWidth: 920,
               mx: 'auto',
-              border: '1px solid #DFBFA4',
-              bgcolor: '#F4EDE6',
+              border: `1px solid ${accent}`,
+              bgcolor: surface,
               overflow: 'hidden',
             }}
           >
@@ -351,12 +279,12 @@ export const BalayagePage: React.FunctionComponent<BalayagePageProps> = ({
                 height: { xs: 360, sm: 480, md: 580 },
               }}
             >
-              {MODEL_SLIDES.map((src, idx) => (
+              {modelSlides.map((src, idx) => (
                 <Box
                   key={src}
                   component="img"
                   src={src}
-                  alt={`Salon 1500 Balayage Model ${idx + 1}`}
+                  alt={`Balayage model ${idx + 1}`}
                   sx={{
                     position: 'absolute',
                     inset: 0,
@@ -380,22 +308,22 @@ export const BalayagePage: React.FunctionComponent<BalayagePageProps> = ({
                 px: 2,
                 py: 1.25,
                 bgcolor: '#FFFFFF',
-                borderTop: '1px solid #DFBFA4',
+                borderTop: `1px solid ${accent}`,
                 gap: 2,
               }}
             >
               <Button
                 size="small"
                 onClick={() =>
-                  setModelIndex((prev) => (prev - 1 + MODEL_SLIDES.length) % MODEL_SLIDES.length)
+                  setModelIndex((prev) => (prev - 1 + modelSlides.length) % modelSlides.length)
                 }
-                sx={{ color: '#000000', minWidth: 0, px: 1.5, borderRadius: 0 }}
+                sx={{ color: ink, minWidth: 0, px: 1.5, borderRadius: 0 }}
               >
                 ‹
               </Button>
 
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                {MODEL_SLIDES.map((src, idx) => (
+                {modelSlides.map((src, idx) => (
                   <Box
                     key={src}
                     component="button"
@@ -406,8 +334,8 @@ export const BalayagePage: React.FunctionComponent<BalayagePageProps> = ({
                       width: 48,
                       height: 36,
                       p: 0,
-                      border: idx === modelIndex ? '2px solid #000000' : '1px solid #DFBFA4',
-                      bgcolor: '#FAF6F2',
+                      border: idx === modelIndex ? `2px solid ${ink}` : `1px solid ${accent}`,
+                      bgcolor: surface,
                       cursor: 'pointer',
                       overflow: 'hidden',
                       opacity: idx === modelIndex ? 1 : 0.65,
@@ -433,8 +361,8 @@ export const BalayagePage: React.FunctionComponent<BalayagePageProps> = ({
 
               <Button
                 size="small"
-                onClick={() => setModelIndex((prev) => (prev + 1) % MODEL_SLIDES.length)}
-                sx={{ color: '#000000', minWidth: 0, px: 1.5, borderRadius: 0 }}
+                onClick={() => setModelIndex((prev) => (prev + 1) % modelSlides.length)}
+                sx={{ color: ink, minWidth: 0, px: 1.5, borderRadius: 0 }}
               >
                 ›
               </Button>

@@ -3,7 +3,7 @@ import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import * as v from 'valibot'
 
 import { firebaseStorage, firestore } from '../firebase'
-import type { BrandGalleryItem } from './brands'
+import type { BrandGalleryItem } from '../brands/types'
 import { getSalonId } from './salonConfig'
 import { homepageSettingsPath } from './salonPaths'
 import {

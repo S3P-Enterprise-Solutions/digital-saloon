@@ -19,7 +19,7 @@ import MenuIcon from '@mui/icons-material/Menu'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import { useQueryClient } from '@tanstack/react-query'
 
-import { getActiveBrand } from '../data/brands'
+import { getActiveBrandModule } from '../brands/active'
 import { telHref } from '../data/phone'
 import type { Salon } from '../data/schemas'
 import { useLocale } from '../i18n'
@@ -27,7 +27,7 @@ import { localeLabels, locales } from '../i18n'
 import { brand } from '../theme'
 import { FooterLink, Header, LanguageSwitch, NavIconButton, NavLink } from './AppShell.styles'
 import { PullToRefresh } from './PullToRefresh'
-import { HairboutiqueInlineMark, HeaderWordmark } from './Wordmark'
+import { HeaderWordmark } from './Wordmark'
 
 /** Staff header entry matching the current page; `null` outside the admin area. */
 export type AdminNavItem = 'calendar' | 'pending' | 'settings'
@@ -68,7 +68,9 @@ export const AppShell: React.FunctionComponent<AppShellProps> = ({
 }) => {
   const { locale, setLocale, t } = useLocale()
   const queryClient = useQueryClient()
-  const activeBrand = getActiveBrand()
+  const activeBrand = getActiveBrandModule()
+  const showBalayageNav = activeBrand.features.balayage === true
+  const FooterBrand = activeBrand.shell?.FooterBrand
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState<HTMLElement | null>(null)
 
   return (
@@ -77,7 +79,7 @@ export const AppShell: React.FunctionComponent<AppShellProps> = ({
         <Container maxWidth="lg" className="header-inner">
           <HeaderWordmark label={t('nav.home')} onClick={onHomeClick} />
           <nav className="header-nav" aria-label={t('nav.main')}>
-            {activeBrand.key === 'salon1500' ? (
+            {showBalayageNav ? (
               <NavLink
                 type="button"
                 onClick={onBalayageClick}
@@ -186,7 +188,7 @@ export const AppShell: React.FunctionComponent<AppShellProps> = ({
                 >
                   {t('nav.book')}
                 </Button>
-                {activeBrand.key === 'salon1500' ? (
+                {showBalayageNav ? (
                   <>
                     <IconButton
                       aria-label={t('nav.main')}
@@ -247,31 +249,7 @@ export const AppShell: React.FunctionComponent<AppShellProps> = ({
             spacing={{ xs: 2, sm: 6 }}
             sx={{ alignItems: { sm: 'baseline' } }}
           >
-            {activeBrand.key === 'hairboutique' ? (
-              <HairboutiqueInlineMark
-                scriptSize="1.35rem"
-                sansSize="0.85rem"
-                sansColor="rgba(249, 250, 250, 0.85)"
-              />
-            ) : activeBrand.key === 'salon1500' ? (
-              <Typography sx={{ fontWeight: 700, fontSize: '1.125rem' }}>
-                <Box component="span" sx={{ color: brand.orange }}>
-                  Salon
-                </Box>{' '}
-                <Box component="span" sx={{ fontWeight: 300 }}>
-                  1500
-                </Box>
-              </Typography>
-            ) : (
-              <Typography sx={{ fontWeight: 700, fontSize: '1.125rem' }}>
-                <Box component="span" sx={{ color: brand.orange }}>
-                  KIMM
-                </Box>{' '}
-                <Box component="span" sx={{ fontWeight: 300 }}>
-                  HAIR
-                </Box>
-              </Typography>
-            )}
+            {FooterBrand ? <FooterBrand /> : null}
             {salon ? (
               <>
                 <Typography variant="body2">{salon.address}</Typography>

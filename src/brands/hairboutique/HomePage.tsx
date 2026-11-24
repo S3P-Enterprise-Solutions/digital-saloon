@@ -10,38 +10,23 @@ import {
   Typography,
 } from '@mui/material'
 
-import { HeroWordmark } from '../components/Wordmark'
-import { parseYmd, viennaTodayYmd } from '../data/bookingCalendar'
-import type { BrandProfile } from '../data/brands'
-import { isSectionVisible, resolveGalleryImages } from '../data/homepageConfig'
-import type { OpeningHoursByWeekday } from '../data/openingHours'
-import { weekdays } from '../data/openingRules'
-import { arePricesVisible } from '../data/salonConfig'
-import type { HomepageConfig, Salon } from '../data/schemas'
+import { HeroWordmark } from './shell'
+import { parseYmd, viennaTodayYmd } from '../../data/bookingCalendar'
+import { isSectionVisible, resolveGalleryImages } from '../../data/homepageConfig'
+import { weekdays } from '../../data/openingRules'
+import { arePricesVisible } from '../../data/salonConfig'
 import {
   formatServiceDurationRange,
   formatServicePriceRange,
   localizedServiceDescription,
   localizedServiceName,
-} from '../data/serviceForm'
-import type { ServiceWithId } from '../data/services'
-import { useLocale } from '../i18n'
+} from '../../data/serviceForm'
+import { useLocale } from '../../i18n'
 
-export type HairboutiqueHomePageProps = {
-  brandProfile: BrandProfile
-  salon: Salon | null | undefined
-  services: ServiceWithId[] | undefined
-  servicesLoading: boolean
-  servicesError: boolean
-  openingHours: Partial<OpeningHoursByWeekday> | undefined
-  homepageConfig: HomepageConfig | undefined
-  onEditHomepageClick?: () => void
-  onBookClick: () => void
-  onServiceClick: (serviceId: string) => void
-}
+import type { HomePageProps } from '../types'
+import { hairboutiqueProfile } from './profile'
 
-export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageProps> = ({
-  brandProfile,
+export const HomePage: React.FunctionComponent<HomePageProps> = ({
   salon,
   services,
   servicesLoading,
@@ -59,16 +44,16 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
   const todayIndex =
     (new Date(Date.UTC(today.year, today.monthIndex, today.day)).getUTCDay() + 6) % 7
   const sortedServices = services ?? []
-  const galleryImages = resolveGalleryImages(homepageConfig, brandProfile.gallery)
+  const galleryImages = resolveGalleryImages(homepageConfig, hairboutiqueProfile.gallery)
 
   const phone = salon?.phone ?? '+39 0472 055770'
   const address = salon?.address ?? 'Frundsbergstraße 24/A, 39049 Sterzing (BZ)'
   const email = salon?.email ?? 'hairboutiqueohg@libero.it'
   const telHref = `tel:${phone.replace(/[^+\d]/g, '')}`
-  const mapsHref = brandProfile.mapsUrl ?? 'https://share.google/c5eTEwBVNVrUw3FaK'
+  const mapsHref = hairboutiqueProfile.mapsUrl ?? 'https://share.google/c5eTEwBVNVrUw3FaK'
 
   return (
-    <Box sx={{ bgcolor: brandProfile.colors.paper }}>
+    <Box sx={{ bgcolor: hairboutiqueProfile.colors.paper }}>
       {onEditHomepageClick ? (
         <Container maxWidth="lg" sx={{ py: 1.5, display: 'flex', justifyContent: 'flex-end' }}>
           <Button size="small" variant="outlined" onClick={onEditHomepageClick}>
@@ -81,8 +66,8 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
         <Box
           component="section"
           sx={{
-            bgcolor: brandProfile.colors.primary,
-            color: brandProfile.colors.paper,
+            bgcolor: hairboutiqueProfile.colors.primary,
+            color: hairboutiqueProfile.colors.paper,
             py: { xs: 5, md: 9 },
           }}
         >
@@ -101,7 +86,7 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
                   variant="body2"
                   sx={{ color: 'rgba(249, 250, 250, 0.72)', fontSize: '0.95rem' }}
                 >
-                  {brandProfile.place[locale]}
+                  {hairboutiqueProfile.place[locale]}
                 </Typography>
                 <Typography
                   variant="body1"
@@ -112,7 +97,7 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
                     fontSize: { xs: '1rem', sm: '1.08rem' },
                   }}
                 >
-                  {brandProfile.heroIntro[locale]}
+                  {hairboutiqueProfile.heroIntro[locale]}
                 </Typography>
                 <Stack direction="row" spacing={2} sx={{ pt: 1, flexWrap: 'wrap', gap: 1.5 }}>
                   <Button
@@ -120,11 +105,11 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
                     size="large"
                     onClick={onBookClick}
                     sx={{
-                      bgcolor: brandProfile.colors.paper,
-                      color: brandProfile.colors.primary,
+                      bgcolor: hairboutiqueProfile.colors.paper,
+                      color: hairboutiqueProfile.colors.primary,
                       px: 3.5,
                       py: 1.25,
-                      '&:hover': { bgcolor: brandProfile.colors.surface },
+                      '&:hover': { bgcolor: hairboutiqueProfile.colors.surface },
                     }}
                   >
                     {t('home.book')}
@@ -136,11 +121,11 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
                     size="large"
                     sx={{
                       borderColor: 'rgba(249, 250, 250, 0.35)',
-                      color: brandProfile.colors.paper,
+                      color: hairboutiqueProfile.colors.paper,
                       px: 3,
                       py: 1.25,
                       '&:hover': {
-                        borderColor: brandProfile.colors.paper,
+                        borderColor: hairboutiqueProfile.colors.paper,
                         bgcolor: 'rgba(249, 250, 250, 0.08)',
                       },
                     }}
@@ -152,7 +137,7 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
 
               <Box
                 component="img"
-                src={galleryImages[0]?.src ?? brandProfile.heroSlides[0]}
+                src={galleryImages[0]?.src ?? hairboutiqueProfile.heroSlides[0]}
                 alt={
                   (locale === 'it' ? galleryImages[0]?.altIt : galleryImages[0]?.altDe) ??
                   'Hairboutique OHG Studio'
@@ -181,7 +166,10 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
             }}
           >
             <Stack spacing={2.5}>
-              <Typography variant="h2" sx={{ fontWeight: 700, color: brandProfile.colors.primary }}>
+              <Typography
+                variant="h2"
+                sx={{ fontWeight: 700, color: hairboutiqueProfile.colors.primary }}
+              >
                 {t('home.stylistsTitle')}
               </Typography>
               <Typography color="text.secondary" sx={{ maxWidth: '46ch', lineHeight: 1.65 }}>
@@ -191,12 +179,12 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
               </Typography>
 
               <Stack spacing={1.25} sx={{ pt: 0.5 }}>
-                {brandProfile.stylists.map((stylist) => (
+                {hairboutiqueProfile.stylists.map((stylist) => (
                   <Box
                     key={stylist.name}
                     sx={{
                       py: 1,
-                      borderBottom: `1px solid ${brandProfile.colors.divider}`,
+                      borderBottom: `1px solid ${hairboutiqueProfile.colors.divider}`,
                       display: 'flex',
                       justifyContent: 'space-between',
                       alignItems: 'baseline',
@@ -212,7 +200,7 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
               </Stack>
               <Box
                 component="img"
-                src={galleryImages[1]?.src ?? brandProfile.heroSlides[1]}
+                src={galleryImages[1]?.src ?? hairboutiqueProfile.heroSlides[1]}
                 alt={(locale === 'it' ? galleryImages[1]?.altIt : galleryImages[1]?.altDe) ?? ''}
                 sx={{
                   width: '100%',
@@ -255,7 +243,7 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
               >
                 <Box
                   component="img"
-                  src={galleryImages[2]?.src ?? brandProfile.heroSlides[2]}
+                  src={galleryImages[2]?.src ?? hairboutiqueProfile.heroSlides[2]}
                   alt={(locale === 'it' ? galleryImages[2]?.altIt : galleryImages[2]?.altDe) ?? ''}
                   sx={{
                     width: '100%',
@@ -277,7 +265,7 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
           component="section"
           sx={{
             py: { xs: 5, md: 8 },
-            borderTop: `1px solid ${brandProfile.colors.divider}`,
+            borderTop: `1px solid ${hairboutiqueProfile.colors.divider}`,
           }}
         >
           <Stack
@@ -319,7 +307,7 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
                     textAlign: 'left',
                     background: 'none',
                     border: 0,
-                    borderBottom: `1px solid ${brandProfile.colors.divider}`,
+                    borderBottom: `1px solid ${hairboutiqueProfile.colors.divider}`,
                     py: 2,
                     px: 1,
                     cursor: 'pointer',
@@ -329,7 +317,7 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
                     gap: 2,
                     font: 'inherit',
                     color: 'inherit',
-                    '&:hover': { bgcolor: brandProfile.colors.surface },
+                    '&:hover': { bgcolor: hairboutiqueProfile.colors.surface },
                   }}
                 >
                   <Box sx={{ minWidth: 0 }}>
@@ -367,7 +355,7 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
         <Box
           component="section"
           sx={{
-            bgcolor: brandProfile.colors.surface,
+            bgcolor: hairboutiqueProfile.colors.surface,
             py: { xs: 6, md: 9 },
           }}
         >
@@ -394,7 +382,7 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
                         display: 'flex',
                         justifyContent: 'space-between',
                         py: 0.5,
-                        borderBottom: `1px solid ${brandProfile.colors.divider}`,
+                        borderBottom: `1px solid ${hairboutiqueProfile.colors.divider}`,
                         fontWeight: isToday ? 700 : 400,
                       }}
                     >
@@ -413,7 +401,9 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
                 <Typography variant="h2" sx={{ fontWeight: 700, mb: 0.5 }}>
                   {t('home.visitTitle')}
                 </Typography>
-                <Typography sx={{ fontWeight: 600 }}>{salon?.name ?? brandProfile.name}</Typography>
+                <Typography sx={{ fontWeight: 600 }}>
+                  {salon?.name ?? hairboutiqueProfile.name}
+                </Typography>
                 <Typography color="text.secondary">{address}</Typography>
                 <Typography>
                   <Link href={telHref} underline="hover" color="inherit">

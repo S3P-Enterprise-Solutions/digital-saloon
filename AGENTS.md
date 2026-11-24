@@ -20,9 +20,10 @@
 
 ## Layers
 
-- Dependencies point one way: `routes` → `pages` → `components` → `hooks` → `data` → `firebase.ts`.
+- Dependencies point one way: `routes` → `pages` → `components` → `hooks` → `data` → `firebase.ts`, plus `brands` (per-salon modules) and `features` (catalog extras).
 - `data` and `hooks` never import UI; `components` and `pages` never import routes; only `pages` and `routes` read the session (`auth`).
-- `src/architecture.test.ts` enforces layer imports, no runtime cycles, and no unused source files.
+- Shared core must not import a concrete brand folder; features must not import brands; brand modules must not import each other.
+- `src/architecture.test.ts` enforces layer imports, brand/feature boundaries, no runtime cycles, and no unused source files.
 - A new top-level folder under `src/` must be added to `allowedLayerImports` in that test.
 
 ## Routing

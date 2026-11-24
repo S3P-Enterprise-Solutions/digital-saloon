@@ -1,4 +1,4 @@
-import { getActiveBrand } from './brands'
+import { defaultSalonIdByBrand, getActiveBrandKey } from '../brands/brandKey'
 
 const DEFAULT_SALON_ID = 'pilot'
 
@@ -8,7 +8,7 @@ export function getSalonId(): string {
   if (typeof fromEnv === 'string' && fromEnv.trim().length > 0) {
     return fromEnv.trim()
   }
-  return getActiveBrand().defaultSalonId || DEFAULT_SALON_ID
+  return defaultSalonIdByBrand[getActiveBrandKey()] || DEFAULT_SALON_ID
 }
 
 export const defaultSalonId = DEFAULT_SALON_ID

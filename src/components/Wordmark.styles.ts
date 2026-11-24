@@ -1,7 +1,5 @@
 import { keyframes, styled } from '@mui/material/styles'
 
-import { brand } from '../theme'
-
 const drawRule = keyframes`
   from { transform: scaleY(0); }
   to { transform: scaleY(1); }
@@ -18,7 +16,7 @@ export const HeroMark = styled('span')(({ theme }) => ({
   paddingLeft: 'clamp(1.25rem, 3.5vw, 2.5rem)',
   fontSize: 'clamp(4.25rem, 15vw, 10.5rem)',
   lineHeight: 0.86,
-  color: brand.espresso,
+  color: theme.palette.primary.main,
   '&::before': {
     content: '""',
     position: 'absolute',
@@ -26,7 +24,7 @@ export const HeroMark = styled('span')(({ theme }) => ({
     top: '0.04em',
     bottom: '0.02em',
     width: 2,
-    backgroundColor: brand.espresso,
+    backgroundColor: theme.palette.primary.main,
     transformOrigin: 'top',
     animation: `${drawRule} 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both`,
   },
@@ -41,12 +39,12 @@ export const HeroMark = styled('span')(({ theme }) => ({
   },
 }))
 
-export const MarkKimm = styled('span')({
+export const MarkKimm = styled('span')(({ theme }) => ({
   display: 'block',
-  color: brand.orange,
+  color: theme.palette.secondary.main,
   fontWeight: 800,
   letterSpacing: '-0.01em',
-})
+}))
 
 export const MarkHair = styled('span')({
   display: 'block',
@@ -54,7 +52,7 @@ export const MarkHair = styled('span')({
   letterSpacing: '0.005em',
 })
 
-export const MarkStudio = styled('span')({
+export const MarkStudio = styled('span')(({ theme }) => ({
   display: 'block',
   marginTop: '0.32em',
   fontSize: '0.235em',
@@ -62,9 +60,9 @@ export const MarkStudio = styled('span')({
   lineHeight: 1,
   letterSpacing: '-0.005em',
   '& > span': {
-    color: brand.orange,
+    color: theme.palette.secondary.main,
   },
-})
+}))
 
 export const HeaderMark = styled('button')(({ theme }) => ({
   display: 'inline-flex',
@@ -72,15 +70,15 @@ export const HeaderMark = styled('button')(({ theme }) => ({
   gap: '0.3em',
   padding: '2px 0 2px 12px',
   border: 0,
-  borderLeft: `2px solid ${brand.espresso}`,
+  borderLeft: `2px solid ${theme.palette.primary.main}`,
   background: 'none',
-  color: brand.espresso,
+  color: theme.palette.primary.main,
   font: 'inherit',
   fontSize: '1.5rem',
   lineHeight: 1,
   cursor: 'pointer',
   '&:focus-visible': {
-    outline: `2px solid ${brand.orange}`,
+    outline: `2px solid ${theme.palette.secondary.main}`,
     outlineOffset: 4,
   },
   [theme.breakpoints.down('sm')]: {

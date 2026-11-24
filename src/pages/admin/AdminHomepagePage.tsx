@@ -17,7 +17,7 @@ import AddIcon from '@mui/icons-material/Add'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined'
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined'
 
-import { getActiveBrand } from '../../data/brands'
+import { getActiveBrandModule } from '../../brands/active'
 import {
   allBuiltinSections,
   brandGalleryToHomepageImages,
@@ -72,7 +72,7 @@ const HomepageEditor: React.FunctionComponent<HomepageEditorProps> = ({
   onUploadImage,
 }) => {
   const { t } = useLocale()
-  const activeBrand = getActiveBrand()
+  const activeBrand = getActiveBrandModule().profile
   const [hiddenSections, setHiddenSections] = useState<HomepageBuiltinSectionKey[]>(
     initial.hiddenSections,
   )

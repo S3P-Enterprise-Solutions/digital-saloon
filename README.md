@@ -204,10 +204,17 @@ Project skills live under `.agents/skills/`:
 Live: KIMM Hair → https://kimm-hair.web.app (`-P kimm`). Adding a new salon:
 
 1. Create a Firebase project on the Blaze plan; enable Auth (Email/Password), Firestore, Storage, Functions (`europe-west8`).
-2. Add a brand in `src/data/brands.ts`, an alias in `.firebaserc`, and a deploy matrix entry in `.github/workflows/ci.yml`.
-3. Create `salons/<brand>.env` and `functions/.env.<projectId>` — see [Environment files](#environment-files).
+2. Add a brand module under `src/brands/<brand>/` (homepage, theme/profile, shell, feature flags). Register it in `src/brands/active.ts` and `src/brands/brandKey.ts`. Add an alias in `.firebaserc` and a deploy matrix entry in `.github/workflows/ci.yml`.
+3. Create `salons/<brand>.env` and `functions/.env.<projectId>` — see [Environment files](#environment-files). Set `VITE_BRAND=<brand>`.
 4. First deploy: `pnpm deploy:salon <brand>`. If functions fail with a cleanup-policy error, run `firebase deploy --only functions -P <brand> --force` once.
 5. Seed the salon config and an admin user in the live project (do not reuse emulator-only passwords).
+
+### Brand modules and feature catalog
+
+- **Brand module** (`src/brands/<brand>/`): owns homepage, theme tokens, profile/content, shell (wordmark, document title, favicon), and deploy-time `features` flags. Example: Salon 1500 enables balayage with `features: { balayage: true }` and supplies `featureContent.balayage`.
+- **Feature catalog** (`src/features/<name>/`): reusable, brand-agnostic pages. Brands turn them on/off at build time; brand-specific copy/images are passed in via `featureContent`, not `if (brand === …)` inside the feature.
+- **Shared core**: booking wizard, admin, Firestore schemas, callables — not copied per brand.
+- `VITE_BRAND` is the only brand selector. Runtime/Firestore feature toggles are out of scope.
 
 CI (`push` to `main`) rebuilds and deploys hosting, rules, indexes and storage for every salon whose `FIREBASE_SERVICE_ACCOUNT_<BRAND>` secret is set. **Functions are not deployed by CI** — run `pnpm deploy:salon <brand>` (or `firebase deploy --only functions -P <brand>`) after backend changes.
 
