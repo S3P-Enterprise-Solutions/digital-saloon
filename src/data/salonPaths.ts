@@ -43,3 +43,7 @@ export function dayExceptionsCollectionPath(salonId: string): string {
 export function blockedSlotsCollectionPath(salonId: string): string {
   return `salons/${salonId}/blockedSlots`
 }
+
+export function employeesCollectionPath(salonId: string): string {
+  return `salons/${salonId}/employees`
+}

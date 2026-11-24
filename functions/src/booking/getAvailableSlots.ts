@@ -19,6 +19,8 @@ export const getAvailableSlots = onCall({ region: functionsRegion }, async (requ
         .map((item) => item.trim())
         .filter(Boolean)
     : []
+  const employeeId =
+    typeof data.employeeId === 'string' && data.employeeId.trim() ? data.employeeId.trim() : null
   const fromDateYmd = data.fromDateYmd
   const toDateYmd = data.toDateYmd
 
@@ -72,6 +74,7 @@ export const getAvailableSlots = onCall({ region: functionsRegion }, async (requ
   const slots = await previewAvailableSlots({
     ...(serviceId ? { serviceId } : {}),
     ...(serviceIds.length > 0 ? { serviceIds } : {}),
+    ...(employeeId ? { employeeId } : {}),
     fromDateYmd,
     toDateYmd,
     salonId: getSalonId(),

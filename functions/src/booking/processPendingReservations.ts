@@ -5,6 +5,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { assertAdmin } from '../authz'
 import { functionsRegion, getSalonId } from '../config'
 import { lockIdForStart } from './reservationWrite'
+import { syncReservationToGoogleCalendar } from '../googleCalendar/sync'
 import { loadSalonContext } from './salonContext'
 
 export async function processPendingReservationsOnce(input?: {
@@ -34,11 +35,12 @@ export async function processPendingReservationsOnce(input?: {
   for (const doc of snap.docs) {
     const data = doc.data()
     const startAt = new Date(String(data.startAt))
+    const empId = typeof data.employeeId === 'string' ? data.employeeId : null
     const lockRef = db
       .collection('salons')
       .doc(salonId)
       .collection('slotLocks')
-      .doc(lockIdForStart(startAt))
+      .doc(lockIdForStart(startAt, empId))
 
     const didExpire = await db.runTransaction(async (tx) => {
       const fresh = await tx.get(doc.ref)
@@ -56,7 +58,10 @@ export async function processPendingReservationsOnce(input?: {
       return true
     })
 
-    if (didExpire) expired += 1
+    if (didExpire) {
+      expired += 1
+      await syncReservationToGoogleCalendar(doc.id, db, salonId)
+    }
   }
 
   return { expired, scanned: snap.size }

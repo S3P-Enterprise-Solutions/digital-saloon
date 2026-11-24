@@ -19,6 +19,9 @@ import { useAdminReservation } from '../hooks/useAdminReservation'
 import { useAdminReservationActions, useAdminReservations } from '../hooks/useAdminReservations'
 import { useAllServices } from '../hooks/useAllServices'
 import { useAvailableSlots } from '../hooks/useAvailableSlots'
+import { useBlockedSlots } from '../hooks/useBlockedSlots'
+import { useActiveEmployees } from '../hooks/useEmployees'
+import { useGoogleCalendarActions, useGoogleCalendarStatus } from '../hooks/useGoogleCalendar'
 import { useClosures } from '../hooks/useClosures'
 import { useDemoModeStatus, useSetDemoMode } from '../hooks/useDemoMode'
 import { useHomepageConfig } from '../hooks/useHomepageConfig'
@@ -88,6 +91,7 @@ const ymdSearchParam = optionalSearchParam(v.pipe(v.string(), v.regex(/^\d{4}-\d
 
 const adminWeekSearchSchema = v.object({
   week: ymdSearchParam,
+  employee: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
 })
 
 const adminDetailSearchSchema = v.object({
@@ -99,6 +103,8 @@ const AdminIndexRoute: React.FunctionComponent = () => {
   const salon = useSalon()
   const navigate = useNavigate()
   const search = adminIndexRoute.useSearch()
+  const employees = useActiveEmployees()
+  const selectedEmployeeId = search.employee ?? null
   const openingHours = useOpeningHours(true)
   const closures = useClosures(true)
   const { t, intlLocale } = useLocale()
@@ -117,17 +123,24 @@ const AdminIndexRoute: React.FunctionComponent = () => {
     if (search.week === weekStart) return
     void navigate({
       to: '/admin',
-      search: { week: weekStart },
+      search: { week: weekStart, employee: selectedEmployeeId ?? undefined },
       replace: true,
     })
-  }, [navigate, search.week, weekReady, weekStart])
+  }, [navigate, search.week, selectedEmployeeId, weekReady, weekStart])
 
   const weekRange = weekQueryRange(weekStart)
   const weekReservations = useAdminReservations(weekRange.startIso, weekRange.endIso, weekReady)
+  const weekBlockedSlots = useBlockedSlots(weekRange.startIso, weekRange.endIso, weekReady)
   const plan =
-    weekReady && weekReservations.data && !openingHours.isLoading && !closures.isLoading
+    weekReady &&
+    weekReservations.data &&
+    !weekBlockedSlots.isLoading &&
+    !openingHours.isLoading &&
+    !closures.isLoading
       ? planWeek({
           reservations: weekReservations.data,
+          blockedSlots: weekBlockedSlots.data,
+          employeeId: selectedEmployeeId,
           weekStartYmd: weekStart,
           openingHours: openingHours.data,
           closures: closures.data,
@@ -149,7 +162,7 @@ const AdminIndexRoute: React.FunctionComponent = () => {
   const goToWeek = (weekStartYmd: string) => {
     void navigate({
       to: '/admin',
-      search: { week: startOfWeekYmd(weekStartYmd) },
+      search: { week: startOfWeekYmd(weekStartYmd), employee: selectedEmployeeId ?? undefined },
     })
   }
 
@@ -162,9 +175,13 @@ const AdminIndexRoute: React.FunctionComponent = () => {
       isCurrentWeek={weekStart === currentWeekStart}
       plan={plan}
       planLoading={
-        !weekReady || weekReservations.isLoading || openingHours.isLoading || closures.isLoading
+        !weekReady ||
+        weekReservations.isLoading ||
+        weekBlockedSlots.isLoading ||
+        openingHours.isLoading ||
+        closures.isLoading
       }
-      planError={weekReservations.isError}
+      planError={weekReservations.isError || weekBlockedSlots.isError}
       onPrevWeekClick={() => {
         goToWeek(addCalendarDays(weekStart, -7))
       }}
@@ -187,8 +204,25 @@ const AdminIndexRoute: React.FunctionComponent = () => {
           search: { reservationId, ...weekSearch },
         })
       }}
+      employees={employees.data}
+      selectedEmployeeId={selectedEmployeeId}
+      onSelectEmployee={(empId) => {
+        void navigate({
+          to: '/admin',
+          search: {
+            week: weekStart,
+            employee: empId ?? undefined,
+          },
+        })
+      }}
       onAddReservationClick={() => {
-        void navigate({ to: '/admin/manual', search: weekSearch })
+        void navigate({
+          to: '/admin/manual',
+          search: {
+            ...weekSearch,
+            ...(selectedEmployeeId ? { employeeId: selectedEmployeeId } : {}),
+          },
+        })
       }}
       onListViewClick={() => {
         void navigate({ to: '/admin/reservations', search: weekSearch })
@@ -365,6 +399,7 @@ const manualSearchSchema = v.object({
   reservationId: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
   serviceId: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
   serviceIds: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
+  employeeId: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
   date: ymdSearchParam,
   time: optionalSearchParam(v.pipe(v.string(), v.regex(/^\d{2}:\d{2}$/))),
   week: ymdSearchParam,
@@ -390,6 +425,8 @@ export const adminManualRoute = createRoute({
     const editingReservationId = search.reservationId ?? null
     const editing = useAdminReservation(editingReservationId)
     const services = useAllServices(true)
+    const employees = useActiveEmployees()
+    const selectedEmployeeId = search.employeeId ?? null
     const actions = useAdminReservationActions()
     const hydratedEditId = useRef<string | null>(null)
 
@@ -416,6 +453,7 @@ export const adminManualRoute = createRoute({
         search: {
           reservationId: editingReservationId,
           serviceIds: serializeServiceIds(serviceIds),
+          employeeId: reservation.employeeId ?? undefined,
           date: viennaYmdOfIso(reservation.startAt),
           time,
           week: search.week ? startOfWeekYmd(search.week) : undefined,
@@ -437,6 +475,7 @@ export const adminManualRoute = createRoute({
         : baseDates
     const slots = useAvailableSlots({
       serviceIds: selectedServiceIds,
+      employeeId: selectedEmployeeId,
       fromDateYmd: selectedDate,
       toDateYmd: selectedDate,
       enforceAdvanceRestrictions: false,
@@ -482,6 +521,23 @@ export const adminManualRoute = createRoute({
         key={editingReservationId ?? 'create'}
         mode={isEdit ? 'edit' : 'create'}
         services={services.data?.filter((service) => service.active)}
+        employees={employees.data}
+        selectedEmployeeId={selectedEmployeeId}
+        onEmployeeChange={(employeeId) => {
+          void navigate({
+            to: '/admin/manual',
+            search: {
+              ...manualSearchBase,
+              serviceIds: serializeServiceIds(selectedServiceIds),
+              serviceId: undefined,
+              employeeId: employeeId ?? undefined,
+              date: selectedDate ?? undefined,
+              time: undefined,
+            },
+            replace: true,
+            resetScroll: false,
+          })
+        }}
         dates={dates}
         selectedServiceIds={selectedServiceIds}
         selectedDate={selectedDate}
@@ -523,6 +579,7 @@ export const adminManualRoute = createRoute({
               ...manualSearchBase,
               serviceIds: serializeServiceIds(nextIds),
               serviceId: undefined,
+              employeeId: selectedEmployeeId ?? undefined,
               date: selectedDate ?? undefined,
               time: undefined,
             },
@@ -537,6 +594,7 @@ export const adminManualRoute = createRoute({
               ...manualSearchBase,
               serviceIds: serializeServiceIds(selectedServiceIds),
               serviceId: undefined,
+              employeeId: selectedEmployeeId ?? undefined,
               date: dateYmd,
               time: undefined,
             },
@@ -685,10 +743,17 @@ export const adminHolidaysRoute = createRoute({
   },
 })
 
+const adminSettingsSearchSchema = v.object({
+  gcal: optionalSearchParam(v.picklist(['connected', 'error'] as const)),
+  gcalEmployee: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
+})
+
 export const adminSettingsRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: '/settings',
+  validateSearch: (search) => v.parse(adminSettingsSearchSchema, search),
   component: function AdminSettingsRoute() {
+    const settingsSearch = adminSettingsRoute.useSearch()
     const navigate = useNavigate()
     const { user, isOperator } = useAuth()
     const profile = useUserProfile(!isOperator && user ? user.uid : null)
@@ -703,6 +768,17 @@ export const adminSettingsRoute = createRoute({
     const createFirstAdmin = useCreateFirstSalonAdmin()
     const createEmployee = useCreateEmployeeAccount()
     const ops = useAdminOps()
+    const employees = useActiveEmployees()
+    const gcalEmployeeId = settingsSearch.gcalEmployee ?? null
+    const setGcalEmployeeId = (empId: string | null) => {
+      void navigate({
+        to: '/admin/settings',
+        search: { gcalEmployee: empId ?? undefined },
+        replace: true,
+      })
+    }
+    const gcalStatus = useGoogleCalendarStatus(true, gcalEmployeeId)
+    const gcalActions = useGoogleCalendarActions(gcalEmployeeId)
     const { t } = useLocale()
     const errorText = (error: unknown): string | null =>
       error instanceof Error ? error.message : error ? String(error) : null
@@ -729,6 +805,49 @@ export const adminSettingsRoute = createRoute({
         }}
         onSaveSalon={(details) => {
           saveSalon.mutate(details)
+        }}
+        googleCalendar={{
+          employees: employees.data,
+          selectedEmployeeId: gcalEmployeeId,
+          onSelectEmployee: setGcalEmployeeId,
+          status: gcalStatus.data,
+          loading: gcalStatus.isLoading,
+          error: errorText(gcalStatus.error),
+          oauthCallbackResult: settingsSearch.gcal,
+          connecting: gcalActions.connect.isPending,
+          selecting: gcalActions.selectCalendar.isPending,
+          syncing: gcalActions.sync.isPending,
+          disconnecting: gcalActions.disconnect.isPending,
+          actionError:
+            errorText(gcalActions.connect.error) ??
+            errorText(gcalActions.selectCalendar.error) ??
+            errorText(gcalActions.sync.error) ??
+            errorText(gcalActions.disconnect.error),
+          syncMessage: gcalActions.sync.data
+            ? t('admin.googleCalendarSyncResult', {
+                blocked: gcalActions.sync.data.syncedBlockedSlots,
+                pushed: gcalActions.sync.data.pushedReservations,
+              })
+            : null,
+          onConnect: () => {
+            const returnUrl = gcalEmployeeId
+              ? `${window.location.origin}/admin/settings?gcalEmployee=${encodeURIComponent(gcalEmployeeId)}`
+              : `${window.location.origin}/admin/settings`
+            gcalActions.connect.mutate(returnUrl, {
+              onSuccess: ({ authUrl }) => {
+                window.location.assign(authUrl)
+              },
+            })
+          },
+          onSelectCalendar: (calendarId) => {
+            gcalActions.selectCalendar.mutate(calendarId)
+          },
+          onSyncNow: () => {
+            gcalActions.sync.mutate()
+          },
+          onDisconnect: () => {
+            gcalActions.disconnect.mutate()
+          },
         }}
         isOperator={isOperator}
         isPrimaryAdmin={isPrimaryAdmin}

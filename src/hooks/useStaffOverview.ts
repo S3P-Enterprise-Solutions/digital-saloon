@@ -30,6 +30,7 @@ export function useCreateFirstSalonAdmin(): UseMutationResult<StaffMember, Error
     mutationFn: createFirstSalonAdmin,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeyOf('staffOverview') })
+      void queryClient.invalidateQueries({ queryKey: queryKeyOf('employees') })
     },
   })
 }
@@ -40,6 +41,7 @@ export function useCreateEmployeeAccount(): UseMutationResult<StaffMember, Error
     mutationFn: createEmployeeAccount,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeyOf('staffOverview') })
+      void queryClient.invalidateQueries({ queryKey: queryKeyOf('employees') })
     },
   })
 }

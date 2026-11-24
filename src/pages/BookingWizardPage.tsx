@@ -42,6 +42,7 @@ import {
   localizedServiceDescription,
   localizedServiceName,
 } from '../data/serviceForm'
+import type { EmployeeWithId } from '../data/employees'
 import type { ServiceWithId } from '../data/services'
 import { useLocale } from '../i18n'
 import type { MessageKey } from '../i18n'
@@ -88,6 +89,9 @@ export type BookingWizardPageProps = {
   servicesError: boolean
   step: 1 | 2
   selectedServiceIds: string[]
+  employees?: EmployeeWithId[]
+  selectedEmployeeId?: string | null
+  onSelectEmployee?: (employeeId: string | null) => void
   selectedDate: string | null
   selectedStartAt: string | null
   rangeSlots: AvailableSlotDto[] | undefined
@@ -121,6 +125,9 @@ export const BookingWizardPage: React.FunctionComponent<BookingWizardPageProps> 
   servicesError,
   step,
   selectedServiceIds,
+  employees,
+  selectedEmployeeId,
+  onSelectEmployee,
   selectedDate,
   selectedStartAt,
   rangeSlots,
@@ -428,6 +435,33 @@ export const BookingWizardPage: React.FunctionComponent<BookingWizardPageProps> 
               </Button>
             </Stack>
           </Paper>
+
+          {employees && employees.length > 0 && onSelectEmployee ? (
+            <Paper sx={{ p: { xs: 2, sm: 3 } }} component="section" aria-labelledby="step-employee">
+              <Typography id="step-employee" variant="h2" sx={{ fontSize: '1.15rem', mb: 1.5 }}>
+                {t('book.employeeTitle')}
+              </Typography>
+              <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                <Chip
+                  label={t('book.employeeAny')}
+                  clickable
+                  color={!selectedEmployeeId ? 'primary' : 'default'}
+                  variant={!selectedEmployeeId ? 'filled' : 'outlined'}
+                  onClick={() => onSelectEmployee(null)}
+                />
+                {employees.map((emp) => (
+                  <Chip
+                    key={emp.id}
+                    label={emp.displayName}
+                    clickable
+                    color={selectedEmployeeId === emp.id ? 'primary' : 'default'}
+                    variant={selectedEmployeeId === emp.id ? 'filled' : 'outlined'}
+                    onClick={() => onSelectEmployee(emp.id)}
+                  />
+                ))}
+              </Stack>
+            </Paper>
+          ) : null}
 
           <Paper sx={{ p: { xs: 2, sm: 3 } }} component="section" aria-labelledby="step-date">
             <Typography id="step-date" variant="h2" sx={{ fontSize: '1.15rem', mb: 1.5 }}>

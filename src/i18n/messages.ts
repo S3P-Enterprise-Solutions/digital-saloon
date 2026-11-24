@@ -437,6 +437,28 @@ export type Messages = {
   'admin.salonAreas': string
   'admin.servicesHint': string
   'admin.backToSettings': string
+  'admin.googleCalendarLegend': string
+  'admin.googleCalendarEventFallback': string
+  'admin.googleCalendarTitle': string
+  'admin.googleCalendarHint': string
+  'admin.googleCalendarNotConfigured': string
+  'admin.googleCalendarConnect': string
+  'admin.googleCalendarConnectedAs': string
+  'admin.googleCalendarConnectedBanner': string
+  'admin.googleCalendarErrorBanner': string
+  'admin.googleCalendarSelectLabel': string
+  'admin.googleCalendarCustomIdLabel': string
+  'admin.googleCalendarUseId': string
+  'admin.googleCalendarSyncNow': string
+  'admin.googleCalendarSyncResult': string
+  'admin.googleCalendarLastSync': string
+  'admin.googleCalendarDisconnect': string
+  'book.employeeTitle': string
+  'book.employeeAny': string
+  'admin.employeeAll': string
+  'admin.employeeSelectLabel': string
+  'admin.googleCalendarForEmployee': string
+  'admin.googleCalendarSalonWide': string
 }
 
 export type MessageKey = keyof Messages
@@ -918,6 +940,32 @@ export const de: Messages = {
   'admin.salonAreas': 'Salon',
   'admin.servicesHint': 'Preise, Dauer und welche Leistungen online buchbar sind.',
   'admin.backToSettings': 'Zu den Einstellungen',
+  'admin.googleCalendarLegend': 'Google Kalender / Blockiert',
+  'admin.googleCalendarEventFallback': 'Google Kalender',
+  'admin.googleCalendarTitle': 'Google Kalender',
+  'admin.googleCalendarHint':
+    'Verbinde einen Google Kalender, um externe Termine automatisch zu blockieren und Kundenbuchungen dorthin zu synchronisieren.',
+  'admin.googleCalendarNotConfigured':
+    'Google Kalender OAuth ist auf dem Server noch nicht konfiguriert (GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET).',
+  'admin.googleCalendarConnect': 'Google Kalender verbinden',
+  'admin.googleCalendarConnectedAs': 'Verbunden mit {email}',
+  'admin.googleCalendarConnectedBanner': 'Google Kalender wurde erfolgreich verbunden.',
+  'admin.googleCalendarErrorBanner':
+    'Die Verbindung mit Google Kalender ist fehlgeschlagen. Bitte erneut versuchen.',
+  'admin.googleCalendarSelectLabel': 'Kalender auswählen',
+  'admin.googleCalendarCustomIdLabel': 'Oder geteilte Kalender-ID eingeben',
+  'admin.googleCalendarUseId': 'Kalender verwenden',
+  'admin.googleCalendarSyncNow': 'Jetzt synchronisieren',
+  'admin.googleCalendarSyncResult':
+    'Synchronisiert: {blocked} externe Termine, {pushed} Buchungen übertragen.',
+  'admin.googleCalendarLastSync': 'Letzte Synchronisierung: {time}',
+  'admin.googleCalendarDisconnect': 'Trennen',
+  'book.employeeTitle': 'Stylist*in auswählen',
+  'book.employeeAny': 'Beliebig (nächster freier Termin)',
+  'admin.employeeAll': 'Alle Mitarbeiter*innen',
+  'admin.employeeSelectLabel': 'Kalender',
+  'admin.googleCalendarForEmployee': 'Google Kalender für',
+  'admin.googleCalendarSalonWide': 'Salon-Kalender (Standard)',
 }
 
 export const it: Messages = {
@@ -1390,6 +1438,31 @@ export const it: Messages = {
   'admin.salonAreas': 'Salone',
   'admin.servicesHint': 'Prezzi, durata e quali servizi si possono prenotare online.',
   'admin.backToSettings': 'Alle impostazioni',
+  'admin.googleCalendarLegend': 'Google Calendar / Bloccato',
+  'admin.googleCalendarEventFallback': 'Google Calendar',
+  'admin.googleCalendarTitle': 'Google Calendar',
+  'admin.googleCalendarHint':
+    'Collega un calendario Google per bloccare automaticamente gli impegni esterni e sincronizzare le prenotazioni dei clienti.',
+  'admin.googleCalendarNotConfigured':
+    'Google Calendar OAuth non è ancora configurato sul server (GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET).',
+  'admin.googleCalendarConnect': 'Collega Google Calendar',
+  'admin.googleCalendarConnectedAs': 'Collegato come {email}',
+  'admin.googleCalendarConnectedBanner': 'Google Calendar collegato con successo.',
+  'admin.googleCalendarErrorBanner': 'Collegamento a Google Calendar non riuscito. Riprova.',
+  'admin.googleCalendarSelectLabel': 'Seleziona calendario',
+  'admin.googleCalendarCustomIdLabel': 'Oppure inserisci ID calendario condiviso',
+  'admin.googleCalendarUseId': 'Usa calendario',
+  'admin.googleCalendarSyncNow': 'Sincronizza ora',
+  'admin.googleCalendarSyncResult':
+    'Sincronizzato: {blocked} eventi esterni, {pushed} prenotazioni inviate.',
+  'admin.googleCalendarLastSync': 'Ultima sincronizzazione: {time}',
+  'admin.googleCalendarDisconnect': 'Scollega',
+  'book.employeeTitle': 'Scegli stilista',
+  'book.employeeAny': 'Qualsiasi (primo orario disponibile)',
+  'admin.employeeAll': 'Tutti i collaboratori',
+  'admin.employeeSelectLabel': 'Calendario',
+  'admin.googleCalendarForEmployee': 'Google Calendar per',
+  'admin.googleCalendarSalonWide': 'Calendario del salone (Predefinito)',
 }
 
 export const catalogs: Record<'de' | 'it', Messages> = { de, it }

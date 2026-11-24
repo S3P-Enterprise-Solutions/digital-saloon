@@ -6,6 +6,7 @@ import { functionsRegion, getSalonId } from '../config'
 import { isObject } from '../schemas'
 import { notifyCustomerCancelled, notifyCustomerRescheduled } from './customerNotify'
 import { toPublicReservationView } from './findByToken'
+import { syncReservationToGoogleCalendar } from '../googleCalendar/sync'
 import { lockIdForStart, updateReservationTransactional } from './reservationWrite'
 import { loadSalonContext } from './salonContext'
 
@@ -50,6 +51,7 @@ export const confirmReservation = onCall({ region: functionsRegion }, async (req
     tx.update(ref, { status: 'CONFIRMED', updatedAt })
   })
 
+  await syncReservationToGoogleCalendar(reservationId)
   const after = await ref.get()
   return { reservation: viewOf(after) }
 })
@@ -67,11 +69,12 @@ export const declineReservation = onCall({ region: functionsRegion }, async (req
   }
 
   const startAt = new Date(String(snap.data()?.startAt))
+  const empId = typeof snap.data()?.employeeId === 'string' ? snap.data()?.employeeId : null
   const lockRef = db
     .collection('salons')
     .doc(salonId)
     .collection('slotLocks')
-    .doc(lockIdForStart(startAt))
+    .doc(lockIdForStart(startAt, empId))
   const updatedAt = new Date().toISOString()
 
   await db.runTransaction(async (tx) => {
@@ -85,6 +88,7 @@ export const declineReservation = onCall({ region: functionsRegion }, async (req
     }
   })
 
+  await syncReservationToGoogleCalendar(reservationId)
   const after = await ref.get()
   return {
     reservation: viewOf(after),
@@ -103,11 +107,12 @@ export const adminCancelReservation = onCall({ region: functionsRegion }, async 
   }
 
   const startAt = new Date(String(beforeData.startAt))
+  const empId = typeof beforeData.employeeId === 'string' ? beforeData.employeeId : null
   const lockRef = db
     .collection('salons')
     .doc(salonId)
     .collection('slotLocks')
-    .doc(lockIdForStart(startAt))
+    .doc(lockIdForStart(startAt, empId))
   const updatedAt = new Date().toISOString()
 
   await db.runTransaction(async (tx) => {
@@ -121,13 +126,13 @@ export const adminCancelReservation = onCall({ region: functionsRegion }, async 
     }
   })
 
+  await syncReservationToGoogleCalendar(reservationId)
   const salon = await loadSalonContext(db, salonId)
   await notifyCustomerCancelled({
     reservationId,
     data: beforeData,
     salon,
   })
-
   const after = await ref.get()
   return { reservation: viewOf(after) }
 })
@@ -142,6 +147,7 @@ export const completeReservation = onCall({ region: functionsRegion }, async (re
   }
   const updatedAt = new Date().toISOString()
   await ref.update({ status: 'COMPLETED', updatedAt })
+  await syncReservationToGoogleCalendar(reservationId)
   const after = await ref.get()
   return { reservation: viewOf(after) }
 })
@@ -208,6 +214,14 @@ export const adminUpdateReservation = onCall({ region: functionsRegion }, async 
           : null,
       serviceId,
       serviceIds,
+      ...(request.data.employeeId !== undefined
+        ? {
+            employeeId:
+              typeof request.data.employeeId === 'string' && request.data.employeeId.trim()
+                ? request.data.employeeId.trim()
+                : null,
+          }
+        : {}),
       startAt,
       internalNote:
         typeof request.data.internalNote === 'string' && request.data.internalNote.trim().length > 0
@@ -226,6 +240,7 @@ export const adminUpdateReservation = onCall({ region: functionsRegion }, async 
   const after = await ref.get()
   const afterData = after.data() ?? {}
   const salon = await loadSalonContext(db, salonId)
+  await syncReservationToGoogleCalendar(reservationId)
   await notifyCustomerRescheduled({
     reservationId,
     before: beforeData,

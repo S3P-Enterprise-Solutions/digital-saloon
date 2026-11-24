@@ -8,6 +8,7 @@ import { optionalSearchParam } from '../data/schemas'
 import { parseSelectedServiceIds, serializeServiceIds } from '../data/serviceSelection'
 import { localizedServiceName } from '../data/serviceForm'
 import { useActiveServices } from '../hooks/useActiveServices'
+import { useActiveEmployees } from '../hooks/useEmployees'
 import { useAvailableSlots } from '../hooks/useAvailableSlots'
 import { useCreateReservation } from '../hooks/useCreateReservation'
 import { useLocale } from '../i18n'
@@ -18,6 +19,7 @@ import { rootRoute } from './root'
 const bookSearchSchema = v.object({
   serviceId: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
   serviceIds: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
+  employeeId: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
   step: optionalSearchParam(v.picklist(['1', '2'] as const)),
   date: optionalSearchParam(v.pipe(v.string(), v.regex(/^\d{4}-\d{2}-\d{2}$/))),
   startAt: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
@@ -34,6 +36,7 @@ export const bookRoute = createRoute({
     const search = bookRoute.useSearch()
     const { locale } = useLocale()
     const services = useActiveServices()
+    const employees = useActiveEmployees()
     const create = useCreateReservation()
 
     const today = viennaTodayYmd()
@@ -45,8 +48,11 @@ export const bookRoute = createRoute({
     const rangeFrom = today
     const rangeTo = addMonths(today, 2)
 
+    const selectedEmployeeId = search.employeeId ?? null
+
     const rangeSlots = useAvailableSlots({
       serviceIds: step === 2 ? selectedServiceIds : [],
+      employeeId: selectedEmployeeId,
       fromDateYmd: step === 2 && selectedServiceIds.length > 0 ? rangeFrom : null,
       toDateYmd: step === 2 && selectedServiceIds.length > 0 ? rangeTo : null,
     })
@@ -70,6 +76,20 @@ export const bookRoute = createRoute({
         servicesError={services.isError}
         step={step}
         selectedServiceIds={selectedServiceIds}
+        employees={employees.data}
+        selectedEmployeeId={selectedEmployeeId}
+        onSelectEmployee={(employeeId) => {
+          void navigate({
+            to: '/book',
+            search: {
+              ...search,
+              employeeId: employeeId ?? undefined,
+              startAt: undefined,
+            },
+            replace: true,
+            resetScroll: false,
+          })
+        }}
         selectedDate={search.date ?? null}
         selectedStartAt={search.startAt ?? null}
         rangeSlots={rangeSlots.data}
@@ -93,6 +113,7 @@ export const bookRoute = createRoute({
             to: '/book',
             search: {
               serviceIds: serializeServiceIds(nextIds),
+              employeeId: selectedEmployeeId ?? undefined,
               step: '1',
               date: undefined,
               startAt: undefined,
@@ -109,6 +130,7 @@ export const bookRoute = createRoute({
             to: '/book',
             search: {
               serviceIds: serializeServiceIds(selectedServiceIds),
+              employeeId: selectedEmployeeId ?? undefined,
               step: '2',
               date: search.date,
               startAt: undefined,
@@ -124,6 +146,7 @@ export const bookRoute = createRoute({
             to: '/book',
             search: {
               serviceIds: serializeServiceIds(selectedServiceIds),
+              employeeId: selectedEmployeeId ?? undefined,
               step: '1',
               date: search.date,
               startAt: undefined,
@@ -139,6 +162,7 @@ export const bookRoute = createRoute({
             to: '/book',
             search: {
               serviceIds: serializeServiceIds(selectedServiceIds),
+              employeeId: selectedEmployeeId ?? undefined,
               step: '2',
               date: search.date,
               startAt: search.startAt,
@@ -154,6 +178,7 @@ export const bookRoute = createRoute({
             to: '/book',
             search: {
               serviceIds: serializeServiceIds(selectedServiceIds),
+              employeeId: selectedEmployeeId ?? undefined,
               step: '2',
               date: dateYmd,
               startAt: undefined,
@@ -169,6 +194,7 @@ export const bookRoute = createRoute({
             to: '/book',
             search: {
               serviceIds: serializeServiceIds(selectedServiceIds),
+              employeeId: selectedEmployeeId ?? undefined,
               step: '2',
               date: search.date,
               startAt,
@@ -184,6 +210,7 @@ export const bookRoute = createRoute({
             to: '/book',
             search: {
               serviceIds: serializeServiceIds(selectedServiceIds),
+              employeeId: selectedEmployeeId ?? undefined,
               step: '2',
               date: search.date,
               startAt: undefined,
@@ -200,6 +227,7 @@ export const bookRoute = createRoute({
             {
               serviceId: selectedServiceIds[0]!,
               serviceIds: selectedServiceIds,
+              ...(selectedEmployeeId ? { employeeId: selectedEmployeeId } : {}),
               startAt: search.startAt,
               firstName: input.firstName,
               lastName: input.lastName,

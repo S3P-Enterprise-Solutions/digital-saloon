@@ -71,6 +71,7 @@ export async function completeReservationAdmin(reservationId: string): Promise<P
 
 export async function createManualReservationAdmin(input: {
   serviceIds: string[]
+  employeeId?: string | null
   startAt: string
   firstName: string
   lastName: string
@@ -103,6 +104,7 @@ export async function createManualReservationAdmin(input: {
 export async function updateManualReservationAdmin(input: {
   reservationId: string
   serviceIds: string[]
+  employeeId?: string | null
   startAt: string
   firstName: string
   lastName: string

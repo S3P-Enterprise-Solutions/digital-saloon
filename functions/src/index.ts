@@ -22,6 +22,16 @@ import {
   processPendingReservationsSchedule,
 } from './booking/processPendingReservations'
 import { getAvailableSlots } from './booking/getAvailableSlots'
+import {
+  disconnectGoogleCalendar,
+  getGoogleCalendarStatus,
+  googleCalendarOAuthCallback,
+  googleCalendarWebhook,
+  selectGoogleCalendar,
+  startGoogleCalendarOAuth,
+  syncGoogleCalendar,
+  syncGoogleCalendarSchedule,
+} from './googleCalendar/functions'
 import { functionsRegion, getSalonId } from './config'
 
 initializeApp()
@@ -46,6 +56,14 @@ export {
   getStaffOverview,
   createFirstSalonAdmin,
   createEmployeeAccount,
+  getGoogleCalendarStatus,
+  startGoogleCalendarOAuth,
+  googleCalendarOAuthCallback,
+  selectGoogleCalendar,
+  syncGoogleCalendar,
+  disconnectGoogleCalendar,
+  googleCalendarWebhook,
+  syncGoogleCalendarSchedule,
 }
 
 /**

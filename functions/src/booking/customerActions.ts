@@ -7,6 +7,7 @@ import { isObject } from '../schemas'
 import { notifyCustomerCancelled, notifyCustomerRescheduled } from './customerNotify'
 import { findReservationByManagementToken, toPublicReservationView } from './findByToken'
 import { lockIdForStart } from './reservationWrite'
+import { syncReservationToGoogleCalendar } from '../googleCalendar/sync'
 import { loadSalonContext } from './salonContext'
 
 function requireToken(data: Record<string, unknown>): string {
@@ -48,11 +49,12 @@ export const cancelReservation = onCall({ region: functionsRegion }, async (requ
   }
 
   const startAt = new Date(String(beforeData.startAt))
+  const cancelEmpId = typeof beforeData.employeeId === 'string' ? beforeData.employeeId : null
   const lockRef = db
     .collection('salons')
     .doc(salonId)
     .collection('slotLocks')
-    .doc(lockIdForStart(startAt))
+    .doc(lockIdForStart(startAt, cancelEmpId))
   const updatedAt = new Date().toISOString()
 
   await db.runTransaction(async (tx) => {
@@ -67,6 +69,7 @@ export const cancelReservation = onCall({ region: functionsRegion }, async (requ
     }
   })
 
+  await syncReservationToGoogleCalendar(doc.id, db, salonId)
   const salon = await loadSalonContext(db, salonId)
   await notifyCustomerCancelled({
     reservationId: doc.id,
@@ -74,7 +77,6 @@ export const cancelReservation = onCall({ region: functionsRegion }, async (requ
     salon,
     managementToken: token,
   })
-
   const after = await doc.ref.get()
   return {
     reservation: toPublicReservationView({
@@ -112,18 +114,22 @@ export const rescheduleReservation = onCall({ region: functionsRegion }, async (
   const durationMinutes = Number(beforeData.durationMinutes)
   const newEndAt = new Date(newStartAt.getTime() + durationMinutes * 60_000)
   const oldStartAt = new Date(String(beforeData.startAt))
+  const empId =
+    typeof beforeData.employeeId === 'string' && beforeData.employeeId.trim()
+      ? beforeData.employeeId.trim()
+      : null
   const context = await loadSalonContext(db, salonId)
   const now = new Date()
   const oldLockRef = db
     .collection('salons')
     .doc(salonId)
     .collection('slotLocks')
-    .doc(lockIdForStart(oldStartAt))
+    .doc(lockIdForStart(oldStartAt, empId))
   const newLockRef = db
     .collection('salons')
     .doc(salonId)
     .collection('slotLocks')
-    .doc(lockIdForStart(newStartAt))
+    .doc(lockIdForStart(newStartAt, empId))
 
   try {
     await db.runTransaction(async (tx) => {
@@ -149,6 +155,7 @@ export const rescheduleReservation = onCall({ region: functionsRegion }, async (
           if (item.id === doc.id) return false
           const row = item.data()
           if (row.status !== 'PENDING' && row.status !== 'CONFIRMED') return false
+          if (empId && row.employeeId && String(row.employeeId) !== empId) return false
           return new Date(String(row.endAt)).getTime() > newStartAt.getTime()
         })
         .map((item) => ({
@@ -164,7 +171,11 @@ export const rescheduleReservation = onCall({ region: functionsRegion }, async (
           .where('startAt', '<', newEndAt.toISOString()),
       )
       const busyFromBlocks = blocksSnap.docs
-        .filter((item) => new Date(String(item.data().endAt)).getTime() > newStartAt.getTime())
+        .filter((item) => {
+          const row = item.data()
+          if (empId && row.employeeId && String(row.employeeId) !== empId) return false
+          return new Date(String(row.endAt)).getTime() > newStartAt.getTime()
+        })
         .map((item) => ({
           startAt: new Date(String(item.data().startAt)),
           endAt: new Date(String(item.data().endAt)),
@@ -216,6 +227,7 @@ export const rescheduleReservation = onCall({ region: functionsRegion }, async (
     throw error
   }
 
+  await syncReservationToGoogleCalendar(doc.id, db, salonId)
   const after = await doc.ref.get()
   const afterData = after.data() ?? {}
   await notifyCustomerRescheduled({

@@ -3,7 +3,7 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 
 import { assertAdmin, assertOperator, assertPrimaryAdmin } from '../authz'
-import { functionsRegion } from '../config'
+import { functionsRegion, getSalonId } from '../config'
 import { isObject } from '../schemas'
 
 function validateNewAccountInput(data: unknown): {
@@ -43,6 +43,20 @@ export const getStaffOverview = onCall({ region: functionsRegion }, async (reque
       createdAt: String(d.createdAt ?? ''),
     }
   })
+  const db = getFirestore()
+  const salonId = getSalonId()
+  const empCol = db.collection('salons').doc(salonId).collection('employees')
+  const existingEmps = await empCol.get()
+  const existingIds = new Set(existingEmps.docs.map((d) => d.id))
+  for (const member of staff) {
+    if (!existingIds.has(member.uid)) {
+      await empCol.doc(member.uid).set({
+        displayName: member.displayName,
+        active: true,
+        createdAt: member.createdAt || new Date().toISOString(),
+      })
+    }
+  }
   return {
     hasPrimaryAdmin: staff.some((member) => member.isPrimaryAdmin),
     staff,
@@ -97,6 +111,11 @@ export const createFirstSalonAdmin = onCall({ region: functionsRegion }, async (
         isPrimaryAdmin: true,
         createdAt,
       })
+      tx.set(db.collection('salons').doc(getSalonId()).collection('employees').doc(uid), {
+        displayName,
+        active: true,
+        createdAt,
+      })
     })
   } catch (error: unknown) {
     await getAuth()
@@ -132,6 +151,11 @@ export const createEmployeeAccount = onCall({ region: functionsRegion }, async (
     displayName,
     role: 'admin',
     isPrimaryAdmin: false,
+    createdAt,
+  })
+  await db.collection('salons').doc(getSalonId()).collection('employees').doc(uid).set({
+    displayName,
+    active: true,
     createdAt,
   })
 
