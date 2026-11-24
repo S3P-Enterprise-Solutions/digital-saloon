@@ -236,7 +236,7 @@ export function buildBookingIcs(input: BookingEmailInput, manageUrl: string | nu
   return `${lines.map(foldIcsLine).join('\r\n')}\r\n`
 }
 
-function getEmailPalette() {
+export function getEmailPalette() {
   if (getBrandKey() === 'hairboutique') {
     return {
       canvasBg: '#E7ECEA',

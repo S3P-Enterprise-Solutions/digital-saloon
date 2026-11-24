@@ -32,7 +32,7 @@ const RootRoute: React.FunctionComponent = () => {
   return (
     <AppShell
       salon={salon.data ?? null}
-      email={user ? (user.email ?? (isOperator ? 'Operator' : user.uid)) : null}
+      email={user ? (user.email ?? (isOperator ? 'Operator' : 'Admin')) : null}
       activeAdminNav={activeAdminNavOf(pathname)}
       contentWidth={
         pathname === '/' || pathname === '/balayage'

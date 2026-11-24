@@ -5,37 +5,65 @@ import { getActiveBrand } from '../data/brands'
 import { HeaderMark, HeroMark, MarkHair, MarkKimm, MarkStudio } from './Wordmark.styles'
 
 /** Active salon logo set in type (KIMM Hair or Salon 1500). */
+export const HairboutiqueInlineMark: React.FunctionComponent<{
+  scriptSize: string | Record<string, string>
+  sansSize: string | Record<string, string>
+  sansColor?: string
+}> = ({ scriptSize, sansSize, sansColor = 'inherit' }) => (
+  <Box
+    component="span"
+    sx={{ display: 'inline-flex', alignItems: 'baseline', gap: 0.75, whiteSpace: 'nowrap' }}
+  >
+    <Box
+      component="span"
+      sx={{ fontFamily: '"Satisfy", cursive', fontSize: scriptSize, lineHeight: 1 }}
+    >
+      Hair
+    </Box>
+    <Box
+      component="span"
+      sx={{
+        fontWeight: 600,
+        letterSpacing: '0.16em',
+        fontSize: sansSize,
+        textTransform: 'uppercase',
+        color: sansColor,
+      }}
+    >
+      Boutique
+    </Box>
+  </Box>
+)
+
 export const HeroWordmark: React.FunctionComponent = () => {
   const activeBrand = getActiveBrand()
 
   if (activeBrand.key === 'hairboutique') {
     return (
-      <Box role="img" aria-label="Hairboutique OHG">
-        <Typography
-          component="span"
-          sx={{
-            fontFamily: '"Satisfy", cursive',
-            fontSize: { xs: '2.5rem', sm: '3.25rem' },
-            lineHeight: 1,
-            color: 'inherit',
-          }}
-        >
-          Hair
-        </Typography>
-        <Typography
-          component="span"
-          sx={{
-            fontFamily: activeBrand.typography.headingFontFamily,
-            fontSize: { xs: '1.1rem', sm: '1.35rem' },
-            fontWeight: 600,
-            letterSpacing: '0.2em',
-            ml: 1,
-            textTransform: 'uppercase',
-            color: 'inherit',
-          }}
-        >
-          Boutique
-        </Typography>
+      <Box
+        role="img"
+        aria-label="Hairboutique OHG"
+        sx={{ display: 'flex', alignItems: 'center', gap: 2.5 }}
+      >
+        {activeBrand.logoUrl ? (
+          <Box
+            component="img"
+            src={activeBrand.logoUrl}
+            alt="Hairboutique OHG Logo"
+            sx={{
+              width: { xs: 68, sm: 84 },
+              height: { xs: 68, sm: 84 },
+              borderRadius: 1,
+              objectFit: 'cover',
+              display: 'block',
+            }}
+          />
+        ) : null}
+        <HairboutiqueInlineMark
+          scriptSize={{ xs: '2.5rem', sm: '3.25rem' }}
+          sansSize={{ xs: '1.1rem', sm: '1.35rem' }}
+          sansColor="inherit"
+        />
       </Box>
     )
   }

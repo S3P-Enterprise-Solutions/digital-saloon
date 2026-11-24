@@ -152,8 +152,11 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
 
               <Box
                 component="img"
-                src="/hairboutique/wartebereich.jpg"
-                alt={brandProfile.gallery[0]?.altDe ?? 'Hairboutique OHG Studio'}
+                src={galleryImages[0]?.src ?? brandProfile.heroSlides[0]}
+                alt={
+                  (locale === 'it' ? galleryImages[0]?.altIt : galleryImages[0]?.altDe) ??
+                  'Hairboutique OHG Studio'
+                }
                 sx={{
                   width: '100%',
                   aspectRatio: '3 / 2',
@@ -209,8 +212,8 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
               </Stack>
               <Box
                 component="img"
-                src="/hairboutique/waschbecken.jpg"
-                alt={locale === 'it' ? galleryImages[1]?.altIt : galleryImages[1]?.altDe}
+                src={galleryImages[1]?.src ?? brandProfile.heroSlides[1]}
+                alt={(locale === 'it' ? galleryImages[1]?.altIt : galleryImages[1]?.altDe) ?? ''}
                 sx={{
                   width: '100%',
                   aspectRatio: '3 / 2',
@@ -231,8 +234,8 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
             >
               <Box
                 component="img"
-                src="/hairboutique/team.jpeg"
-                alt={locale === 'it' ? galleryImages[3]?.altIt : galleryImages[3]?.altDe}
+                src={galleryImages[3]?.src ?? '/hairboutique/team.jpeg'}
+                alt={(locale === 'it' ? galleryImages[3]?.altIt : galleryImages[3]?.altDe) ?? ''}
                 sx={{
                   width: '100%',
                   aspectRatio: '3 / 4',
@@ -252,8 +255,8 @@ export const HairboutiqueHomePage: React.FunctionComponent<HairboutiqueHomePageP
               >
                 <Box
                   component="img"
-                  src="/hairboutique/hairstyle.jpeg"
-                  alt={locale === 'it' ? galleryImages[2]?.altIt : galleryImages[2]?.altDe}
+                  src={galleryImages[2]?.src ?? brandProfile.heroSlides[2]}
+                  alt={(locale === 'it' ? galleryImages[2]?.altIt : galleryImages[2]?.altDe) ?? ''}
                   sx={{
                     width: '100%',
                     height: '100%',

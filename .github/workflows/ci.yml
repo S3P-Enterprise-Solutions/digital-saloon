@@ -66,6 +66,11 @@ jobs:
             salonId: salon1500
             projectId: salon-1500
             serviceAccountSecret: FIREBASE_SERVICE_ACCOUNT_SALON1500
+          - brand: hairboutique
+            alias: hairboutique
+            salonId: hairboutique
+            projectId: hairboutique-ohg
+            serviceAccountSecret: FIREBASE_SERVICE_ACCOUNT_HAIRBOUTIQUE
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
