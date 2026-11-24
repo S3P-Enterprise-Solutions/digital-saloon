@@ -21,6 +21,7 @@ import { HeroWordmark } from '../components/Wordmark'
 import { useLocale } from '../i18n'
 import { brand } from '../theme'
 import { HoursList, PriceList, PriceRow } from './HomePage.styles'
+import { HairboutiqueHomePage } from './HairboutiqueHomePage'
 import { Salon1500HomePage } from './Salon1500HomePage'
 
 export type HomePageProps = {
@@ -69,6 +70,23 @@ export const HomePage: React.FunctionComponent<HomePageProps> = ({
   const { t, locale, intlLocale } = useLocale()
   const activeBrand = getActiveBrand()
   const pricesVisible = arePricesVisible()
+
+  if (activeBrand.key === 'hairboutique') {
+    return (
+      <HairboutiqueHomePage
+        brandProfile={activeBrand}
+        salon={salon}
+        services={services}
+        servicesLoading={servicesLoading}
+        servicesError={servicesError}
+        openingHours={openingHours}
+        homepageConfig={homepageConfig}
+        onEditHomepageClick={onEditHomepageClick}
+        onBookClick={onBookClick}
+        onServiceClick={onServiceClick}
+      />
+    )
+  }
 
   if (activeBrand.key === 'salon1500') {
     return (

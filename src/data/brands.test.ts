@@ -13,6 +13,14 @@ describe('brands registry', () => {
     expect(getActiveBrand().name).toBe('KIMM Hair')
   })
 
+  it('selects hairboutique when VITE_BRAND=hairboutique', async () => {
+    vi.stubEnv('VITE_BRAND', 'hairboutique')
+    const { getActiveBrand } = await import('./brands')
+    const brand = getActiveBrand()
+    expect(brand.key).toBe('hairboutique')
+    expect(brand.defaultSalonId).toBe('hairboutique')
+  })
+
   it('selects salon1500 when VITE_BRAND=salon1500', async () => {
     vi.stubEnv('VITE_BRAND', 'salon1500')
     const { getActiveBrand } = await import('./brands')

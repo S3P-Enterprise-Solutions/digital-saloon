@@ -15,22 +15,40 @@ function envOr(name, fallback) {
 export function salonSeedConfig() {
   const brand = envOr('SEED_BRAND', envOr('VITE_BRAND', 'kimm')).toLowerCase()
   const isSalon1500 = brand === 'salon1500'
+  const isHairboutique = brand === 'hairboutique'
 
   return {
-    brand: isSalon1500 ? 'salon1500' : 'kimm',
-    salonId: envOr('SEED_SALON_ID', envOr('VITE_SALON_ID', isSalon1500 ? 'salon1500' : 'pilot')),
-    name: envOr('SEED_SALON_NAME', isSalon1500 ? 'Salon 1500' : 'KIMM Hair'),
+    brand: isSalon1500 ? 'salon1500' : isHairboutique ? 'hairboutique' : 'kimm',
+    salonId: envOr(
+      'SEED_SALON_ID',
+      envOr('VITE_SALON_ID', isSalon1500 ? 'salon1500' : isHairboutique ? 'hairboutique' : 'pilot'),
+    ),
+    name: envOr(
+      'SEED_SALON_NAME',
+      isSalon1500 ? 'Salon 1500' : isHairboutique ? 'Hairboutique OHG' : 'KIMM Hair',
+    ),
     timezone: envOr('SEED_SALON_TIMEZONE', 'Europe/Vienna'),
     address: envOr(
       'SEED_SALON_ADDRESS',
-      isSalon1500 ? 'Mauls 12A, 39040 Freienfeld (BZ)' : 'Via Piave 71, 39012 Meran',
+      isSalon1500
+        ? 'Mauls 12A, 39040 Freienfeld (BZ)'
+        : isHairboutique
+          ? 'Frundsbergstraße 24/A, 39049 Sterzing (BZ)'
+          : 'Via Piave 71, 39012 Meran',
     ),
-    phone: envOr('SEED_SALON_PHONE', isSalon1500 ? '+39 349 5326663' : '+39 0473 449267'),
+    phone: envOr(
+      'SEED_SALON_PHONE',
+      isSalon1500 ? '+39 349 5326663' : isHairboutique ? '+39 0472 055770' : '+39 0473 449267',
+    ),
     email: envOr(
       'SEED_SALON_EMAIL',
-      isSalon1500 ? 'salon1500.pruensterelisabeth@gmail.com' : 'hello@kimm-hair.local',
+      isSalon1500
+        ? 'salon1500.pruensterelisabeth@gmail.com'
+        : isHairboutique
+          ? 'hairboutiqueohg@libero.it'
+          : 'hello@kimm-hair.local',
     ),
-    vatId: envOr('SEED_SALON_VAT_ID', isSalon1500 ? '' : '01732550213'),
+    vatId: envOr('SEED_SALON_VAT_ID', isSalon1500 || isHairboutique ? '' : '01732550213'),
     adminEmail: envOr('SEED_ADMIN_EMAIL', 'admin@salonflow.local'),
     adminPassword: envOr('SEED_ADMIN_PASSWORD', 'password123'),
   }

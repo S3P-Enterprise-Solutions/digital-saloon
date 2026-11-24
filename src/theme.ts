@@ -1,10 +1,13 @@
 import { createTheme } from '@mui/material/styles'
 
-const isSalon1500 =
-  typeof import.meta.env.VITE_BRAND === 'string' &&
-  import.meta.env.VITE_BRAND.trim().toLowerCase() === 'salon1500'
+const rawBrand =
+  typeof import.meta.env.VITE_BRAND === 'string'
+    ? import.meta.env.VITE_BRAND.trim().toLowerCase()
+    : 'kimm'
+const isSalon1500 = rawBrand === 'salon1500'
+const isHairboutique = rawBrand === 'hairboutique'
 
-/** Active salon brand colors (KIMM Hair or Salon 1500 via VITE_BRAND). */
+/** Active salon brand colors (KIMM Hair, Salon 1500, or Hairboutique OHG via VITE_BRAND). */
 export const brand = isSalon1500
   ? ({
       orange: '#DFBFA4',
@@ -14,22 +17,39 @@ export const brand = isSalon1500
       stone: '#FAF6F2',
       paper: '#FFFFFF',
     } as const)
-  : ({
-      orange: '#E2701F',
-      orangeDeep: '#B9540E',
-      espresso: '#4A3631',
-      espressoMuted: '#7A6862',
-      stone: '#F2EEEB',
-      paper: '#FFFFFF',
-    } as const)
+  : isHairboutique
+    ? ({
+        orange: '#5A6664',
+        orangeDeep: '#242C2B',
+        espresso: '#242C2B',
+        espressoMuted: '#5A6664',
+        stone: '#E7ECEA',
+        paper: '#F9FAFA',
+      } as const)
+    : ({
+        orange: '#E2701F',
+        orangeDeep: '#B9540E',
+        espresso: '#4A3631',
+        espressoMuted: '#7A6862',
+        stone: '#F2EEEB',
+        paper: '#FFFFFF',
+      } as const)
 
-const dividerColor = isSalon1500 ? 'rgba(0, 0, 0, 0.14)' : 'rgba(74, 54, 49, 0.16)'
+const dividerColor = isSalon1500
+  ? 'rgba(0, 0, 0, 0.14)'
+  : isHairboutique
+    ? 'rgba(36, 44, 43, 0.12)'
+    : 'rgba(74, 54, 49, 0.16)'
 const fontFamily = isSalon1500
   ? '"Roboto Condensed", "Helvetica Neue", Arial, sans-serif'
-  : '"Archivo Variable", "Helvetica Neue", Arial, sans-serif'
+  : isHairboutique
+    ? '"Plus Jakarta Sans", "Helvetica Neue", Arial, sans-serif'
+    : '"Archivo Variable", "Helvetica Neue", Arial, sans-serif'
 const headingFontFamily = isSalon1500
   ? '"Cormorant SC", Georgia, serif'
-  : '"Archivo Variable", "Helvetica Neue", Arial, sans-serif'
+  : isHairboutique
+    ? '"Plus Jakarta Sans", "Helvetica Neue", Arial, sans-serif'
+    : '"Archivo Variable", "Helvetica Neue", Arial, sans-serif'
 
 export const theme = createTheme({
   palette: {

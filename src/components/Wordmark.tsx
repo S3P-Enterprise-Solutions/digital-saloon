@@ -8,6 +8,38 @@ import { HeaderMark, HeroMark, MarkHair, MarkKimm, MarkStudio } from './Wordmark
 export const HeroWordmark: React.FunctionComponent = () => {
   const activeBrand = getActiveBrand()
 
+  if (activeBrand.key === 'hairboutique') {
+    return (
+      <Box role="img" aria-label="Hairboutique OHG">
+        <Typography
+          component="span"
+          sx={{
+            fontFamily: '"Satisfy", cursive',
+            fontSize: { xs: '2.5rem', sm: '3.25rem' },
+            lineHeight: 1,
+            color: 'inherit',
+          }}
+        >
+          Hair
+        </Typography>
+        <Typography
+          component="span"
+          sx={{
+            fontFamily: activeBrand.typography.headingFontFamily,
+            fontSize: { xs: '1.1rem', sm: '1.35rem' },
+            fontWeight: 600,
+            letterSpacing: '0.2em',
+            ml: 1,
+            textTransform: 'uppercase',
+            color: 'inherit',
+          }}
+        >
+          Boutique
+        </Typography>
+      </Box>
+    )
+  }
+
   if (activeBrand.key === 'salon1500') {
     return (
       <Box
@@ -90,6 +122,42 @@ export const HeaderWordmark: React.FunctionComponent<HeaderWordmarkProps> = ({
   onClick,
 }) => {
   const activeBrand = getActiveBrand()
+
+  if (activeBrand.key === 'hairboutique') {
+    return (
+      <HeaderMark type="button" aria-label={label} onClick={onClick}>
+        <Box
+          component="span"
+          sx={{ display: 'inline-flex', alignItems: 'baseline', gap: 0.5, whiteSpace: 'nowrap' }}
+        >
+          <Box
+            component="span"
+            sx={{
+              fontFamily: '"Satisfy", cursive',
+              fontSize: { xs: '1.35rem', sm: '1.6rem' },
+              lineHeight: 1,
+              color: activeBrand.colors.primary,
+            }}
+          >
+            Hair
+          </Box>
+          <Box
+            component="span"
+            sx={{
+              fontFamily: activeBrand.typography.headingFontFamily,
+              fontSize: { xs: '0.78rem', sm: '0.9rem' },
+              fontWeight: 600,
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+              color: activeBrand.colors.accent,
+            }}
+          >
+            Boutique
+          </Box>
+        </Box>
+      </HeaderMark>
+    )
+  }
 
   if (activeBrand.key === 'salon1500') {
     return (
