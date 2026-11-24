@@ -12,6 +12,7 @@ const settingsPaths = [
   '/admin/opening-hours',
   '/admin/holidays',
   '/admin/homepage',
+  '/admin/employees',
 ]
 
 function activeAdminNavOf(pathname: string): AdminNavItem | null {
@@ -37,7 +38,7 @@ const RootRoute: React.FunctionComponent = () => {
       contentWidth={
         pathname === '/' || pathname === '/balayage'
           ? 'full'
-          : pathname.startsWith('/admin')
+          : pathname.startsWith('/admin') || pathname.startsWith('/employee')
             ? 'wide'
             : 'contained'
       }

@@ -40,11 +40,17 @@ async function main() {
   console.log('[e2e] Checking ports…')
   await ensurePortsAvailable(DEV_APP_PORTS, { force: forceFreePorts })
 
+  const e2eFunctionsEnv = {
+    BRAND: 'kimm',
+    SALON_ID: 'pilot',
+    EMPLOYEE_MANAGEMENT_ENABLED: 'true',
+  }
+
   console.log('[e2e] Starting Firebase emulators…')
   supervisor.spawn(
     localBin('firebase'),
     ['emulators:start', '--only', 'auth,firestore,storage,functions', '--project', PROJECT_ID],
-    { critical: true },
+    { critical: true, env: e2eFunctionsEnv },
   )
 
   await waitForEmulators({ waitForUi: false })
@@ -61,7 +67,13 @@ async function main() {
     localBin('vite'),
     ['--port', String(EMULATOR_PORTS.app), '--host', '127.0.0.1'],
     {
-      env: { VITE_USE_FIREBASE_EMULATORS: 'true' },
+      env: {
+        VITE_USE_FIREBASE_EMULATORS: 'true',
+        VITE_BRAND: 'kimm',
+        VITE_SALON_ID: 'pilot',
+        // Force feature on for employee E2E without enabling it on the kimm brand module.
+        VITE_EMPLOYEE_MANAGEMENT_ENABLED: 'true',
+      },
       critical: true,
     },
   )

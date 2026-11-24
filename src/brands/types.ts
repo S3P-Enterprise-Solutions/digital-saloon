@@ -72,6 +72,7 @@ export type BrandThemeTokens = {
 
 export type FeatureFlags = {
   balayage?: boolean
+  employeeManagement?: boolean
   // later: balayage?: boolean | BalayageFeatureConfig
 }
 

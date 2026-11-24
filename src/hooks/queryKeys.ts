@@ -19,6 +19,10 @@ export const queryRootVisibility = {
   userProfile: 'private',
   demoMode: 'private',
   staffOverview: 'private',
+  employeeWorkingHours: 'private',
+  employeeDayExceptions: 'private',
+  myEmployeeReservations: 'private',
+  myEmployeeProfile: 'private',
 } as const
 
 export type QueryRoot = keyof typeof queryRootVisibility

@@ -5,7 +5,7 @@ export function optionalSearchParam<TSchema extends v.GenericSchema>(schema: TSc
   return v.optional(v.fallback(schema, undefined))
 }
 
-export const userRoleSchema = v.picklist(['user', 'admin'] as const)
+export const userRoleSchema = v.picklist(['user', 'admin', 'employee'] as const)
 export type UserRole = v.InferOutput<typeof userRoleSchema>
 
 export const userProfileSchema = v.object({
@@ -186,8 +186,16 @@ export const homepageConfigSchema = v.object({
 export type HomepageConfig = v.InferOutput<typeof homepageConfigSchema>
 
 export const employeeSchema = v.object({
+  firstName: v.pipe(v.string(), v.minLength(1), v.maxLength(80)),
+  lastName: v.pipe(v.string(), v.minLength(1), v.maxLength(80)),
   displayName: v.pipe(v.string(), v.minLength(1), v.maxLength(80)),
+  email: v.pipe(v.string(), v.email()),
+  photoUrl: v.optional(v.nullable(v.string())),
   active: v.boolean(),
+  authDisabled: v.boolean(),
+  serviceIds: v.array(v.pipe(v.string(), v.minLength(1))),
   createdAt: v.string(),
+  updatedAt: v.string(),
+  removedAt: v.optional(v.nullable(v.string())),
 })
 export type Employee = v.InferOutput<typeof employeeSchema>

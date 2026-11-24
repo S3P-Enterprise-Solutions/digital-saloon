@@ -3,6 +3,7 @@ import * as v from 'valibot'
 
 import {
   bookingSettingsSchema,
+  employeeSchema,
   optionalSearchParam,
   reservationSchema,
   salonSchema,
@@ -20,6 +21,53 @@ describe('schemas', () => {
     })
 
     expect(profile.role).toBe('user')
+  })
+
+  it('accepts user profile with employee role', () => {
+    const profile = v.parse(userProfileSchema, {
+      email: 'stylist@example.com',
+      displayName: 'Stylist One',
+      role: 'employee',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    })
+
+    expect(profile.role).toBe('employee')
+  })
+
+  it('accepts a valid employee document', () => {
+    const employee = v.parse(employeeSchema, {
+      firstName: 'Anna',
+      lastName: 'Muster',
+      displayName: 'Anna Muster',
+      email: 'anna@salon.local',
+      active: true,
+      authDisabled: false,
+      serviceIds: ['svc-haircut'],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-02T00:00:00.000Z',
+    })
+
+    expect(employee.active).toBe(true)
+    expect(employee.authDisabled).toBe(false)
+    expect(employee.serviceIds).toEqual(['svc-haircut'])
+  })
+
+  it('rejects employee document missing bookability and auth fields', () => {
+    const base = {
+      firstName: 'Anna',
+      lastName: 'Muster',
+      displayName: 'Anna Muster',
+      email: 'anna@salon.local',
+      serviceIds: ['svc-haircut'],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-02T00:00:00.000Z',
+    }
+
+    expect(() => v.parse(employeeSchema, { ...base, authDisabled: false })).toThrow()
+    expect(() =>
+      v.parse(employeeSchema, { ...base, active: true, authDisabled: false, serviceIds: undefined }),
+    ).toThrow()
+    expect(() => v.parse(employeeSchema, { ...base, active: true })).toThrow()
   })
 
   it('falls back missing optional search params', () => {

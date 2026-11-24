@@ -24,8 +24,13 @@ import {
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import ContentCutOutlinedIcon from '@mui/icons-material/ContentCutOutlined'
 import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined'
+import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined'
 import ScheduleOutlinedIcon from '@mui/icons-material/ScheduleOutlined'
-import type { NewAccountInput, StaffOverview } from '../../data/adminAccessApi'
+import type {
+  EmployeeAccountInput,
+  NewAccountInput,
+  StaffOverview,
+} from '../../data/adminAccessApi'
 import { formatViennaDateTime } from '../../data/dateFormat'
 import type { EmployeeWithId } from '../../data/employees'
 import type { GoogleCalendarStatus } from '../../data/googleCalendarApi'
@@ -71,7 +76,9 @@ export type AdminSettingsPageProps = {
   }
   staffOverview?: StaffOverview
   onCreateFirstAdmin?: (input: NewAccountInput) => Promise<void>
-  onCreateEmployee?: (input: NewAccountInput) => Promise<void>
+  onCreateEmployee?: (input: EmployeeAccountInput) => Promise<void>
+  employeeManagementEnabled?: boolean
+  onEmployeesClick?: () => void
   onServicesClick: () => void
   onHomepageClick: () => void
   onOpeningHoursClick: () => void
@@ -373,19 +380,26 @@ const SalonDetailsForm: React.FunctionComponent<SalonDetailsFormProps> = ({
   )
 }
 
-type NewAccountFormProps = {
-  buttonLabel: string
-  successMessage: string
-  onCreate: (input: NewAccountInput) => Promise<void>
-}
+type NewAccountFormProps =
+  | {
+      buttonLabel: string
+      successMessage: string
+      nameFields: 'displayName'
+      onCreate: (input: NewAccountInput) => Promise<void>
+    }
+  | {
+      buttonLabel: string
+      successMessage: string
+      nameFields: 'firstLast'
+      onCreate: (input: EmployeeAccountInput) => Promise<void>
+    }
 
-const NewAccountForm: React.FunctionComponent<NewAccountFormProps> = ({
-  buttonLabel,
-  successMessage,
-  onCreate,
-}) => {
+const NewAccountForm: React.FunctionComponent<NewAccountFormProps> = (props) => {
+  const { buttonLabel, successMessage, nameFields } = props
   const { t } = useLocale()
   const [displayName, setDisplayName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -398,8 +412,14 @@ const NewAccountForm: React.FunctionComponent<NewAccountFormProps> = ({
     setCreated(false)
     setSubmitting(true)
     try {
-      await onCreate({ displayName, email, password })
-      setDisplayName('')
+      if (props.nameFields === 'displayName') {
+        await props.onCreate({ displayName, email, password })
+        setDisplayName('')
+      } else {
+        await props.onCreate({ firstName, lastName, email, password })
+        setFirstName('')
+        setLastName('')
+      }
       setEmail('')
       setPassword('')
       setCreated(true)
@@ -413,14 +433,35 @@ const NewAccountForm: React.FunctionComponent<NewAccountFormProps> = ({
   return (
     <Box component="form" onSubmit={(event) => void handleSubmit(event)} sx={{ maxWidth: 420 }}>
       <Stack spacing={2}>
-        <TextField
-          label={t('admin.accountDisplayName')}
-          value={displayName}
-          onChange={(event) => setDisplayName(event.target.value)}
-          required
-          fullWidth
-          size="small"
-        />
+        {nameFields === 'displayName' ? (
+          <TextField
+            label={t('admin.accountDisplayName')}
+            value={displayName}
+            onChange={(event) => setDisplayName(event.target.value)}
+            required
+            fullWidth
+            size="small"
+          />
+        ) : (
+          <>
+            <TextField
+              label={t('admin.fieldFirstName')}
+              value={firstName}
+              onChange={(event) => setFirstName(event.target.value)}
+              required
+              fullWidth
+              size="small"
+            />
+            <TextField
+              label={t('admin.fieldLastName')}
+              value={lastName}
+              onChange={(event) => setLastName(event.target.value)}
+              required
+              fullWidth
+              size="small"
+            />
+          </>
+        )}
         <TextField
           label={t('admin.accountEmail')}
           type="email"
@@ -637,6 +678,8 @@ export const AdminSettingsPage: React.FunctionComponent<AdminSettingsPageProps> 
   staffOverview,
   onCreateFirstAdmin,
   onCreateEmployee,
+  employeeManagementEnabled,
+  onEmployeesClick,
   onServicesClick,
   onHomepageClick,
   onOpeningHoursClick,
@@ -664,6 +707,17 @@ export const AdminSettingsPage: React.FunctionComponent<AdminSettingsPageProps> 
           hint={t('admin.servicesHint')}
           onClick={onServicesClick}
         />
+        {employeeManagementEnabled && onEmployeesClick ? (
+          <>
+            <Divider />
+            <SettingsLink
+              icon={<GroupOutlinedIcon />}
+              title={t('admin.employeesNavTitle')}
+              hint={t('admin.employeesNavHint')}
+              onClick={onEmployeesClick}
+            />
+          </>
+        ) : null}
         <Divider />
         <SettingsLink
           icon={<ScheduleOutlinedIcon />}
@@ -784,6 +838,7 @@ export const AdminSettingsPage: React.FunctionComponent<AdminSettingsPageProps> 
             <Alert severity="info">{t('admin.firstAdminAlreadyExists')}</Alert>
           ) : (
             <NewAccountForm
+              nameFields="displayName"
               buttonLabel={t('admin.firstAdminCreateButton')}
               successMessage={t('admin.firstAdminCreated')}
               onCreate={onCreateFirstAdmin}
@@ -792,7 +847,7 @@ export const AdminSettingsPage: React.FunctionComponent<AdminSettingsPageProps> 
         </Paper>
       ) : null}
 
-      {isPrimaryAdmin && onCreateEmployee ? (
+      {isPrimaryAdmin && onCreateEmployee && !employeeManagementEnabled ? (
         <Paper
           component="section"
           aria-labelledby="settings-employees"
@@ -830,6 +885,7 @@ export const AdminSettingsPage: React.FunctionComponent<AdminSettingsPageProps> 
             </Stack>
           ) : null}
           <NewAccountForm
+            nameFields="firstLast"
             buttonLabel={t('admin.employeeCreateButton')}
             successMessage={t('admin.employeeCreated')}
             onCreate={onCreateEmployee}

@@ -42,7 +42,7 @@ import {
   localizedServiceDescription,
   localizedServiceName,
 } from '../data/serviceForm'
-import type { EmployeeWithId } from '../data/employees'
+import type { BookableEmployeePublic } from '../data/employeeAdminApi'
 import type { ServiceWithId } from '../data/services'
 import { useLocale } from '../i18n'
 import type { MessageKey } from '../i18n'
@@ -89,7 +89,7 @@ export type BookingWizardPageProps = {
   servicesError: boolean
   step: 1 | 2
   selectedServiceIds: string[]
-  employees?: EmployeeWithId[]
+  employees?: Pick<BookableEmployeePublic, 'id' | 'displayName'>[]
   selectedEmployeeId?: string | null
   onSelectEmployee?: (employeeId: string | null) => void
   selectedDate: string | null

@@ -15,6 +15,8 @@ export const hairboutiqueModule: BrandModule = {
   theme,
   brandColors,
   profile: hairboutiqueProfile,
-  features: {},
+  features: {
+    employeeManagement: false,
+  },
   shell: hairboutiqueShell,
 }

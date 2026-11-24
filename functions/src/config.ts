@@ -24,6 +24,20 @@ export function getBrandKey(): 'kimm' | 'salon1500' | 'hairboutique' {
   return 'kimm'
 }
 
+/** Must stay aligned with `features.employeeManagement` on each brand module. */
+const employeeManagementByBrand: Record<ReturnType<typeof getBrandKey>, boolean> = {
+  kimm: false,
+  salon1500: false,
+  hairboutique: false,
+}
+
+export function isEmployeeManagementEnabled(): boolean {
+  const override = process.env.EMPLOYEE_MANAGEMENT_ENABLED?.trim().toLowerCase()
+  if (override === 'true') return true
+  if (override === 'false') return false
+  return employeeManagementByBrand[getBrandKey()]
+}
+
 export function getOperatorCredentials(): { email: string; password: string } | null {
   const envEmail = process.env.OPERATOR_EMAIL?.trim().toLowerCase()
   const envPassword = process.env.OPERATOR_PASSWORD

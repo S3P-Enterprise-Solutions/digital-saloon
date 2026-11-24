@@ -21,6 +21,13 @@ export type NewAccountInput = {
   displayName: string
 }
 
+export type EmployeeAccountInput = {
+  email: string
+  password: string
+  firstName: string
+  lastName: string
+}
+
 export async function callOperatorLogin(email: string, password: string): Promise<string> {
   const fn = httpsCallable<{ email: string; password: string }, { token: string }>(
     firebaseFunctions,
@@ -57,8 +64,11 @@ export async function createFirstSalonAdmin(input: NewAccountInput): Promise<Sta
   return result.data
 }
 
-export async function createEmployeeAccount(input: NewAccountInput): Promise<StaffMember> {
-  const fn = httpsCallable<NewAccountInput, StaffMember>(firebaseFunctions, 'createEmployeeAccount')
+export async function createEmployeeAccount(input: EmployeeAccountInput): Promise<StaffMember> {
+  const fn = httpsCallable<EmployeeAccountInput, StaffMember>(
+    firebaseFunctions,
+    'createEmployeeAccount',
+  )
   const result = await fn(input)
   return result.data
 }

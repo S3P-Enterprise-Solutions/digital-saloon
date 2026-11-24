@@ -2,12 +2,20 @@ import { randomBytes } from 'node:crypto'
 
 import { getFirestore, type Firestore } from 'firebase-admin/firestore'
 
-import { isSlotAvailable, listAvailableSlots } from '../domain/availability'
 import {
-  loadActiveEmployees,
+  isSlotAvailable,
+  listAvailableSlots,
+  type EmployeeAvailabilityEnvelope,
+} from '../domain/availability'
+import { isEmployeeManagementEnabled } from '../config'
+import { resolveEmployeeIdsToCheck } from './employeeBooking'
+import {
+  loadBookingCandidates,
   loadBusyIntervals,
+  loadEmployeeAvailabilityEnvelope,
   loadSalonContext,
   type ActiveEmployee,
+  type BookingCandidateEmployee,
   type SalonContext,
 } from './salonContext'
 import { hashManagementToken } from './tokens'
@@ -45,6 +53,64 @@ export type CreateReservationResult =
       salonPhone?: string
     }
   | { ok: false; code: 'UNAVAILABLE' | 'SERVICE_INACTIVE' | 'NOT_FOUND'; message: string }
+
+async function loadEmployeeEnvelopeCached(
+  db: Firestore,
+  salonId: string,
+  employeeId: string,
+  cache: Map<string, EmployeeAvailabilityEnvelope>,
+): Promise<EmployeeAvailabilityEnvelope> {
+  const cached = cache.get(employeeId)
+  if (cached) return cached
+  const envelope = await loadEmployeeAvailabilityEnvelope(db, salonId, employeeId)
+  cache.set(employeeId, envelope)
+  return envelope
+}
+
+async function resolveBookingTargets(
+  db: Firestore,
+  salonId: string,
+  serviceIds: string[],
+  requestedEmployeeId: string | null,
+): Promise<
+  | {
+      ok: true
+      featureEnabled: boolean
+      employeeIds: Array<string | null>
+      candidates: BookingCandidateEmployee[]
+    }
+  | { ok: false; code: 'NOT_FOUND'; message: string }
+> {
+  const featureEnabled = isEmployeeManagementEnabled()
+  const candidates = featureEnabled
+    ? await loadBookingCandidates(db, salonId, serviceIds)
+    : []
+  const targets = resolveEmployeeIdsToCheck({
+    featureEnabled,
+    candidates,
+    requestedEmployeeId,
+  })
+  if (!targets.ok) {
+    return { ok: false, code: 'NOT_FOUND', message: 'Selected employee not found.' }
+  }
+  return {
+    ok: true,
+    featureEnabled,
+    employeeIds: targets.employeeIds,
+    candidates,
+  }
+}
+
+function candidatesForLoop(
+  employeeIds: Array<string | null>,
+  allCandidates: BookingCandidateEmployee[],
+): Array<BookingCandidateEmployee | null> {
+  if (employeeIds.length === 1 && employeeIds[0] === null) {
+    return [null]
+  }
+  const byId = new Map(allCandidates.map((emp) => [emp.id, emp]))
+  return employeeIds.map((id) => (id ? (byId.get(id) ?? null) : null))
+}
 
 export function lockIdForStart(startAt: Date, employeeId?: string | null): string {
   const base = startAt.toISOString().replace(/[:.]/g, '-')
@@ -170,21 +236,31 @@ export async function createReservationTransactional(
     }
   }
 
-  const activeEmployees = await loadActiveEmployees(db, context.salonId)
   const requestedEmployeeId =
     typeof input.employeeId === 'string' && input.employeeId.trim() ? input.employeeId.trim() : null
-
-  let candidateEmployees: Array<ActiveEmployee | null>
-  if (requestedEmployeeId) {
-    const matched = activeEmployees.find((emp) => emp.id === requestedEmployeeId)
-    if (!matched) {
-      return { ok: false, code: 'NOT_FOUND', message: 'Selected employee not found.' }
-    }
-    candidateEmployees = [matched]
-  } else if (activeEmployees.length > 0) {
-    candidateEmployees = activeEmployees
-  } else {
-    candidateEmployees = [null]
+  const bookingTargets = await resolveBookingTargets(
+    db,
+    context.salonId,
+    serviceIds,
+    requestedEmployeeId,
+  )
+  if (!bookingTargets.ok) {
+    return bookingTargets
+  }
+  if (bookingTargets.featureEnabled && bookingTargets.employeeIds.length === 0) {
+    return { ok: false, code: 'UNAVAILABLE', message: 'Timeslot is not available.' }
+  }
+  const candidateEmployees = candidatesForLoop(
+    bookingTargets.employeeIds,
+    bookingTargets.candidates,
+  )
+  const envelopeCache = new Map<string, EmployeeAvailabilityEnvelope>()
+  if (bookingTargets.featureEnabled) {
+    await Promise.all(
+      candidateEmployees
+        .filter((emp): emp is BookingCandidateEmployee => emp !== null)
+        .map((emp) => loadEmployeeEnvelopeCached(db, context.salonId, emp.id, envelopeCache)),
+    )
   }
 
   const reservationRef = db
@@ -259,6 +335,8 @@ export async function createReservationTransactional(
           ...overlappingBlocks.filter((b) => !empId || !b.employeeId || b.employeeId === empId),
         ].map((item) => ({ startAt: item.startAt, endAt: item.endAt }))
 
+        const employeeEnvelope =
+          bookingTargets.featureEnabled && empId ? envelopeCache.get(empId) : undefined
         const available = isSlotAvailable({
           startAt: input.startAt,
           durationMinutes,
@@ -270,6 +348,7 @@ export async function createReservationTransactional(
           settings: context.settings,
           now,
           enforceAdvanceRestrictions: input.enforceAdvanceRestrictions,
+          employeeEnvelope,
         })
         if (available) {
           chosenEmployee = candidate
@@ -423,8 +502,16 @@ export async function updateReservationTransactional(
         ? input.employeeId.trim()
         : null
     if (requestedEmpId) {
-      const activeEmployees = await loadActiveEmployees(db, context.salonId)
-      const matched = activeEmployees.find((emp) => emp.id === requestedEmpId)
+      const bookingTargets = await resolveBookingTargets(
+        db,
+        context.salonId,
+        serviceIds,
+        requestedEmpId,
+      )
+      if (!bookingTargets.ok) {
+        return bookingTargets
+      }
+      const matched = bookingTargets.candidates.find((emp) => emp.id === requestedEmpId)
       if (!matched) {
         return { ok: false, code: 'NOT_FOUND', message: 'Selected employee not found.' }
       }
@@ -434,6 +521,26 @@ export async function updateReservationTransactional(
       empId = null
       empName = null
     }
+  }
+  const featureEnabled = isEmployeeManagementEnabled()
+  let employeeEnvelope: EmployeeAvailabilityEnvelope | undefined
+  const anyAssignEnvelopeCache = new Map<string, EmployeeAvailabilityEnvelope>()
+  let anyAssignCandidates: Array<BookingCandidateEmployee | null> = []
+  if (featureEnabled && empId) {
+    employeeEnvelope = await loadEmployeeAvailabilityEnvelope(db, context.salonId, empId)
+  } else if (featureEnabled && !empId) {
+    const bookingTargets = await resolveBookingTargets(db, context.salonId, serviceIds, null)
+    if (!bookingTargets.ok || bookingTargets.employeeIds.length === 0) {
+      return { ok: false, code: 'UNAVAILABLE', message: 'Timeslot is not available.' }
+    }
+    anyAssignCandidates = candidatesForLoop(bookingTargets.employeeIds, bookingTargets.candidates)
+    await Promise.all(
+      anyAssignCandidates
+        .filter((emp): emp is BookingCandidateEmployee => emp !== null)
+        .map((emp) =>
+          loadEmployeeEnvelopeCached(db, context.salonId, emp.id, anyAssignEnvelopeCache),
+        ),
+    )
   }
   const oldLockRef = db
     .collection('salons')
@@ -468,18 +575,24 @@ export async function updateReservationTransactional(
           .collection('reservations')
           .where('startAt', '<', newEndAt.toISOString()),
       )
-      const busyFromReservations = overlapSnap.docs
+      const overlappingReservations = overlapSnap.docs
         .filter((doc) => {
           if (doc.id === input.reservationId) return false
           const data = doc.data()
           if (data.status !== 'PENDING' && data.status !== 'CONFIRMED') return false
-          if (empId && data.employeeId && String(data.employeeId) !== empId) return false
           return new Date(String(data.endAt)).getTime() > newStartAt.getTime()
         })
-        .map((doc) => ({
-          startAt: new Date(String(doc.data().startAt)),
-          endAt: new Date(String(doc.data().endAt)),
-        }))
+        .map((doc) => {
+          const data = doc.data()
+          return {
+            employeeId:
+              typeof data.employeeId === 'string' && data.employeeId.trim()
+                ? data.employeeId.trim()
+                : null,
+            startAt: new Date(String(data.startAt)),
+            endAt: new Date(String(data.endAt)),
+          }
+        })
 
       const blocksSnap = await tx.get(
         db
@@ -488,31 +601,77 @@ export async function updateReservationTransactional(
           .collection('blockedSlots')
           .where('startAt', '<', newEndAt.toISOString()),
       )
-      const busyFromBlocks = blocksSnap.docs
-        .filter((doc) => {
+      const overlappingBlocks = blocksSnap.docs
+        .filter((doc) => new Date(String(doc.data().endAt)).getTime() > newStartAt.getTime())
+        .map((doc) => {
           const data = doc.data()
-          if (empId && data.employeeId && String(data.employeeId) !== empId) return false
-          return new Date(String(data.endAt)).getTime() > newStartAt.getTime()
+          return {
+            employeeId:
+              typeof data.employeeId === 'string' && data.employeeId.trim()
+                ? data.employeeId.trim()
+                : null,
+            startAt: new Date(String(data.startAt)),
+            endAt: new Date(String(data.endAt)),
+          }
         })
-        .map((doc) => ({
-          startAt: new Date(String(doc.data().startAt)),
-          endAt: new Date(String(doc.data().endAt)),
-        }))
 
       const oldLockSnap = await tx.get(oldLockRef)
 
-      const available = isSlotAvailable({
-        startAt: newStartAt,
-        durationMinutes,
-        timeZone: context.timeZone,
-        weekly: context.weekly,
-        holidays: context.holidays,
-        dayExceptions: context.dayExceptions,
-        busy: [...busyFromReservations, ...busyFromBlocks],
-        settings: context.settings,
-        now,
-        enforceAdvanceRestrictions: input.enforceAdvanceRestrictions,
-      })
+      const busyForAssigned = [
+        ...overlappingReservations.filter(
+          (r) => !empId || !r.employeeId || r.employeeId === empId,
+        ),
+        ...overlappingBlocks.filter((b) => !empId || !b.employeeId || b.employeeId === empId),
+      ].map((item) => ({ startAt: item.startAt, endAt: item.endAt }))
+
+      let available = false
+      if (featureEnabled && !empId) {
+        for (const candidate of anyAssignCandidates) {
+          const candidateId = candidate?.id ?? null
+          const candidateBusy = [
+            ...overlappingReservations.filter(
+              (r) => !candidateId || !r.employeeId || r.employeeId === candidateId,
+            ),
+            ...overlappingBlocks.filter(
+              (b) => !candidateId || !b.employeeId || b.employeeId === candidateId,
+            ),
+          ].map((item) => ({ startAt: item.startAt, endAt: item.endAt }))
+          if (
+            isSlotAvailable({
+              startAt: newStartAt,
+              durationMinutes,
+              timeZone: context.timeZone,
+              weekly: context.weekly,
+              holidays: context.holidays,
+              dayExceptions: context.dayExceptions,
+              busy: candidateBusy,
+              settings: context.settings,
+              now,
+              enforceAdvanceRestrictions: input.enforceAdvanceRestrictions,
+              employeeEnvelope: candidateId
+                ? anyAssignEnvelopeCache.get(candidateId)
+                : undefined,
+            })
+          ) {
+            available = true
+            break
+          }
+        }
+      } else {
+        available = isSlotAvailable({
+          startAt: newStartAt,
+          durationMinutes,
+          timeZone: context.timeZone,
+          weekly: context.weekly,
+          holidays: context.holidays,
+          dayExceptions: context.dayExceptions,
+          busy: busyForAssigned,
+          settings: context.settings,
+          now,
+          enforceAdvanceRestrictions: input.enforceAdvanceRestrictions,
+          employeeEnvelope,
+        })
+      }
       if (!available) throw new Error('UNAVAILABLE')
 
       if (!sameLock) {
@@ -616,18 +775,37 @@ export async function previewAvailableSlots(input: {
   }
   const rangeStart = new Date(`${input.fromDateYmd}T00:00:00.000Z`)
   const rangeEnd = new Date(`${input.toDateYmd}T23:59:59.999Z`)
-  const activeEmployees = await loadActiveEmployees(db, context.salonId)
   const requestedEmployeeId =
     typeof input.employeeId === 'string' && input.employeeId.trim() ? input.employeeId.trim() : null
-
-  const employeeIdsToCheck: Array<string | null> = requestedEmployeeId
-    ? [requestedEmployeeId]
-    : activeEmployees.length > 0
-      ? activeEmployees.map((emp) => emp.id)
-      : [null]
+  const requestedIds =
+    input.serviceIds && input.serviceIds.length > 0
+      ? input.serviceIds
+      : input.serviceId
+        ? [input.serviceId]
+        : []
+  const bookingTargets = await resolveBookingTargets(
+    db,
+    context.salonId,
+    requestedIds,
+    requestedEmployeeId,
+  )
+  if (!bookingTargets.ok) {
+    return []
+  }
+  if (bookingTargets.featureEnabled && bookingTargets.employeeIds.length === 0) {
+    return []
+  }
+  const envelopeCache = new Map<string, EmployeeAvailabilityEnvelope>()
+  if (bookingTargets.featureEnabled) {
+    await Promise.all(
+      bookingTargets.employeeIds
+        .filter((id): id is string => typeof id === 'string')
+        .map((id) => loadEmployeeEnvelopeCached(db, context.salonId, id, envelopeCache)),
+    )
+  }
 
   const slotMap = new Map<string, { startAt: string; endAt: string }>()
-  for (const empId of employeeIdsToCheck) {
+  for (const empId of bookingTargets.employeeIds) {
     const busy = await loadBusyIntervals(
       db,
       context.salonId,
@@ -648,6 +826,8 @@ export async function previewAvailableSlots(input: {
       fromDateYmd: input.fromDateYmd,
       toDateYmd: input.toDateYmd,
       enforceAdvanceRestrictions: input.enforceAdvanceRestrictions !== false,
+      employeeEnvelope:
+        bookingTargets.featureEnabled && empId ? envelopeCache.get(empId) : undefined,
     })
     for (const slot of slots) {
       const startIso = slot.startAt.toISOString()

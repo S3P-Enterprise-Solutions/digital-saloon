@@ -4,6 +4,7 @@ import { Alert, CircularProgress } from '@mui/material'
 import { Outlet, createRoute, redirect, useNavigate } from '@tanstack/react-router'
 import * as v from 'valibot'
 
+import { isEmployeeManagementEnabled } from '../brands/employeeManagement'
 import { useAuth } from '../auth/AuthProvider'
 import { listRange, startOfWeekYmd } from '../data/calendarRange'
 import { addCalendarDays, todayYmdInTimeZone } from '../data/calendarMath'
@@ -20,7 +21,20 @@ import { useAdminReservationActions, useAdminReservations } from '../hooks/useAd
 import { useAllServices } from '../hooks/useAllServices'
 import { useAvailableSlots } from '../hooks/useAvailableSlots'
 import { useBlockedSlots } from '../hooks/useBlockedSlots'
+import { useAdminEmployees } from '../hooks/useAdminEmployees'
 import { useActiveEmployees } from '../hooks/useEmployees'
+import { useCreateEmployeeProfileForAdmin } from '../hooks/useCreateEmployeeProfileForAdmin'
+import { useSetEmployeeAuthDisabled } from '../hooks/useSetEmployeeAuthDisabled'
+import { useSetEmployeeBookable } from '../hooks/useSetEmployeeBookable'
+import { useSetEmployeePassword } from '../hooks/useSetEmployeePassword'
+import { useDeleteEmployeeDayException } from '../hooks/useDeleteEmployeeDayException'
+import { useListBookableEmployees } from '../hooks/useListBookableEmployees'
+import { useSaveEmployeeDayException } from '../hooks/useSaveEmployeeDayException'
+import { useEmployeeDayExceptions } from '../hooks/useEmployeeDayExceptions'
+import { useEmployeeWorkingHours } from '../hooks/useEmployeeWorkingHours'
+import { useSaveEmployeeWeeklyWorkingHours } from '../hooks/useSaveEmployeeWeeklyWorkingHours'
+import { useSoftRemoveEmployee } from '../hooks/useSoftRemoveEmployee'
+import { useUpdateEmployeeProfile } from '../hooks/useUpdateEmployeeProfile'
 import { useGoogleCalendarActions, useGoogleCalendarStatus } from '../hooks/useGoogleCalendar'
 import { useClosures } from '../hooks/useClosures'
 import { useDemoModeStatus, useSetDemoMode } from '../hooks/useDemoMode'
@@ -41,6 +55,7 @@ import {
 } from '../hooks/useStaffOverview'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { useLocale } from '../i18n'
+import { AdminEmployeesPage } from '../pages/admin/AdminEmployeesPage'
 import { AdminHomePage } from '../pages/admin/AdminHomePage'
 import { AdminHomepagePage } from '../pages/admin/AdminHomepagePage'
 import { AdminManualBookingPage } from '../pages/admin/AdminManualBookingPage'
@@ -767,6 +782,7 @@ export const adminSettingsRoute = createRoute({
     const staffOverview = useStaffOverview(isOperator || isPrimaryAdmin)
     const createFirstAdmin = useCreateFirstSalonAdmin()
     const createEmployee = useCreateEmployeeAccount()
+    const employeeManagementEnabled = isEmployeeManagementEnabled()
     const ops = useAdminOps()
     const employees = useActiveEmployees()
     const gcalEmployeeId = settingsSearch.gcalEmployee ?? null
@@ -864,9 +880,21 @@ export const adminSettingsRoute = createRoute({
         onCreateFirstAdmin={async (input) => {
           await createFirstAdmin.mutateAsync(input)
         }}
-        onCreateEmployee={async (input) => {
-          await createEmployee.mutateAsync(input)
-        }}
+        onCreateEmployee={
+          employeeManagementEnabled
+            ? undefined
+            : async (input) => {
+                await createEmployee.mutateAsync(input)
+              }
+        }
+        employeeManagementEnabled={employeeManagementEnabled}
+        onEmployeesClick={
+          employeeManagementEnabled
+            ? () => {
+                void navigate({ to: '/admin/employees' })
+              }
+            : undefined
+        }
         onHomepageClick={() => {
           void navigate({ to: '/admin/homepage' })
         }}
@@ -889,6 +917,118 @@ export const adminSettingsRoute = createRoute({
         onExpirePendingClick={() => {
           ops.processPending.mutate()
         }}
+      />
+    )
+  },
+})
+
+export const adminEmployeesRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: '/employees',
+  beforeLoad: () => {
+    if (!isEmployeeManagementEnabled()) {
+      throw redirect({ to: '/admin/settings' })
+    }
+  },
+  component: function AdminEmployeesRoute() {
+    const navigate = useNavigate()
+    const { user, isOperator } = useAuth()
+    const profile = useUserProfile(!isOperator && user ? user.uid : null)
+    const isPrimaryAdmin = !isOperator && profile.data?.isPrimaryAdmin === true
+    const employeesQuery = useAdminEmployees(true)
+    const staffOverview = useStaffOverview(true)
+    const services = useAllServices(true)
+    const createAccount = useCreateEmployeeAccount()
+    const linkProfile = useCreateEmployeeProfileForAdmin()
+    const updateProfile = useUpdateEmployeeProfile()
+    const setBookable = useSetEmployeeBookable()
+    const setAuthDisabled = useSetEmployeeAuthDisabled()
+    const setPassword = useSetEmployeePassword()
+    const softRemove = useSoftRemoveEmployee()
+    const saveWeeklyWorkingHours = useSaveEmployeeWeeklyWorkingHours()
+    const saveDayException = useSaveEmployeeDayException()
+    const deleteDayException = useDeleteEmployeeDayException()
+    const bookablePreview = useListBookableEmployees(true)
+    const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null)
+    const employeeHours = useEmployeeWorkingHours(selectedEmployeeId, selectedEmployeeId !== null)
+    const employeeExceptions = useEmployeeDayExceptions(
+      selectedEmployeeId,
+      selectedEmployeeId !== null,
+    )
+    const errorText = (error: unknown): string | null =>
+      error instanceof Error ? error.message : error ? String(error) : null
+
+    const employeeIds = new Set(employeesQuery.data?.map((emp) => emp.id) ?? [])
+    const linkableAdmins =
+      staffOverview.data?.staff.filter((member) => !employeeIds.has(member.uid)) ?? []
+
+    return (
+      <AdminEmployeesPage
+        employees={employeesQuery.data}
+        isLoading={employeesQuery.isLoading}
+        isError={employeesQuery.isError}
+        linkableAdmins={linkableAdmins}
+        services={services.data}
+        servicesLoading={services.isLoading}
+        isPrimaryAdmin={isPrimaryAdmin}
+        selectedEmployeeId={selectedEmployeeId}
+        onSelectEmployee={setSelectedEmployeeId}
+        onBackClick={() => {
+          void navigate({ to: '/admin/settings' })
+        }}
+        onCreateEmployeeAccount={async (input) => {
+          await createAccount.mutateAsync(input)
+        }}
+        onLinkAdminProfile={async (input) => {
+          await linkProfile.mutateAsync(input)
+        }}
+        onSaveProfile={async (input) => {
+          await updateProfile.mutateAsync(input)
+        }}
+        onSetBookable={async (employeeUid, active) => {
+          await setBookable.mutateAsync({ employeeUid, active })
+        }}
+        onSetAuthDisabled={async (employeeUid, disabled) => {
+          await setAuthDisabled.mutateAsync({ employeeUid, disabled })
+        }}
+        onSetPassword={async (employeeUid, password) => {
+          await setPassword.mutateAsync({ employeeUid, password })
+        }}
+        onSoftRemove={async (employeeUid) => {
+          await softRemove.mutateAsync({ employeeUid })
+        }}
+        employeeWeekly={employeeHours.data}
+        employeeWeeklyLoading={employeeHours.isLoading}
+        employeeWeeklyError={employeeHours.isError}
+        weeklyHoursSave={{
+          saving: saveWeeklyWorkingHours.isPending,
+          saved: saveWeeklyWorkingHours.isSuccess,
+          error: errorText(saveWeeklyWorkingHours.error),
+        }}
+        onSaveWeeklyHours={(draft) => {
+          if (!selectedEmployeeId) return
+          saveWeeklyWorkingHours.mutate({ employeeUid: selectedEmployeeId, draft })
+        }}
+        employeeDayExceptions={employeeExceptions.data}
+        employeeDayExceptionsLoading={employeeExceptions.isLoading}
+        employeeDayExceptionsError={employeeExceptions.isError}
+        onSaveDayException={async (input) => {
+          await saveDayException.mutateAsync(input)
+        }}
+        onDeleteDayException={async (input) => {
+          await deleteDayException.mutateAsync(input)
+        }}
+        bookablePreview={bookablePreview.data}
+        bookablePreviewLoading={bookablePreview.isLoading}
+        bookablePreviewError={bookablePreview.isError}
+        bookableBusy={setBookable.isPending}
+        authBusy={setAuthDisabled.isPending}
+        profileBusy={updateProfile.isPending}
+        createBusy={createAccount.isPending}
+        linkBusy={linkProfile.isPending}
+        removeBusy={softRemove.isPending}
+        passwordBusy={setPassword.isPending}
+        dayExceptionBusy={saveDayException.isPending || deleteDayException.isPending}
       />
     )
   },

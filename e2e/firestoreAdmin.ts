@@ -199,6 +199,43 @@ export async function findFutureReservationOfService(
   }
 }
 
+const WEEKDAYS = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+] as const
+
+/** Mirror salon opening hours onto an employee (matches seed `openingHours` docs). */
+export async function copySalonOpeningHoursToEmployee(
+  employeeUid: string,
+  salonId = 'pilot',
+): Promise<void> {
+  const salonRef = salonDoc(salonId)
+  for (const weekday of WEEKDAYS) {
+    const snap = await salonRef.collection('openingHours').doc(weekday).get()
+    const intervals = Array.isArray(snap.data()?.intervals) ? snap.data()?.intervals : []
+    await salonRef
+      .collection('employees')
+      .doc(employeeUid)
+      .collection('workingHours')
+      .doc(weekday)
+      .set({ intervals })
+  }
+}
+
+export async function getEmployeeUidByEmail(
+  email: string,
+  salonId = 'pilot',
+): Promise<string | null> {
+  const snap = await salonDoc(salonId).collection('employees').where('email', '==', email).get()
+  if (snap.empty) return null
+  return snap.docs[0]?.id ?? null
+}
+
 export async function getReservation(
   reservationId: string,
   salonId = 'pilot',

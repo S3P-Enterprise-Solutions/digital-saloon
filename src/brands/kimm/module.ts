@@ -15,6 +15,8 @@ export const kimmModule: BrandModule = {
   theme,
   brandColors,
   profile: kimmProfile,
-  features: {},
+  features: {
+    employeeManagement: false,
+  },
   shell: kimmShell,
 }
