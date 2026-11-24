@@ -3,6 +3,7 @@ import { Outlet, createRootRoute, useNavigate, useRouterState } from '@tanstack/
 
 import { useAuth } from '../auth/AuthProvider'
 import { AppShell, type AdminNavItem } from '../components/AppShell'
+import { usePageViewLogger } from '../hooks/usePageViewLogger'
 import { useSignOut } from '../hooks/useSignOut'
 import { useSalon } from '../hooks/useSalon'
 
@@ -12,6 +13,7 @@ const settingsPaths = [
   '/admin/opening-hours',
   '/admin/holidays',
   '/admin/homepage',
+  '/admin/activity-logs',
 ]
 
 function activeAdminNavOf(pathname: string): AdminNavItem | null {
@@ -28,6 +30,7 @@ const RootRoute: React.FunctionComponent = () => {
   const salon = useSalon()
 
   const pathname = useRouterState({ select: (state) => state.location.pathname })
+  usePageViewLogger(pathname)
 
   return (
     <AppShell

@@ -8,6 +8,7 @@ import { notifyCustomerCancelled, notifyCustomerRescheduled } from './customerNo
 import { findReservationByManagementToken, toPublicReservationView } from './findByToken'
 import { lockIdForStart } from './reservationWrite'
 import { syncReservationToGoogleCalendar } from '../googleCalendar/sync'
+import { recordActivityLog } from '../logging/activityLog'
 import { loadSalonContext } from './salonContext'
 
 function requireToken(data: Record<string, unknown>): string {
@@ -28,6 +29,13 @@ export const manageReservation = onCall({ region: functionsRegion }, async (requ
   if (!doc) {
     throw new HttpsError('not-found', 'Reservation not found or token invalid.')
   }
+  await recordActivityLog({
+    request,
+    action: 'reservation_viewed',
+    source: 'server',
+    path: '/manage',
+    details: { reservationId: doc.id },
+  })
   return { reservation: toPublicReservationView(doc) }
 })
 
@@ -70,6 +78,15 @@ export const cancelReservation = onCall({ region: functionsRegion }, async (requ
   })
 
   await syncReservationToGoogleCalendar(doc.id, db, salonId)
+  await recordActivityLog({
+    request,
+    action: 'reservation_cancelled',
+    source: 'server',
+    path: '/manage',
+    details: { reservationId: doc.id },
+    db,
+    salonId,
+  })
   const salon = await loadSalonContext(db, salonId)
   await notifyCustomerCancelled({
     reservationId: doc.id,
@@ -228,6 +245,15 @@ export const rescheduleReservation = onCall({ region: functionsRegion }, async (
   }
 
   await syncReservationToGoogleCalendar(doc.id, db, salonId)
+  await recordActivityLog({
+    request,
+    action: 'reservation_rescheduled',
+    source: 'server',
+    path: '/manage',
+    details: { reservationId: doc.id, newStartAt: newStartAt.toISOString() },
+    db,
+    salonId,
+  })
   const after = await doc.ref.get()
   const afterData = after.data() ?? {}
   await notifyCustomerRescheduled({

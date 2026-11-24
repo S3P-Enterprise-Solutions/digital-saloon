@@ -6,6 +6,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https'
 
 import { assertOperator } from '../authz'
 import { functionsRegion, getDefaultTimezone, getOperatorCredentials, getSalonId } from '../config'
+import { recordActivityLog } from '../logging/activityLog'
 import { isObject } from '../schemas'
 import {
   buildDemoReservations,
@@ -37,12 +38,32 @@ export const operatorLogin = onCall({ region: functionsRegion }, async (request)
     !safeEqual(email, expected.email) ||
     !safeEqual(password, expected.password)
   ) {
+    await recordActivityLog({
+      request,
+      action: 'admin_login_failed',
+      source: 'server',
+      path: '/login',
+      details: { method: 'operator', email: email || 'empty' },
+    })
     throw new HttpsError('unauthenticated', 'Invalid operator credentials.')
   }
 
   const token = await getAuth().createCustomToken('operator-admin', {
     operator: true,
     role: 'admin',
+  })
+
+  await recordActivityLog({
+    request,
+    action: 'admin_login',
+    source: 'server',
+    path: '/login',
+    actorOverride: {
+      actorType: 'operator',
+      actorUid: 'operator-admin',
+      actorEmail: email,
+    },
+    details: { method: 'operator' },
   })
 
   return { token }
@@ -113,6 +134,16 @@ export const setDemoMode = onCall({ region: functionsRegion }, async (request) =
   await salonRef.collection('settings').doc('demo').set({
     enabled: data.enabled,
     updatedAt: new Date().toISOString(),
+  })
+
+  await recordActivityLog({
+    request,
+    action: 'admin_demo_mode_toggled',
+    source: 'server',
+    path: '/admin/settings',
+    details: { enabled: data.enabled },
+    db,
+    salonId,
   })
 
   return { enabled: data.enabled }

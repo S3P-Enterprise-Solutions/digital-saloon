@@ -2,6 +2,7 @@ import { createRouter } from '@tanstack/react-router'
 
 import { getActiveBrandModule } from './brands/active'
 import {
+  adminActivityLogsRoute,
   adminCalendarRoute,
   adminHolidaysRoute,
   adminHomepageRoute,
@@ -52,6 +53,7 @@ export const router = createRouter({
       adminHolidaysRoute,
       adminSettingsRoute,
       adminHomepageRoute,
+      adminActivityLogsRoute,
     ]),
   ]),
 })
