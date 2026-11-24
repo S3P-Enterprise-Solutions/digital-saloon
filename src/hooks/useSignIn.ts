@@ -6,6 +6,7 @@ import {
   type UserCredential,
 } from 'firebase/auth'
 
+import { logClientActivity } from '../data/activityLogApi'
 import { callOperatorLogin } from '../data/adminAccessApi'
 import { firebaseAuth } from '../firebase'
 
@@ -20,7 +21,13 @@ export function useSignIn(): UseMutationResult<UserCredential, Error, SignInInpu
   return useMutation({
     mutationFn: async ({ email, password }) => {
       try {
-        return await signInWithEmailAndPassword(firebaseAuth, email, password)
+        const credential = await signInWithEmailAndPassword(firebaseAuth, email, password)
+        void logClientActivity({
+          action: 'admin_login',
+          path: '/login',
+          details: { method: 'password' },
+        })
+        return credential
       } catch (originalError: unknown) {
         if (
           originalError instanceof FirebaseError &&

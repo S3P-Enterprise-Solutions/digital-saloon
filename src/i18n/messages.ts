@@ -42,6 +42,8 @@ export type Messages = {
   'privacy.emailBody': string
   'privacy.hostingTitle': string
   'privacy.hostingBody': string
+  'privacy.logsTitle': string
+  'privacy.logsBody': string
   'privacy.storageTitle': string
   'privacy.storageBody': string
   'privacy.fontsTitle': string
@@ -459,6 +461,47 @@ export type Messages = {
   'admin.employeeSelectLabel': string
   'admin.googleCalendarForEmployee': string
   'admin.googleCalendarSalonWide': string
+  'admin.activityLogsLinkTitle': string
+  'admin.activityLogsLinkHint': string
+  'admin.activityLogsTitle': string
+  'admin.activityLogsHint': string
+  'admin.activityLogsRefresh': string
+  'admin.activityLogsSearchPlaceholder': string
+  'admin.activityLogsFilterAll': string
+  'admin.activityLogsFilterPageViews': string
+  'admin.activityLogsFilterBookings': string
+  'admin.activityLogsFilterAuth': string
+  'admin.activityLogsFilterAdmin': string
+  'admin.activityLogsLoading': string
+  'admin.activityLogsError': string
+  'admin.activityLogsEmpty': string
+  'admin.activityLogsColTime': string
+  'admin.activityLogsColAction': string
+  'admin.activityLogsColPath': string
+  'admin.activityLogsColIp': string
+  'admin.activityLogsColBrowser': string
+  'admin.activityLogsColActor': string
+  'admin.activityLogsActorAnonymous': string
+  'admin.activityLogsActorUser': string
+  'admin.activityLogsActorOperator': string
+  'admin.activityLogsActorAdmin': string
+  'admin.activityLogsSkippedWarning': string
+  'admin.activityLogsAction.page_view': string
+  'admin.activityLogsAction.reservation_created': string
+  'admin.activityLogsAction.reservation_viewed': string
+  'admin.activityLogsAction.reservation_cancelled': string
+  'admin.activityLogsAction.reservation_rescheduled': string
+  'admin.activityLogsAction.admin_login': string
+  'admin.activityLogsAction.admin_login_failed': string
+  'admin.activityLogsAction.admin_logout': string
+  'admin.activityLogsAction.admin_reservation_created': string
+  'admin.activityLogsAction.admin_reservation_confirmed': string
+  'admin.activityLogsAction.admin_reservation_declined': string
+  'admin.activityLogsAction.admin_reservation_cancelled': string
+  'admin.activityLogsAction.admin_reservation_updated': string
+  'admin.activityLogsAction.admin_reservation_completed': string
+  'admin.activityLogsAction.admin_demo_mode_toggled': string
+  'admin.activityLogsAction.admin_staff_created': string
 }
 
 export type MessageKey = keyof Messages
@@ -512,6 +555,9 @@ export const de: Messages = {
   'privacy.hostingTitle': 'Hosting und Datenbank',
   'privacy.hostingBody':
     'Diese Website und die Buchungsdaten werden bei Google Firebase (Google Ireland Limited, Gordon House, Barrow Street, Dublin 4, Irland) betrieben. Beim Aufruf der Seite werden technisch notwendige Daten wie IP-Adresse, Zeitpunkt und Browsertyp verarbeitet, um die Website sicher und stabil auszuliefern (Art. 6 Abs. 1 lit. f DSGVO).\n\nEine Übermittlung an Google LLC in den USA kann nicht ausgeschlossen werden. Sie ist durch das EU-US Data Privacy Framework sowie durch EU-Standardvertragsklauseln abgesichert.',
+  'privacy.logsTitle': 'Zugriffs- und Aktivitätsprotokolle',
+  'privacy.logsBody':
+    'Beim Öffnen der Website sowie bei Aktionen wie Seitenaufrufen, Online-Buchungen, Terminänderungen und Team-Anmeldungen protokollieren wir Ihre IP-Adresse, Browser-Informationen (User-Agent), den Zeitpunkt, die aufgerufene Seite sowie die ausgeführte Aktion. Diese Protokolle dienen der technischen Sicherheit, der Missbrauchs- und Fehleranalyse sowie der Nachvollziehbarkeit von Buchungsvorgängen (Art. 6 Abs. 1 lit. f DSGVO).',
   'privacy.storageTitle': 'Speicherung in Ihrem Browser',
   'privacy.storageBody':
     'Wir setzen keine Tracking- oder Werbe-Cookies und keine Analyse-Tools ein. Im lokalen Speicher Ihres Browsers merken wir uns nur Ihre Sprachwahl und die Links zu Ihren gebuchten Terminen, damit Sie diese unter „Meine Termine“ wiederfinden. Diese Daten verlassen Ihr Gerät nicht und lassen sich jederzeit über die Browsereinstellungen löschen.',
@@ -966,6 +1012,50 @@ export const de: Messages = {
   'admin.employeeSelectLabel': 'Kalender',
   'admin.googleCalendarForEmployee': 'Google Kalender für',
   'admin.googleCalendarSalonWide': 'Salon-Kalender (Standard)',
+  'admin.activityLogsLinkTitle': 'Aktivitätsprotokoll',
+  'admin.activityLogsLinkHint':
+    'Seitenaufrufe, IP-Adressen, Browser, Buchungen und Admin-Logins einsehen',
+  'admin.activityLogsTitle': 'Aktivitätsprotokoll',
+  'admin.activityLogsHint':
+    'Zeigt die letzten 200 protokollierten Website-Zugriffe, Buchungen und Team-Aktionen mit IP-Adresse und Browser.',
+  'admin.activityLogsRefresh': 'Aktualisieren',
+  'admin.activityLogsSearchPlaceholder': 'Nach IP, Browser, Pfad, E-Mail oder Buchungs-ID filtern…',
+  'admin.activityLogsFilterAll': 'Alle',
+  'admin.activityLogsFilterPageViews': 'Seitenaufrufe',
+  'admin.activityLogsFilterBookings': 'Buchungen',
+  'admin.activityLogsFilterAuth': 'Logins',
+  'admin.activityLogsFilterAdmin': 'Admin-Aktionen',
+  'admin.activityLogsLoading': 'Aktivitätsprotokoll wird geladen…',
+  'admin.activityLogsError': 'Das Aktivitätsprotokoll konnte nicht geladen werden.',
+  'admin.activityLogsEmpty': 'Keine passenden Einträge vorhanden.',
+  'admin.activityLogsColTime': 'Zeitpunkt',
+  'admin.activityLogsColAction': 'Aktion',
+  'admin.activityLogsColPath': 'Seite / Details',
+  'admin.activityLogsColIp': 'IP-Adresse',
+  'admin.activityLogsColBrowser': 'Browser',
+  'admin.activityLogsColActor': 'Benutzer',
+  'admin.activityLogsActorAnonymous': 'Besucher',
+  'admin.activityLogsActorUser': 'Angemeldet (kein Admin)',
+  'admin.activityLogsActorOperator': 'Operator',
+  'admin.activityLogsActorAdmin': 'Admin',
+  'admin.activityLogsSkippedWarning':
+    '{count} Protokolleinträge konnten aufgrund eines abweichenden Formats nicht angezeigt werden.',
+  'admin.activityLogsAction.page_view': 'Seite geöffnet',
+  'admin.activityLogsAction.reservation_created': 'Termin gebucht',
+  'admin.activityLogsAction.reservation_viewed': 'Termin angesehen',
+  'admin.activityLogsAction.reservation_cancelled': 'Termin storniert (Kunde)',
+  'admin.activityLogsAction.reservation_rescheduled': 'Termin verschoben (Kunde)',
+  'admin.activityLogsAction.admin_login': 'Admin-Login',
+  'admin.activityLogsAction.admin_login_failed': 'Login fehlgeschlagen',
+  'admin.activityLogsAction.admin_logout': 'Admin-Logout',
+  'admin.activityLogsAction.admin_reservation_created': 'Termin angelegt (Admin)',
+  'admin.activityLogsAction.admin_reservation_confirmed': 'Termin bestätigt',
+  'admin.activityLogsAction.admin_reservation_declined': 'Termin abgelehnt',
+  'admin.activityLogsAction.admin_reservation_cancelled': 'Termin storniert (Admin)',
+  'admin.activityLogsAction.admin_reservation_updated': 'Termin bearbeitet',
+  'admin.activityLogsAction.admin_reservation_completed': 'Termin abgeschlossen',
+  'admin.activityLogsAction.admin_demo_mode_toggled': 'Demo-Modus geändert',
+  'admin.activityLogsAction.admin_staff_created': 'Team-Konto erstellt',
 }
 
 export const it: Messages = {
@@ -1017,6 +1107,9 @@ export const it: Messages = {
   'privacy.hostingTitle': 'Hosting e database',
   'privacy.hostingBody':
     'Questo sito e i dati delle prenotazioni sono gestiti tramite Google Firebase (Google Ireland Limited, Gordon House, Barrow Street, Dublino 4, Irlanda). All’apertura del sito vengono trattati dati tecnicamente necessari come indirizzo IP, data e ora e tipo di browser, per fornire il sito in modo sicuro e stabile (art. 6, par. 1, lett. f GDPR).\n\nNon si può escludere un trasferimento a Google LLC negli Stati Uniti. Esso è tutelato dal EU-US Data Privacy Framework e dalle clausole contrattuali standard dell’UE.',
+  'privacy.logsTitle': 'Registri di accesso e attività',
+  'privacy.logsBody':
+    'All’apertura del sito e in occasione di azioni come la navigazione delle pagine, le prenotazioni online, le modifiche agli appuntamenti e gli accessi del team, registriamo il suo indirizzo IP, le informazioni del browser (User-Agent), la data e l’ora, la pagina visitata e l’azione eseguita. Questi registri servono alla sicurezza tecnica, alla prevenzione di abusi, all’analisi di errori e alla tracciabilità delle prenotazioni (art. 6, par. 1, lett. f GDPR).',
   'privacy.storageTitle': 'Memorizzazione nel browser',
   'privacy.storageBody':
     'Non utilizziamo cookie di tracciamento o pubblicitari né strumenti di analisi. Nella memoria locale del browser salviamo solo la lingua scelta e i link ai suoi appuntamenti, così da ritrovarli in «I miei appuntamenti». Questi dati restano sul suo dispositivo e possono essere eliminati in qualsiasi momento dalle impostazioni del browser.',
@@ -1463,6 +1556,51 @@ export const it: Messages = {
   'admin.employeeSelectLabel': 'Calendario',
   'admin.googleCalendarForEmployee': 'Google Calendar per',
   'admin.googleCalendarSalonWide': 'Calendario del salone (Predefinito)',
+  'admin.activityLogsLinkTitle': 'Registro attività',
+  'admin.activityLogsLinkHint':
+    'Visualizza visite, indirizzi IP, browser, prenotazioni e accessi admin',
+  'admin.activityLogsTitle': 'Registro attività',
+  'admin.activityLogsHint':
+    'Mostra gli ultimi 200 accessi al sito, prenotazioni e azioni del team registrati con indirizzo IP e browser.',
+  'admin.activityLogsRefresh': 'Aggiorna',
+  'admin.activityLogsSearchPlaceholder':
+    'Filtra per IP, browser, pagina, e-mail o ID prenotazione…',
+  'admin.activityLogsFilterAll': 'Tutti',
+  'admin.activityLogsFilterPageViews': 'Visite',
+  'admin.activityLogsFilterBookings': 'Prenotazioni',
+  'admin.activityLogsFilterAuth': 'Accessi',
+  'admin.activityLogsFilterAdmin': 'Azioni admin',
+  'admin.activityLogsLoading': 'Caricamento del registro attività…',
+  'admin.activityLogsError': 'Impossibile caricare il registro attività.',
+  'admin.activityLogsEmpty': 'Nessuna voce corrispondente trovata.',
+  'admin.activityLogsColTime': 'Data e ora',
+  'admin.activityLogsColAction': 'Azione',
+  'admin.activityLogsColPath': 'Pagina / Dettagli',
+  'admin.activityLogsColIp': 'Indirizzo IP',
+  'admin.activityLogsColBrowser': 'Browser',
+  'admin.activityLogsColActor': 'Utente',
+  'admin.activityLogsActorAnonymous': 'Visitatore',
+  'admin.activityLogsActorUser': 'Utente (non admin)',
+  'admin.activityLogsActorOperator': 'Operatore',
+  'admin.activityLogsActorAdmin': 'Admin',
+  'admin.activityLogsSkippedWarning':
+    '{count} voci del registro non sono state visualizzate a causa di un formato non compatibile.',
+  'admin.activityLogsAction.page_view': 'Pagina aperta',
+  'admin.activityLogsAction.reservation_created': 'Appuntamento prenotato',
+  'admin.activityLogsAction.reservation_viewed': 'Appuntamento visualizzato',
+  'admin.activityLogsAction.reservation_cancelled': 'Appuntamento annullato (cliente)',
+  'admin.activityLogsAction.reservation_rescheduled': 'Appuntamento spostato (cliente)',
+  'admin.activityLogsAction.admin_login': 'Accesso admin',
+  'admin.activityLogsAction.admin_login_failed': 'Accesso non riuscito',
+  'admin.activityLogsAction.admin_logout': 'Disconnessione admin',
+  'admin.activityLogsAction.admin_reservation_created': 'Appuntamento creato (admin)',
+  'admin.activityLogsAction.admin_reservation_confirmed': 'Appuntamento confermato',
+  'admin.activityLogsAction.admin_reservation_declined': 'Appuntamento rifiutato',
+  'admin.activityLogsAction.admin_reservation_cancelled': 'Appuntamento annullato (admin)',
+  'admin.activityLogsAction.admin_reservation_updated': 'Appuntamento modificato',
+  'admin.activityLogsAction.admin_reservation_completed': 'Appuntamento completato',
+  'admin.activityLogsAction.admin_demo_mode_toggled': 'Modalità demo modificata',
+  'admin.activityLogsAction.admin_staff_created': 'Account team creato',
 }
 
 export const catalogs: Record<'de' | 'it', Messages> = { de, it }

@@ -13,6 +13,7 @@ import { uploadHomepageImage } from '../data/homepageConfig'
 import { parseSelectedServiceIds, serializeServiceIds } from '../data/serviceSelection'
 import { reservationQueryRange, upcomingAbsences } from '../data/openingHoursForm'
 import { defaultWeekStartYmd, isoWeekNumber, planWeek, weekQueryRange } from '../data/weekPlanner'
+import { useActivityLogs } from '../hooks/useActivityLogs'
 import { useAdminOps } from '../hooks/useAdminOps'
 import { useAdminPendingReservations } from '../hooks/useAdminPendingReservations'
 import { useAdminReservation } from '../hooks/useAdminReservation'
@@ -41,6 +42,7 @@ import {
 } from '../hooks/useStaffOverview'
 import { useUserProfile } from '../hooks/useUserProfile'
 import { useLocale } from '../i18n'
+import { AdminActivityLogsPage } from '../pages/admin/AdminActivityLogsPage'
 import { AdminHomePage } from '../pages/admin/AdminHomePage'
 import { AdminHomepagePage } from '../pages/admin/AdminHomepagePage'
 import { AdminManualBookingPage } from '../pages/admin/AdminManualBookingPage'
@@ -876,6 +878,9 @@ export const adminSettingsRoute = createRoute({
         onOpeningHoursClick={() => {
           void navigate({ to: '/admin/opening-hours' })
         }}
+        onActivityLogsClick={() => {
+          void navigate({ to: '/admin/activity-logs' })
+        }}
         expireBusy={ops.processPending.isPending}
         expireMessage={
           ops.processPending.isSuccess && ops.processPending.data
@@ -920,6 +925,31 @@ export const adminHomepageRoute = createRoute({
         onUploadImage={uploadHomepageImage}
         onBackClick={() => {
           void navigate({ to: '/admin' })
+        }}
+      />
+    )
+  },
+})
+
+export const adminActivityLogsRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: '/activity-logs',
+  component: function AdminActivityLogsRoute() {
+    const navigate = useNavigate()
+    const logs = useActivityLogs(200)
+
+    return (
+      <AdminActivityLogsPage
+        logs={logs.data?.logs ?? []}
+        skippedCount={logs.data?.skippedCount ?? 0}
+        loading={logs.isLoading}
+        refreshing={logs.isFetching}
+        error={logs.isError}
+        onRefresh={() => {
+          void logs.refetch()
+        }}
+        onBackClick={() => {
+          void navigate({ to: '/admin/settings' })
         }}
       />
     )

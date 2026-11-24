@@ -191,3 +191,52 @@ export const employeeSchema = v.object({
   createdAt: v.string(),
 })
 export type Employee = v.InferOutput<typeof employeeSchema>
+
+export const activityActionSchema = v.picklist([
+  'page_view',
+  'reservation_created',
+  'reservation_viewed',
+  'reservation_cancelled',
+  'reservation_rescheduled',
+  'admin_login',
+  'admin_login_failed',
+  'admin_logout',
+  'admin_reservation_created',
+  'admin_reservation_confirmed',
+  'admin_reservation_declined',
+  'admin_reservation_cancelled',
+  'admin_reservation_updated',
+  'admin_reservation_completed',
+  'admin_demo_mode_toggled',
+  'admin_staff_created',
+] as const)
+export type ActivityAction = v.InferOutput<typeof activityActionSchema>
+
+export const activitySourceSchema = v.picklist(['client', 'server'] as const)
+export type ActivitySource = v.InferOutput<typeof activitySourceSchema>
+
+export const activityActorTypeSchema = v.picklist([
+  'anonymous',
+  'user',
+  'admin',
+  'operator',
+] as const)
+export type ActivityActorType = v.InferOutput<typeof activityActorTypeSchema>
+
+export const activityDetailValueSchema = v.nullable(v.union([v.string(), v.number(), v.boolean()]))
+
+export const activityLogSchema = v.object({
+  createdAt: v.string(),
+  action: activityActionSchema,
+  source: activitySourceSchema,
+  ip: v.string(),
+  userAgent: v.string(),
+  browser: v.string(),
+  path: v.nullable(v.string()),
+  sessionId: v.nullable(v.string()),
+  actorType: activityActorTypeSchema,
+  actorUid: v.nullable(v.string()),
+  actorEmail: v.nullable(v.string()),
+  details: v.nullable(v.record(v.string(), activityDetailValueSchema)),
+})
+export type ActivityLog = v.InferOutput<typeof activityLogSchema>

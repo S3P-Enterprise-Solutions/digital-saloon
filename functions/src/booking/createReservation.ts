@@ -5,6 +5,7 @@ import { functionsRegion, getSalonId } from '../config'
 import { isObject } from '../schemas'
 import { createReservationTransactional } from './reservationWrite'
 import { syncReservationToGoogleCalendar } from '../googleCalendar/sync'
+import { recordActivityLog } from '../logging/activityLog'
 import { sendBookingConfirmationEmail } from './sendBookingEmail'
 
 function requireString(value: unknown, field: string): string {
@@ -121,6 +122,18 @@ export const createReservation = onCall({ region: functionsRegion }, async (requ
 
   if (!result.reused) {
     await syncReservationToGoogleCalendar(result.reservationId)
+    await recordActivityLog({
+      request,
+      action: 'reservation_created',
+      source: 'server',
+      path: '/book',
+      details: {
+        reservationId: result.reservationId,
+        status: result.status,
+        serviceCount: serviceIds.length,
+        startAt: startAt.toISOString(),
+      },
+    })
   }
 
   if (!result.reused && result.managementToken && result.serviceName && result.durationMinutes) {
@@ -207,6 +220,18 @@ export const createManualReservation = onCall({ region: functionsRegion }, async
 
   if (!result.reused) {
     await syncReservationToGoogleCalendar(result.reservationId)
+    await recordActivityLog({
+      request,
+      action: 'admin_reservation_created',
+      source: 'server',
+      path: '/admin/manual',
+      details: {
+        reservationId: result.reservationId,
+        status: result.status,
+        serviceCount: serviceIds.length,
+        startAt: startAt.toISOString(),
+      },
+    })
   }
 
   return {

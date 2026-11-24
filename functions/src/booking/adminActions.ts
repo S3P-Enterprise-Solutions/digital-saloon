@@ -7,6 +7,7 @@ import { isObject } from '../schemas'
 import { notifyCustomerCancelled, notifyCustomerRescheduled } from './customerNotify'
 import { toPublicReservationView } from './findByToken'
 import { syncReservationToGoogleCalendar } from '../googleCalendar/sync'
+import { recordActivityLog } from '../logging/activityLog'
 import { lockIdForStart, updateReservationTransactional } from './reservationWrite'
 import { loadSalonContext } from './salonContext'
 
@@ -52,6 +53,13 @@ export const confirmReservation = onCall({ region: functionsRegion }, async (req
   })
 
   await syncReservationToGoogleCalendar(reservationId)
+  await recordActivityLog({
+    request,
+    action: 'admin_reservation_confirmed',
+    source: 'server',
+    path: '/admin',
+    details: { reservationId },
+  })
   const after = await ref.get()
   return { reservation: viewOf(after) }
 })
@@ -89,6 +97,13 @@ export const declineReservation = onCall({ region: functionsRegion }, async (req
   })
 
   await syncReservationToGoogleCalendar(reservationId)
+  await recordActivityLog({
+    request,
+    action: 'admin_reservation_declined',
+    source: 'server',
+    path: '/admin',
+    details: { reservationId },
+  })
   const after = await ref.get()
   return {
     reservation: viewOf(after),
@@ -127,6 +142,15 @@ export const adminCancelReservation = onCall({ region: functionsRegion }, async 
   })
 
   await syncReservationToGoogleCalendar(reservationId)
+  await recordActivityLog({
+    request,
+    action: 'admin_reservation_cancelled',
+    source: 'server',
+    path: '/admin',
+    details: { reservationId },
+    db,
+    salonId,
+  })
   const salon = await loadSalonContext(db, salonId)
   await notifyCustomerCancelled({
     reservationId,
@@ -148,6 +172,13 @@ export const completeReservation = onCall({ region: functionsRegion }, async (re
   const updatedAt = new Date().toISOString()
   await ref.update({ status: 'COMPLETED', updatedAt })
   await syncReservationToGoogleCalendar(reservationId)
+  await recordActivityLog({
+    request,
+    action: 'admin_reservation_completed',
+    source: 'server',
+    path: '/admin',
+    details: { reservationId },
+  })
   const after = await ref.get()
   return { reservation: viewOf(after) }
 })
@@ -241,6 +272,15 @@ export const adminUpdateReservation = onCall({ region: functionsRegion }, async 
   const afterData = after.data() ?? {}
   const salon = await loadSalonContext(db, salonId)
   await syncReservationToGoogleCalendar(reservationId)
+  await recordActivityLog({
+    request,
+    action: 'admin_reservation_updated',
+    source: 'server',
+    path: '/admin',
+    details: { reservationId, startAt: startAt.toISOString() },
+    db,
+    salonId,
+  })
   await notifyCustomerRescheduled({
     reservationId,
     before: beforeData,

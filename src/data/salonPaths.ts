@@ -47,3 +47,7 @@ export function blockedSlotsCollectionPath(salonId: string): string {
 export function employeesCollectionPath(salonId: string): string {
   return `salons/${salonId}/employees`
 }
+
+export function activityLogsCollectionPath(salonId: string): string {
+  return `salons/${salonId}/activityLogs`
+}
