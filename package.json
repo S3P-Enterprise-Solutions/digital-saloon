@@ -28,11 +28,11 @@
     "test:functions": "npm --prefix functions test",
     "test:e2e": "playwright test",
     "test:e2e:smoke": "playwright test --grep @smoke",
-    "test:e2e:employee": "playwright test e2e/employeeManagement.spec.ts",
+    "test:e2e:employee": "E2E_EMPLOYEE_ON=1 EMPLOYEE_MANAGEMENT_ENABLED=true VITE_EMPLOYEE_MANAGEMENT_ENABLED=true playwright test",
     "test:e2e:employee-off": "E2E_EMPLOYEE_OFF=1 EMPLOYEE_MANAGEMENT_ENABLED=false VITE_EMPLOYEE_MANAGEMENT_ENABLED=false playwright test",
     "test:e2e:install": "playwright install chromium",
     "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm build && pnpm test:functions",
-    "verify:e2e": "pnpm verify && pnpm test:e2e && pnpm test:e2e:employee-off",
+    "verify:e2e": "pnpm verify && pnpm test:e2e && pnpm test:e2e:employee",
     "deploy": "pnpm build && firebase deploy --only hosting",
     "dev:hairboutique": "node scripts/start-dev.mjs --brand=hairboutique"
   },

@@ -1,13 +1,9 @@
 import type { BookingCandidateEmployee } from './salonContext'
 
-export {
-  coversRequestedServices,
-  isBookingCandidateRecord,
-} from './salonContext'
+export { coversRequestedServices, isBookingCandidateRecord } from './salonContext'
 
 export type BookingEmployeeTarget =
-  | { ok: true; employeeIds: Array<string | null> }
-  | { ok: false; code: 'NOT_FOUND' }
+  { ok: true; employeeIds: Array<string | null> } | { ok: false; code: 'NOT_FOUND' }
 
 export function resolveEmployeeIdsToCheck(input: {
   featureEnabled: boolean

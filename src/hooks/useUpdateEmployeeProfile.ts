@@ -6,7 +6,11 @@ import {
 } from '../data/employeeAdminApi'
 import { queryKeyOf } from './queryKeys'
 
-export function useUpdateEmployeeProfile(): UseMutationResult<void, Error, UpdateEmployeeProfileInput> {
+export function useUpdateEmployeeProfile(): UseMutationResult<
+  void,
+  Error,
+  UpdateEmployeeProfileInput
+> {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: callUpdateEmployeeProfile,

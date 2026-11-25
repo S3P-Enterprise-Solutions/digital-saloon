@@ -47,6 +47,9 @@ jobs:
       - run: pnpm test:e2e
         env:
           CI: true
+      - run: pnpm test:e2e:employee
+        env:
+          CI: true
 
   deploy:
     needs: [app, e2e]

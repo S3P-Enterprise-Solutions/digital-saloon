@@ -82,9 +82,7 @@ async function resolveBookingTargets(
   | { ok: false; code: 'NOT_FOUND'; message: string }
 > {
   const featureEnabled = isEmployeeManagementEnabled()
-  const candidates = featureEnabled
-    ? await loadBookingCandidates(db, salonId, serviceIds)
-    : []
+  const candidates = featureEnabled ? await loadBookingCandidates(db, salonId, serviceIds) : []
   const targets = resolveEmployeeIdsToCheck({
     featureEnabled,
     candidates,
@@ -644,9 +642,7 @@ export async function updateReservationTransactional(
               settings: context.settings,
               now,
               enforceAdvanceRestrictions: input.enforceAdvanceRestrictions,
-              employeeEnvelope: candidateId
-                ? anyAssignEnvelopeCache.get(candidateId)
-                : undefined,
+              employeeEnvelope: candidateId ? anyAssignEnvelopeCache.get(candidateId) : undefined,
             })
           ) {
             chosenEmpId = candidateId

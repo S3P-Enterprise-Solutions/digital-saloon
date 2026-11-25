@@ -1,8 +1,5 @@
 import { intervalsOverlap } from './overlap'
-import {
-  intersectLocalIntervals,
-  resolveOpenIntervalsForDate,
-} from './openingIntervals'
+import { intersectLocalIntervals, resolveOpenIntervalsForDate } from './openingIntervals'
 import { addCalendarDays, calendarDateInTimeZone, parseHm, zonedLocalToUtc } from './timezone'
 import type {
   AvailableSlot,

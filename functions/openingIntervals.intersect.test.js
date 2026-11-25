@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import {
-  intersectLocalIntervals,
-  sanitizeTimeIntervals,
-} from './lib/domain/openingIntervals.js'
+import { intersectLocalIntervals, sanitizeTimeIntervals } from './lib/domain/openingIntervals.js'
 import { resolveOpenIntervalsForDate } from './lib/domain/openingIntervals.js'
 
 test('intersectLocalIntervals returns overlap', () => {

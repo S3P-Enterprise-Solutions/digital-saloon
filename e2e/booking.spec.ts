@@ -61,4 +61,35 @@ test.describe('customer booking @smoke', () => {
     await page.getByLabel(/Datenschutzhinweise/).check()
     await expect(page.getByRole('alert')).toHaveCount(0)
   })
+
+  test('selecting a timeslot does not add empty space below the footer', async ({ page }) => {
+    const spaceBelowFooter = async (): Promise<number> => {
+      const footer = page.locator('footer')
+      await expect(footer).toBeVisible()
+      const box = await footer.boundingBox()
+      if (!box) throw new Error('footer bounding box not available')
+      const { scrollHeight, scrollY } = await page.evaluate(() => ({
+        scrollHeight: document.documentElement.scrollHeight,
+        scrollY: window.scrollY,
+      }))
+      return scrollHeight - (box.y + box.height + scrollY)
+    }
+
+    await page.goto('/book')
+    const serviceSection = page.locator('[aria-labelledby="step-service"]')
+    await serviceSection.locator('button').first().click()
+    await page.getByRole('button', { name: 'Weiter zur Terminauswahl' }).click()
+    await expect(page.getByRole('heading', { name: /Datum wählen/ })).toBeVisible({
+      timeout: 15_000,
+    })
+
+    const gapBeforeSlot = await spaceBelowFooter()
+
+    await selectServiceDateAndTime(page, { skipServiceStep: true })
+
+    const gapAfterSlot = await spaceBelowFooter()
+
+    expect(gapBeforeSlot).toBeLessThanOrEqual(16)
+    expect(Math.abs(gapAfterSlot - gapBeforeSlot)).toBeLessThanOrEqual(8)
+  })
 })
