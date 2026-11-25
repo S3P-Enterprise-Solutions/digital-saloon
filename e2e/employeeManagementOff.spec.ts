@@ -1,7 +1,6 @@
 /**
- * Feature-off suite: run with
- * `pnpm test:e2e:employee-off`
- * so start-e2e does not force employee management on.
+ * Feature-off suite: runs as part of default `pnpm test:e2e` (since `scripts/start-e2e.mjs`
+ * defaults employee management to OFF) and standalone via `pnpm test:e2e:employee-off`.
  *
  * Guards salons (kimm / hairboutique) where `features.employeeManagement` is false.
  */

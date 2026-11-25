@@ -30,6 +30,9 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      // Default `pnpm test:e2e` includes `employeeManagementOff.spec.ts` because
+      // `scripts/start-e2e.mjs` defaults `EMPLOYEE_MANAGEMENT_ENABLED` to `false`.
+      // Keep this in sync if `scripts/start-e2e.mjs` ever changes its default.
       ...(employeeOn
         ? { testMatch: /employeeManagement\.spec\.ts/ }
         : employeeOff

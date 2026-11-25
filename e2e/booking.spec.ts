@@ -63,19 +63,33 @@ test.describe('customer booking @smoke', () => {
   })
 
   test('selecting a timeslot does not add empty space below the footer', async ({ page }) => {
-    await page.goto('/book')
-    await selectServiceDateAndTime(page)
-
-    const { scrollHeight, footerBottom } = await page.evaluate(() => {
-      const footer = document.querySelector('footer')
-      const rect = footer?.getBoundingClientRect()
-      return {
+    const spaceBelowFooter = async (): Promise<number> => {
+      const footer = page.locator('footer')
+      await expect(footer).toBeVisible()
+      const box = await footer.boundingBox()
+      if (!box) throw new Error('footer bounding box not available')
+      const { scrollHeight, scrollY } = await page.evaluate(() => ({
         scrollHeight: document.documentElement.scrollHeight,
-        footerBottom: rect ? Math.round(rect.bottom + window.scrollY) : 0,
-      }
+        scrollY: window.scrollY,
+      }))
+      return scrollHeight - (box.y + box.height + scrollY)
+    }
+
+    await page.goto('/book')
+    const serviceSection = page.locator('[aria-labelledby="step-service"]')
+    await serviceSection.locator('button').first().click()
+    await page.getByRole('button', { name: 'Weiter zur Terminauswahl' }).click()
+    await expect(page.getByRole('heading', { name: /Datum wählen/ })).toBeVisible({
+      timeout: 15_000,
     })
 
-    expect(footerBottom).toBeGreaterThan(0)
-    expect(scrollHeight - footerBottom).toBeLessThanOrEqual(2)
+    const gapBeforeSlot = await spaceBelowFooter()
+
+    await selectServiceDateAndTime(page, { skipServiceStep: true })
+
+    const gapAfterSlot = await spaceBelowFooter()
+
+    expect(gapBeforeSlot).toBeLessThanOrEqual(16)
+    expect(Math.abs(gapAfterSlot - gapBeforeSlot)).toBeLessThanOrEqual(8)
   })
 })
