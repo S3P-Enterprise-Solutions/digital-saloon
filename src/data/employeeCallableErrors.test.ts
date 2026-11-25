@@ -28,9 +28,9 @@ describe('employeeCallableErrors', () => {
   it('maps lastName, email, password, and already-exists', () => {
     expect(employeeCallableFailureOf(new Error('lastName is required.'))).toBe('lastNameInvalid')
     expect(employeeCallableFailureOf(new Error('Valid email is required.'))).toBe('emailInvalid')
-    expect(
-      employeeCallableFailureOf(new Error('Password must be at least 8 characters.')),
-    ).toBe('passwordTooShort')
+    expect(employeeCallableFailureOf(new Error('Password must be at least 8 characters.'))).toBe(
+      'passwordTooShort',
+    )
     expect(
       employeeCallableFailureOf({
         code: 'functions/already-exists',

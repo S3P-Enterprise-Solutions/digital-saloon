@@ -65,7 +65,12 @@ describe('schemas', () => {
 
     expect(() => v.parse(employeeSchema, { ...base, authDisabled: false })).toThrow()
     expect(() =>
-      v.parse(employeeSchema, { ...base, active: true, authDisabled: false, serviceIds: undefined }),
+      v.parse(employeeSchema, {
+        ...base,
+        active: true,
+        authDisabled: false,
+        serviceIds: undefined,
+      }),
     ).toThrow()
     expect(() => v.parse(employeeSchema, { ...base, active: true })).toThrow()
   })

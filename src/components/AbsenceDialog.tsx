@@ -297,10 +297,9 @@ export const AbsenceDialog: React.FunctionComponent<AbsenceDialogProps> = ({
             {remaining && draft.kind !== 'custom' ? (
               <Alert severity="info">
                 {remaining.length > 0
-                  ? t(
-                      forEmployee ? 'admin.employeesDayExceptionOpenThen' : 'hours.openThen',
-                      { hours: formatHours(remaining) },
-                    )
+                  ? t(forEmployee ? 'admin.employeesDayExceptionOpenThen' : 'hours.openThen', {
+                      hours: formatHours(remaining),
+                    })
                   : t(forEmployee ? 'admin.employeesDayExceptionAbsentThen' : 'hours.closedThen')}
               </Alert>
             ) : null}

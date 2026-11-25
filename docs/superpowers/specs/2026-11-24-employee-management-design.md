@@ -121,10 +121,10 @@ Keep employee document id = Firebase Auth uid.
 
 **Bookability vs login (separate):**
 
-| Control | Field / system | Who may change | Effect |
-| --- | --- | --- | --- |
-| Bookable | `employees.active` | Any admin | Included/excluded from booking capacity |
-| Can log in | Firebase Auth `disabled` (+ mirrored `authDisabled`) | Primary admin only | Sign-in allowed or blocked |
+| Control    | Field / system                                       | Who may change     | Effect                                  |
+| ---------- | ---------------------------------------------------- | ------------------ | --------------------------------------- |
+| Bookable   | `employees.active`                                   | Any admin          | Included/excluded from booking capacity |
+| Can log in | Firebase Auth `disabled` (+ mirrored `authDisabled`) | Primary admin only | Sign-in allowed or blocked              |
 
 - Disabling Auth **must** also set `active = false` and `authDisabled = true`.
 - Setting `active = true` **must never** clear Auth `disabled` or `authDisabled`. While `authDisabled === true`, `setEmployeeBookable(true)` is **rejected** so the doc stays consistent (Auth-disabled ⇒ not marked bookable).
@@ -170,13 +170,13 @@ Reservations unchanged: keep optional `employeeId` / `employeeName` snapshot. So
 
 ### Roles & permissions
 
-| Actor | Can |
-| --- | --- |
-| Primary admin | Full salon admin; create new employee accounts; set employee passwords; enable/disable Auth; soft-remove; link admin profiles; profile/hours/services/`active`; all bookings |
-| Other admin | Full salon admin except Auth enable/disable, soft-remove, create-account, and set-password; may link admin employee profiles if useful; may edit profile, hours, services, and **bookability** (`active`) |
-| Employee | Own employee area only: view assigned services; edit own working hours / day exceptions; **view** own bookings (read-only in v1 — no confirm/cancel/reschedule); change own password |
-| Employee must not | Access `/admin/**`; manage other employees; change own `role` / salon association; assign services to self; enable/disable the feature; act on bookings |
-| Operator | Existing operator powers; primary-admin bootstrap unchanged |
+| Actor             | Can                                                                                                                                                                                                       |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Primary admin     | Full salon admin; create new employee accounts; set employee passwords; enable/disable Auth; soft-remove; link admin profiles; profile/hours/services/`active`; all bookings                              |
+| Other admin       | Full salon admin except Auth enable/disable, soft-remove, create-account, and set-password; may link admin employee profiles if useful; may edit profile, hours, services, and **bookability** (`active`) |
+| Employee          | Own employee area only: view assigned services; edit own working hours / day exceptions; **view** own bookings (read-only in v1 — no confirm/cancel/reschedule); change own password                      |
+| Employee must not | Access `/admin/**`; manage other employees; change own `role` / salon association; assign services to self; enable/disable the feature; act on bookings                                                   |
+| Operator          | Existing operator powers; primary-admin bootstrap unchanged                                                                                                                                               |
 
 **Call (authz split):** Create account / set password / Auth enable-disable / soft-remove = **primary-admin-only**. Bookability (`active`), profile, hours, services, and link-admin-profile = any `admin`.
 
@@ -281,4 +281,3 @@ Salon holidays close everyone. Employee day exceptions further close or reshape 
 3. Employee hours + availability intersection + tests.
 4. Gate/fix booking wizard; verify any-assign + locks.
 5. Employee area; E2E; full verify.
-

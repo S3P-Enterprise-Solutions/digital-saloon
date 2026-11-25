@@ -9,7 +9,10 @@ import { isObject } from '../schemas'
 
 export function assertEmployeeManagementFeatureEnabled(): void {
   if (!isEmployeeManagementEnabled()) {
-    throw new HttpsError('failed-precondition', 'Employee management is not enabled for this salon.')
+    throw new HttpsError(
+      'failed-precondition',
+      'Employee management is not enabled for this salon.',
+    )
   }
 }
 
@@ -262,7 +265,10 @@ export const createEmployeeAccount = onCall({ region: functionsRegion }, async (
   try {
     await db.runTransaction(async (tx) => {
       tx.set(db.collection('users').doc(uid), userDoc)
-      tx.set(db.collection('salons').doc(getSalonId()).collection('employees').doc(uid), employeeDoc)
+      tx.set(
+        db.collection('salons').doc(getSalonId()).collection('employees').doc(uid),
+        employeeDoc,
+      )
     })
   } catch (error: unknown) {
     await getAuth()

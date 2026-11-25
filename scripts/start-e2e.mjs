@@ -40,10 +40,10 @@ async function main() {
   console.log('[e2e] Checking ports…')
   await ensurePortsAvailable(DEV_APP_PORTS, { force: forceFreePorts })
 
-  // Default ON so employeeManagement.spec.ts can run against kimm.
-  // Override with EMPLOYEE_MANAGEMENT_ENABLED=false (and matching Vite env) for Off suite.
+  // Default OFF to match the kimm brand module (standard + feature-off E2E suites).
+  // Set EMPLOYEE_MANAGEMENT_ENABLED=true (via `pnpm test:e2e:employee`) for employeeManagement.spec.ts.
   const employeeManagementEnabled =
-    process.env.EMPLOYEE_MANAGEMENT_ENABLED?.trim().toLowerCase() === 'false' ? 'false' : 'true'
+    process.env.EMPLOYEE_MANAGEMENT_ENABLED?.trim().toLowerCase() === 'true' ? 'true' : 'false'
 
   const e2eFunctionsEnv = {
     BRAND: 'kimm',
@@ -76,11 +76,11 @@ async function main() {
         VITE_USE_FIREBASE_EMULATORS: 'true',
         VITE_BRAND: 'kimm',
         VITE_SALON_ID: 'pilot',
-        // Force feature for employee E2E without enabling it on the kimm brand module.
-        // Set VITE_EMPLOYEE_MANAGEMENT_ENABLED=false for the feature-off suite.
+        // Opt-in for employee E2E without enabling it on the kimm brand module.
+        // Set VITE_EMPLOYEE_MANAGEMENT_ENABLED=true for the feature-on suite.
         VITE_EMPLOYEE_MANAGEMENT_ENABLED:
-          process.env.VITE_EMPLOYEE_MANAGEMENT_ENABLED?.trim().toLowerCase() === 'false'
-            ? 'false'
+          process.env.VITE_EMPLOYEE_MANAGEMENT_ENABLED?.trim().toLowerCase() === 'true'
+            ? 'true'
             : employeeManagementEnabled,
       },
       critical: true,

@@ -51,10 +51,7 @@ export function employeeCallableFailureOf(error: unknown): EmployeeCallableFailu
   if (message.includes('auth-disabled') || message.includes('cannot be bookable')) {
     return 'authDisabledBookable'
   }
-  if (
-    message.includes('password must be at least') ||
-    message.includes('password is required')
-  ) {
+  if (message.includes('password must be at least') || message.includes('password is required')) {
     return 'passwordTooShort'
   }
   if (message.includes('valid email') || message.includes('email is required')) {
@@ -73,9 +70,6 @@ export type EmployeeErrorTranslator = (
   key: `admin.employeesError.${EmployeeCallableFailure}`,
 ) => string
 
-export function translateEmployeeCallableError(
-  error: unknown,
-  t: EmployeeErrorTranslator,
-): string {
+export function translateEmployeeCallableError(error: unknown, t: EmployeeErrorTranslator): string {
   return t(`admin.employeesError.${employeeCallableFailureOf(error)}`)
 }

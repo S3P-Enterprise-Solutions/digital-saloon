@@ -39,22 +39,22 @@
 
 ## File map
 
-| Area | Responsibility |
-| --- | --- |
-| `src/brands/types.ts` + each `module.ts` | `features.employeeManagement?: boolean` |
-| `functions/src/config.ts` | `isEmployeeManagementEnabled()` brand map + env override |
-| `src/data/schemas.ts` | `employee` role; extended employee schema (`active`, `authDisabled`, …) |
-| `functions/src/authz.ts` | `assertEmployee`, self-or-admin helpers |
-| `functions/src/admin/users.ts` | `createEmployeeAccount` (new Auth + `employee` role) |
-| `functions/src/admin/employees.ts` | link-admin profile, bookability, Auth enable/disable, hours, projection, soft-remove |
-| `functions/src/domain/workingHours.ts` (or under openingIntervals) | validate intervals; intersect |
-| `firestore.rules` | no public employee reads; admin/self access; no client role writes |
-| `functions/src/booking/salonContext.ts`, `reservationWrite.ts` | flag-aware candidates incl. `authDisabled` |
-| `src/data/employees.ts`, `employeeAdminApi.ts`, hooks | admin list + public projection client |
-| `src/pages/admin/AdminEmployeesPage.tsx` (+ route) | create vs link-admin workflows |
-| `src/pages/employee/*` (+ routes) | employee area |
-| `src/pages/BookingWizardPage.tsx`, `src/routes/book.tsx` | gated picker from projection |
-| `e2e/*` | admin + booking + employee flows |
+| Area                                                               | Responsibility                                                                       |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `src/brands/types.ts` + each `module.ts`                           | `features.employeeManagement?: boolean`                                              |
+| `functions/src/config.ts`                                          | `isEmployeeManagementEnabled()` brand map + env override                             |
+| `src/data/schemas.ts`                                              | `employee` role; extended employee schema (`active`, `authDisabled`, …)              |
+| `functions/src/authz.ts`                                           | `assertEmployee`, self-or-admin helpers                                              |
+| `functions/src/admin/users.ts`                                     | `createEmployeeAccount` (new Auth + `employee` role)                                 |
+| `functions/src/admin/employees.ts`                                 | link-admin profile, bookability, Auth enable/disable, hours, projection, soft-remove |
+| `functions/src/domain/workingHours.ts` (or under openingIntervals) | validate intervals; intersect                                                        |
+| `firestore.rules`                                                  | no public employee reads; admin/self access; no client role writes                   |
+| `functions/src/booking/salonContext.ts`, `reservationWrite.ts`     | flag-aware candidates incl. `authDisabled`                                           |
+| `src/data/employees.ts`, `employeeAdminApi.ts`, hooks              | admin list + public projection client                                                |
+| `src/pages/admin/AdminEmployeesPage.tsx` (+ route)                 | create vs link-admin workflows                                                       |
+| `src/pages/employee/*` (+ routes)                                  | employee area                                                                        |
+| `src/pages/BookingWizardPage.tsx`, `src/routes/book.tsx`           | gated picker from projection                                                         |
+| `e2e/*`                                                            | admin + booking + employee flows                                                     |
 
 ---
 
@@ -120,17 +120,17 @@
 
 - All require flag on unless noted.
 
-| Callable | Authz | Behaviour |
-| --- | --- | --- |
-| `createEmployeeProfileForAdmin` | `assertAdmin` | Input `{ adminUid, firstName, lastName }` (email from user doc). Target must be `users.role === 'admin'`. Creates `employees/{adminUid}` only — **no** Auth create, **no** role change. Fail if doc exists. `active: true`, `authDisabled: false` (or read current Auth disabled state into mirror). |
-| `updateEmployeeProfile` | `assertAdmin` | Names, photo, `serviceIds`; not `active` / Auth / role |
-| `setEmployeeBookable` | `assertAdmin` | `{ employeeUid, active }` — Firestore `active` only; never touches Auth. Reject `active: true` when `authDisabled === true` (`failed-precondition`). Setting `active: false` always allowed. |
-| `setEmployeeAuthDisabled` | `assertPrimaryAdmin` | `{ employeeUid, disabled: true }` → Auth disabled + `authDisabled: true` + `active: false`. `{ disabled: false }` → Auth enabled + `authDisabled: false`; **do not** set `active: true`. |
-| `setEmployeePassword` | `assertPrimaryAdmin` | Auth password only |
-| `softRemoveEmployee` | `assertPrimaryAdmin` | Same as Auth-disable + `removedAt` |
-| `saveEmployeeWorkingHours` | admin or self | Validate intervals then write weekday doc |
-| `saveEmployeeDayException` / delete | admin or self | Validate intervals when not `closed` |
-| `listBookableEmployees` | public (or signed-out ok) | Returns `{ id, displayName, serviceIds }[]` where `active && !authDisabled && !removedAt`; flag off → `[]` |
+| Callable                            | Authz                     | Behaviour                                                                                                                                                                                                                                                                                            |
+| ----------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createEmployeeProfileForAdmin`     | `assertAdmin`             | Input `{ adminUid, firstName, lastName }` (email from user doc). Target must be `users.role === 'admin'`. Creates `employees/{adminUid}` only — **no** Auth create, **no** role change. Fail if doc exists. `active: true`, `authDisabled: false` (or read current Auth disabled state into mirror). |
+| `updateEmployeeProfile`             | `assertAdmin`             | Names, photo, `serviceIds`; not `active` / Auth / role                                                                                                                                                                                                                                               |
+| `setEmployeeBookable`               | `assertAdmin`             | `{ employeeUid, active }` — Firestore `active` only; never touches Auth. Reject `active: true` when `authDisabled === true` (`failed-precondition`). Setting `active: false` always allowed.                                                                                                         |
+| `setEmployeeAuthDisabled`           | `assertPrimaryAdmin`      | `{ employeeUid, disabled: true }` → Auth disabled + `authDisabled: true` + `active: false`. `{ disabled: false }` → Auth enabled + `authDisabled: false`; **do not** set `active: true`.                                                                                                             |
+| `setEmployeePassword`               | `assertPrimaryAdmin`      | Auth password only                                                                                                                                                                                                                                                                                   |
+| `softRemoveEmployee`                | `assertPrimaryAdmin`      | Same as Auth-disable + `removedAt`                                                                                                                                                                                                                                                                   |
+| `saveEmployeeWorkingHours`          | admin or self             | Validate intervals then write weekday doc                                                                                                                                                                                                                                                            |
+| `saveEmployeeDayException` / delete | admin or self             | Validate intervals when not `closed`                                                                                                                                                                                                                                                                 |
+| `listBookableEmployees`             | public (or signed-out ok) | Returns `{ id, displayName, serviceIds }[]` where `active && !authDisabled && !removedAt`; flag off → `[]`                                                                                                                                                                                           |
 
 - Domain: `assertValidIntervals(intervals: {start,end}[])` — each `start < end` (HH:mm); sort and ensure no overlap; throw/`HttpsError` invalid-argument.
 - Rules: `match /employees/{id} { allow read: if isAdmin() || (isSignedIn() && request.auth.uid == employeeId); allow write: if false }` (writes via callables/Admin SDK). Working hours: employee self or admin. **No `allow read: if true`.**
@@ -274,21 +274,21 @@
 
 ## Self-review (plan vs spec)
 
-| Spec requirement | Task |
-| --- | --- |
-| Brand flag, no runtime toggle | 1 |
-| Backend enforces flag | 2, 3, 7 |
-| New `employee` role; no admin migration | 2, 9 |
-| Link existing admin profile (no Auth/role change) | 3, 4, 9 |
-| Bookability vs Auth separation | 3, 4, 7, 9 |
-| Public projection callable; no public full docs | 3, 7, 9 |
-| Working-hours validation; missing → no slots | 3, 6, 7 |
-| Auth-disabled excluded from booking | 3, 7, 9 |
-| Hours ∩ salon envelope; no fallback | 7 |
-| Service assignment + overview | 4, 5 |
-| Booking picker / any / locks reuse | 7 |
-| Employee area restricted | 8 |
-| Tests + no regression flag off | 7, 9 |
+| Spec requirement                                  | Task       |
+| ------------------------------------------------- | ---------- |
+| Brand flag, no runtime toggle                     | 1          |
+| Backend enforces flag                             | 2, 3, 7    |
+| New `employee` role; no admin migration           | 2, 9       |
+| Link existing admin profile (no Auth/role change) | 3, 4, 9    |
+| Bookability vs Auth separation                    | 3, 4, 7, 9 |
+| Public projection callable; no public full docs   | 3, 7, 9    |
+| Working-hours validation; missing → no slots      | 3, 6, 7    |
+| Auth-disabled excluded from booking               | 3, 7, 9    |
+| Hours ∩ salon envelope; no fallback               | 7          |
+| Service assignment + overview                     | 4, 5       |
+| Booking picker / any / locks reuse                | 7          |
+| Employee area restricted                          | 8          |
+| Tests + no regression flag off                    | 7, 9       |
 
 ---
 

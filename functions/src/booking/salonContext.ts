@@ -107,8 +107,7 @@ export type BookingCandidateEmployee = ActiveEmployee & {
 
 export function isBookingCandidateRecord(data: Record<string, unknown>): boolean {
   const removedAt = data.removedAt
-  const removed =
-    removedAt !== undefined && removedAt !== null && String(removedAt).length > 0
+  const removed = removedAt !== undefined && removedAt !== null && String(removedAt).length > 0
   return data.active === true && data.authDisabled !== true && !removed
 }
 
