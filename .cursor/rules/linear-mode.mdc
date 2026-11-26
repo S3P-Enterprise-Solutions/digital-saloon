@@ -1,0 +1,40 @@
+---
+description: Choose ticketed vs direct Linear workflow before implementing
+alwaysApply: true
+---
+
+# Linear mode selection
+
+Before planning or implementing non-trivial work, choose a mode and state it in one sentence.
+
+Workspace: **Philipp – Personal Projects** · Team: **Personal Projects (`PP`)**  
+Projects: Meine Gemeinde · Trading Platform · Botify · Bau Contact · Digital Salon  
+Overview: Linear doc *Agent-Driven Workflow (Source of Truth)*. Use `linear` / `orca linear` CLI.
+
+## ticketed
+
+Use when **any** apply: multi-step/multi-file, unclear scope, dependencies, may span sessions, non-obvious acceptance/tests, or cross-cutting work.
+
+Then:
+
+1. Check Linear for duplicates in the correct project.
+2. Create/update detailed tickets (title, context, outcome, requirements, tech notes, acceptance, tests, deps).
+3. Set priorities, labels, milestones, dependencies.
+4. Implement only from **Todo** with dependencies **Done**.
+5. Set **In Progress** → update Linear as you go → **In Review** / **Done** only when acceptance + tests pass.
+
+Do **not** implement during planning.
+
+## direct
+
+Use when **all** apply: single clear change, one sitting, outcome already stated, no dependency graph, easy to verify.
+
+Then: implement → if useful, log a short Linear comment/ticket so progress is not only in chat.
+
+## Defaults
+
+- If unsure → **ticketed**
+- User says "ticket this" / "just do it" → obey
+- Never keep multi-hour or multi-session work only in conversation
+- Linear is source of truth for status; chat is not
+- Keep work in the correct Linear project
