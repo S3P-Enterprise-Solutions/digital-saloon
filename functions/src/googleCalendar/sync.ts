@@ -3,6 +3,8 @@
 import { getFirestore, type Firestore } from 'firebase-admin/firestore'
 
 import { getDefaultTimezone, getSalonId } from '../config'
+import { extractCustomerNameFromCalendarTitle } from '../customers/matching'
+import { seedCustomersFromCalendarEvents } from '../customers/store'
 import {
   createChannelToken,
   deleteEvent,
@@ -22,10 +24,21 @@ import {
   blockedSlotDocIdForGoogleEvent,
   googleEventIdForReservation,
   googleEventToBlockedSlot,
+  hasBlockedSlotSyncedFieldsChanged,
   reservationToGoogleEvent,
+  resolveEffectivePrivacy,
+  type SyncedBlockedSlotComparable,
 } from './mapping'
 
 const FIRESTORE_BATCH_LIMIT = 450
+const MS_PER_DAY = 24 * 60 * 60_000
+
+/** Lightweight rolling sync window: 7 days past through 6 months (180 days) future. */
+export const ROLLING_SYNC_PAST_DAYS = 7
+export const ROLLING_SYNC_FUTURE_DAYS = 180
+
+/** One-time historical import window: 2 years (730 days) into the past. */
+export const HISTORY_IMPORT_PAST_DAYS = 730
 
 async function commitInChunks(
   db: Firestore,
@@ -49,6 +62,8 @@ export type GoogleCalendarIntegrationDoc = {
   lastSyncAt: string | null
   lastSyncStatus: 'OK' | 'ERROR' | null
   lastSyncError: string | null
+  lastHistoryImportAt?: string | null
+  lastHistoryImportCount?: number | null
   watchChannelId: string | null
   watchResourceId: string | null
   watchChannelToken: string | null
@@ -172,6 +187,206 @@ export async function deleteAllSyncedBlockedSlots(
   )
 }
 
+async function syncWindowEventsToBlockedSlots(input: {
+  db: Firestore
+  salonId: string
+  employeeId: string | null
+  accessToken: string
+  calendarId: string
+  timeZone: string
+  timeMinIso: string
+  timeMaxIso: string
+  nowIso: string
+  fetchFn: FetchLike
+}): Promise<{ syncedCount: number; writtenCount: number; skippedUnchanged: number }> {
+  const {
+    db,
+    salonId,
+    employeeId: emp,
+    accessToken,
+    calendarId,
+    timeZone,
+    timeMinIso,
+    timeMaxIso,
+    nowIso,
+    fetchFn,
+  } = input
+
+  const events = await listEventsInWindow(
+    accessToken,
+    calendarId,
+    { timeMinIso, timeMaxIso },
+    fetchFn,
+  )
+
+  const blocksCol = db.collection('salons').doc(salonId).collection('blockedSlots')
+  // Query only docs whose startAt falls inside this sync window (single-field index)
+  // rather than loading the entire multi-year calendar mirror on every rolling sync.
+  const existingSnap = await blocksCol
+    .where('startAt', '>=', timeMinIso)
+    .where('startAt', '<=', timeMaxIso)
+    .get()
+  const existingForEmployee = existingSnap.docs.filter((doc) => {
+    const data = doc.data()
+    if (data.source !== 'GOOGLE_CALENDAR') return false
+    const docEmp = normalizeEmployeeId(typeof data.employeeId === 'string' ? data.employeeId : null)
+    return docEmp === emp
+  })
+  const existingById = new Map<string, FirebaseFirestore.DocumentSnapshot>(
+    existingForEmployee.map((doc) => [doc.id, doc]),
+  )
+
+  const mappedEvents = events
+    .map((event) => {
+      const mapped = googleEventToBlockedSlot(event, timeZone)
+      if (!mapped) return null
+      return { event, mapped, docId: blockedSlotDocIdForGoogleEvent(event.id, emp) }
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+
+  // Batch-fetch any incoming events that moved into this window from outside so
+  // `createdAt` and `privateOverride` are preserved.
+  const missingDocIds = mappedEvents
+    .map((entry) => entry.docId)
+    .filter((docId) => !existingById.has(docId))
+  if (missingDocIds.length > 0) {
+    const fetched = await db.getAll(...missingDocIds.map((id) => blocksCol.doc(id)))
+    for (const snap of fetched) {
+      if (snap.exists) {
+        existingById.set(snap.id, snap)
+      }
+    }
+  }
+
+  const activeIds = new Set<string>()
+  let syncedCount = 0
+  let writtenCount = 0
+  let skippedUnchanged = 0
+
+  const ops: Array<(batch: FirebaseFirestore.WriteBatch) => void> = []
+  for (const { event, mapped, docId } of mappedEvents) {
+    activeIds.add(docId)
+    const prev = existingById.get(docId)
+    const prevData = prev?.data() as SyncedBlockedSlotComparable | undefined
+    const privateOverride =
+      typeof prevData?.privateOverride === 'boolean' ? prevData.privateOverride : null
+    const isPrivate = resolveEffectivePrivacy(mapped.visibility, privateOverride)
+    const customerNameKey =
+      !isPrivate && !mapped.allDay
+        ? (extractCustomerNameFromCalendarTitle(mapped.title)?.orderInsensitiveKey ?? null)
+        : null
+
+    const nextComparable: Required<SyncedBlockedSlotComparable> = {
+      title: mapped.title,
+      reason: mapped.title,
+      description: mapped.description,
+      startAt: mapped.startAt,
+      endAt: mapped.endAt,
+      allDay: mapped.allDay,
+      visibility: mapped.visibility,
+      isPrivate,
+      privateOverride,
+      customerNameKey,
+    }
+
+    syncedCount += 1
+    if (!hasBlockedSlotSyncedFieldsChanged(prevData, nextComparable)) {
+      skippedUnchanged += 1
+      continue
+    }
+
+    writtenCount += 1
+    ops.push((batch) =>
+      batch.set(blocksCol.doc(docId), {
+        source: 'GOOGLE_CALENDAR',
+        employeeId: emp,
+        googleEventId: event.id,
+        title: mapped.title,
+        reason: mapped.title,
+        description: mapped.description,
+        startAt: mapped.startAt,
+        endAt: mapped.endAt,
+        allDay: mapped.allDay,
+        visibility: mapped.visibility,
+        isPrivate,
+        privateOverride,
+        customerNameKey,
+        createdAt: prev ? String(prev.data()?.createdAt ?? nowIso) : nowIso,
+        updatedAt: nowIso,
+      }),
+    )
+  }
+
+  // Only prune missing docs that were loaded from this sync window.
+  for (const doc of existingForEmployee) {
+    if (!activeIds.has(doc.id)) {
+      ops.push((batch) => batch.delete(doc.ref))
+    }
+  }
+
+  await commitInChunks(db, ops)
+  return { syncedCount, writtenCount, skippedUnchanged }
+}
+
+export async function importGoogleCalendarHistory(
+  db: Firestore = getFirestore(),
+  salonId: string = getSalonId(),
+  employeeId?: string | null,
+  fetchFn: FetchLike = fetch,
+  now: Date = new Date(),
+): Promise<{
+  importedEvents: number
+  writtenEvents: number
+  skippedUnchanged: number
+  seededCustomers: number
+}> {
+  const emp = normalizeEmployeeId(employeeId)
+  const ref = integrationDocRef(db, salonId, emp)
+  const auth = await getValidAccessToken(db, salonId, emp, fetchFn)
+  if (!auth || !auth.integration.calendarId) {
+    return { importedEvents: 0, writtenEvents: 0, skippedUnchanged: 0, seededCustomers: 0 }
+  }
+
+  const timeZone = await loadSalonTimezone(db, salonId)
+  const nowIso = now.toISOString()
+  const timeMinIso = new Date(now.getTime() - HISTORY_IMPORT_PAST_DAYS * MS_PER_DAY).toISOString()
+  const timeMaxIso = nowIso
+
+  const result = await syncWindowEventsToBlockedSlots({
+    db,
+    salonId,
+    employeeId: emp,
+    accessToken: auth.accessToken,
+    calendarId: auth.integration.calendarId,
+    timeZone,
+    timeMinIso,
+    timeMaxIso,
+    nowIso,
+    fetchFn,
+  })
+
+  let seededCustomers = 0
+  try {
+    const seeded = await seedCustomersFromCalendarEvents(db, salonId, emp)
+    seededCustomers = seeded.createdCount
+  } catch (err) {
+    console.warn('[customers] seedCustomersFromCalendarEvents failed after history import', err)
+  }
+
+  await ref.update({
+    lastHistoryImportAt: nowIso,
+    lastHistoryImportCount: result.syncedCount,
+    updatedAt: nowIso,
+  })
+
+  return {
+    importedEvents: result.syncedCount,
+    writtenEvents: result.writtenCount,
+    skippedUnchanged: result.skippedUnchanged,
+    seededCustomers,
+  }
+}
+
 export async function syncGoogleCalendarForSalon(
   db: Firestore = getFirestore(),
   salonId: string = getSalonId(),
@@ -187,9 +402,10 @@ export async function syncGoogleCalendarForSalon(
 
   const calendarId = auth.integration.calendarId
   const now = new Date()
+  const nowIso = now.toISOString()
   const timeZone = await loadSalonTimezone(db, salonId)
-  const timeMinIso = new Date(now.getTime() - 7 * 24 * 60 * 60_000).toISOString()
-  const timeMaxIso = new Date(now.getTime() + 120 * 24 * 60 * 60_000).toISOString()
+  const timeMinIso = new Date(now.getTime() - ROLLING_SYNC_PAST_DAYS * MS_PER_DAY).toISOString()
+  const timeMaxIso = new Date(now.getTime() + ROLLING_SYNC_FUTURE_DAYS * MS_PER_DAY).toISOString()
 
   try {
     // Refresh accessRole (and summary) from calendarList so permission upgrades or legacy
@@ -208,57 +424,18 @@ export async function syncGoogleCalendarForSalon(
       // Best-effort refresh; fall back to stored accessRole (null is treated as read-only).
     }
 
-    const events = await listEventsInWindow(
-      auth.accessToken,
+    const { syncedCount: syncedBlockedSlots } = await syncWindowEventsToBlockedSlots({
+      db,
+      salonId,
+      employeeId: emp,
+      accessToken: auth.accessToken,
       calendarId,
-      { timeMinIso, timeMaxIso },
+      timeZone,
+      timeMinIso,
+      timeMaxIso,
+      nowIso,
       fetchFn,
-    )
-
-    const blocksCol = db.collection('salons').doc(salonId).collection('blockedSlots')
-    const existingSnap = await blocksCol.where('source', '==', 'GOOGLE_CALENDAR').get()
-    const existingForEmployee = existingSnap.docs.filter((doc) => {
-      const docEmp = normalizeEmployeeId(
-        typeof doc.data().employeeId === 'string' ? doc.data().employeeId : null,
-      )
-      return docEmp === emp
     })
-    const existingById = new Map(existingForEmployee.map((doc) => [doc.id, doc]))
-
-    const activeIds = new Set<string>()
-    const nowIso = now.toISOString()
-    let syncedBlockedSlots = 0
-
-    const ops: Array<(batch: FirebaseFirestore.WriteBatch) => void> = []
-    for (const event of events) {
-      const mapped = googleEventToBlockedSlot(event, timeZone)
-      if (!mapped) continue
-      const docId = blockedSlotDocIdForGoogleEvent(event.id, emp)
-      activeIds.add(docId)
-      const prev = existingById.get(docId)
-      ops.push((batch) =>
-        batch.set(blocksCol.doc(docId), {
-          source: 'GOOGLE_CALENDAR',
-          employeeId: emp,
-          googleEventId: event.id,
-          title: mapped.title,
-          reason: mapped.title,
-          startAt: mapped.startAt,
-          endAt: mapped.endAt,
-          allDay: mapped.allDay,
-          createdAt: prev ? String(prev.data().createdAt ?? nowIso) : nowIso,
-          updatedAt: nowIso,
-        }),
-      )
-      syncedBlockedSlots += 1
-    }
-
-    for (const [docId, doc] of existingById.entries()) {
-      if (!activeIds.has(docId)) {
-        ops.push((batch) => batch.delete(doc.ref))
-      }
-    }
-    await commitInChunks(db, ops)
 
     // Backfill upcoming active reservations for this employee (or salon-wide when emp is null).
     // Treat missing/unknown accessRole conservatively as read-only until verified as writer/owner.

@@ -1,36 +1,48 @@
-﻿import { collection, getDocs, orderBy, query, where } from 'firebase/firestore'
+﻿import { httpsCallable } from 'firebase/functions'
 import * as v from 'valibot'
 
-import { firestore } from '../firebase'
-import { getSalonId } from './salonConfig'
-import { blockedSlotsCollectionPath } from './salonPaths'
+import { firebaseFunctions } from '../firebase'
 import { blockedSlotSchema, type BlockedSlot } from './schemas'
 
 export type BlockedSlotWithId = BlockedSlot & { id: string }
 
+const blockedSlotWithIdSchema = v.intersect([
+  v.object({ id: v.pipe(v.string(), v.minLength(1)) }),
+  blockedSlotSchema,
+])
+
+const listBlockedSlotsResponseSchema = v.object({
+  slots: v.array(blockedSlotWithIdSchema),
+})
+
+const setBlockedSlotPrivacyResponseSchema = v.object({
+  slot: blockedSlotWithIdSchema,
+})
+
 /**
- * Fetches blocked slots overlapping `[rangeStartIso, rangeEndIso)`.
- * Queries `startAt < rangeEndIso` and filters `endAt > rangeStartIso` client-side
- * so multi-day / all-day events starting before the week still appear.
+ * Fetches blocked slots / synced Google Calendar appointments overlapping `[rangeStartIso, rangeEndIso)`
+ * via Cloud Function so private employee events are redacted server-side.
  */
 export async function fetchBlockedSlotsInRange(
   rangeStartIso: string,
   rangeEndIso: string,
 ): Promise<BlockedSlotWithId[]> {
-  const salonId = getSalonId()
-  const snap = await getDocs(
-    query(
-      collection(firestore, blockedSlotsCollectionPath(salonId)),
-      where('startAt', '<', rangeEndIso),
-      orderBy('startAt', 'asc'),
-    ),
+  const call = httpsCallable<{ rangeStartIso: string; rangeEndIso: string }, unknown>(
+    firebaseFunctions,
+    'listBlockedSlotsInRange',
   )
+  const result = await call({ rangeStartIso, rangeEndIso })
+  return v.parse(listBlockedSlotsResponseSchema, result.data).slots
+}
 
-  const rangeStartMs = new Date(rangeStartIso).getTime()
-  return snap.docs
-    .map((docSnap) => ({
-      id: docSnap.id,
-      ...v.parse(blockedSlotSchema, docSnap.data()),
-    }))
-    .filter((slot) => new Date(slot.endAt).getTime() > rangeStartMs)
+export async function setBlockedSlotPrivacy(input: {
+  slotId: string
+  isPrivate: boolean
+}): Promise<BlockedSlotWithId> {
+  const call = httpsCallable<{ slotId: string; isPrivate: boolean }, unknown>(
+    firebaseFunctions,
+    'setBlockedSlotPrivacy',
+  )
+  const result = await call(input)
+  return v.parse(setBlockedSlotPrivacyResponseSchema, result.data).slot
 }

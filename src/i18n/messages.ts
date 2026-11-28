@@ -1,6 +1,7 @@
 export type Messages = {
   'nav.staffCalendar': string
   'nav.staffPending': string
+  'nav.staffCustomers': string
   'nav.staffSettings': string
   'nav.staffLogin': string
   'nav.signedInAs': string
@@ -564,6 +565,51 @@ export type Messages = {
   'admin.googleCalendarSyncNow': string
   'admin.googleCalendarSyncResult': string
   'admin.googleCalendarLastSync': string
+  'admin.googleCalendarImportHistory': string
+  'admin.googleCalendarImportingHistory': string
+  'admin.googleCalendarHistoryResult': string
+  'admin.googleCalendarLastHistoryImport': string
+  'admin.googleCalendarPrivateLabel': string
+  'admin.googleCalendarPrivateToggle': string
+  'admin.googleCalendarPrivateHint': string
+  'admin.googleCalendarEventDialogTitle': string
+  'admin.googleCalendarEventDescription': string
+  'admin.googleCalendarEventDuration': string
+  'admin.googleCalendarClose': string
+  'admin.reservationsFilterAll': string
+  'admin.reservationsFilterSalonFlow': string
+  'admin.reservationsFilterGoogle': string
+  'admin.customersTitle': string
+  'admin.customersSubtitle': string
+  'admin.customersAdd': string
+  'admin.customersSearchPlaceholder': string
+  'admin.customersError': string
+  'admin.customersEmpty': string
+  'admin.customersContact': string
+  'admin.customersVisits': string
+  'admin.customersLastVisit': string
+  'admin.customersHasNotes': string
+  'admin.customersProfileTitle': string
+  'admin.customersStylistNotes': string
+  'admin.customersStylistNotesHint': string
+  'admin.customersBack': string
+  'admin.customersBookNew': string
+  'admin.customersHistoryTitle': string
+  'admin.customersHistoryEmpty': string
+  'admin.customersDuration': string
+  'admin.customersArchive': string
+  'admin.customersArchiveConfirmTitle': string
+  'admin.customersArchiveConfirmBody': string
+  'admin.customerContextTitle': string
+  'admin.customerContextLoading': string
+  'admin.customerContextOpenProfile': string
+  'admin.customerContextRecommendation': string
+  'admin.customerContextApplyDuration': string
+  'admin.customerContextSimilarBadge': string
+  'admin.customerAutocompleteLabel': string
+  'admin.customerAutocompletePlaceholder': string
+  'admin.durationOverrideLabel': string
+  'admin.durationOverrideReset': string
   'admin.googleCalendarDisconnect': string
   'book.employeeTitle': string
   'book.employeeAny': string
@@ -619,6 +665,7 @@ export type MessageKey = keyof Messages
 export const de: Messages = {
   'nav.staffCalendar': 'Kalender',
   'nav.staffPending': 'Anfragen',
+  'nav.staffCustomers': 'Kunden',
   'nav.staffSettings': 'Einstellungen',
   'nav.staffLogin': 'Login für das Team',
   'nav.signedInAs': 'Angemeldet als {email}',
@@ -1243,6 +1290,56 @@ export const de: Messages = {
   'admin.googleCalendarSyncResult':
     'Synchronisiert: {blocked} externe Termine, {pushed} Buchungen übertragen.',
   'admin.googleCalendarLastSync': 'Letzte Synchronisierung: {time}',
+  'admin.googleCalendarImportHistory': 'Verlauf importieren (2 Jahre)',
+  'admin.googleCalendarImportingHistory': 'Verlauf wird importiert…',
+  'admin.googleCalendarHistoryResult':
+    'Verlauf importiert: {imported} Termine ({written} aktualisiert).',
+  'admin.googleCalendarLastHistoryImport': 'Letzter Verlaufs-Import: {time} ({count} Termine)',
+  'admin.googleCalendarPrivateLabel': 'Privat',
+  'admin.googleCalendarPrivateToggle': 'Als privat markieren',
+  'admin.googleCalendarPrivateHint':
+    'Private Termine sind für andere Mitarbeiter*innen und Admins nur als „Privat“ sichtbar.',
+  'admin.googleCalendarEventDialogTitle': 'Google Kalender-Termin',
+  'admin.googleCalendarEventDescription': 'Notizen',
+  'admin.googleCalendarEventDuration': 'Dauer: {duration}',
+  'admin.googleCalendarClose': 'Schließen',
+  'admin.reservationsFilterAll': 'Alle',
+  'admin.reservationsFilterSalonFlow': 'SalonFlow',
+  'admin.reservationsFilterGoogle': 'Google Kalender',
+  'admin.customersTitle': 'Kundenstamm',
+  'admin.customersSubtitle':
+    'Stammkunden verwalten, Farbformeln & Notizen pflegen und vergangene Termine einsehen.',
+  'admin.customersAdd': 'Neuer Kunde',
+  'admin.customersSearchPlaceholder': 'Nach Name, E-Mail, Telefon oder Notiz suchen…',
+  'admin.customersError': 'Kundendaten konnten nicht geladen werden.',
+  'admin.customersEmpty': 'Noch keine Kunden gefunden.',
+  'admin.customersContact': 'Kontakt',
+  'admin.customersVisits': 'Besuche',
+  'admin.customersLastVisit': 'Letzter Besuch',
+  'admin.customersHasNotes': 'Notiz',
+  'admin.customersProfileTitle': 'Kundendaten & Stylist-Notizen',
+  'admin.customersStylistNotes': 'Stylist-Notizen (Farbformel, Haarlänge, Vorlieben)',
+  'admin.customersStylistNotesHint': 'z. B. Balayage 8.1 + 6%, dickes Haar, benötigt ca. 3h 15m',
+  'admin.customersBack': 'Zurück zum Kundenstamm',
+  'admin.customersBookNew': 'Neuen Termin buchen',
+  'admin.customersHistoryTitle': 'Terminverlauf ({count})',
+  'admin.customersHistoryEmpty': 'Keine vergangenen oder geplanten Termine gefunden.',
+  'admin.customersDuration': 'Dauer',
+  'admin.customersArchive': 'Archivieren',
+  'admin.customersArchiveConfirmTitle': 'Kunde archivieren?',
+  'admin.customersArchiveConfirmBody':
+    'Der Eintrag wird aus dem Kundenstamm ausgeblendet. Bestehende Buchungen bleiben erhalten.',
+  'admin.customerContextTitle': 'Kundenhistorie & Notizen',
+  'admin.customerContextLoading': 'Kundenhistorie wird gesucht…',
+  'admin.customerContextOpenProfile': 'Kundenprofil öffnen',
+  'admin.customerContextRecommendation':
+    'Letzter ähnlicher Termin ({service}, {date}) dauerte {duration}.',
+  'admin.customerContextApplyDuration': '{duration} übernehmen',
+  'admin.customerContextSimilarBadge': 'Ähnliche Leistung',
+  'admin.customerAutocompleteLabel': 'Stammkunde suchen (optional)',
+  'admin.customerAutocompletePlaceholder': 'Name, E-Mail oder Telefon eingeben…',
+  'admin.durationOverrideLabel': 'Individuelle Dauer (Min.)',
+  'admin.durationOverrideReset': 'Standard ({duration})',
   'admin.googleCalendarDisconnect': 'Trennen',
   'book.employeeTitle': 'Stylist*in auswählen',
   'book.employeeAny': 'Beliebig (nächster freier Termin)',
@@ -1299,6 +1396,7 @@ export const de: Messages = {
 export const it: Messages = {
   'nav.staffCalendar': 'Calendario',
   'nav.staffPending': 'Richieste',
+  'nav.staffCustomers': 'Clienti',
   'nav.staffSettings': 'Impostazioni',
   'nav.staffLogin': 'Accesso per il team',
   'nav.signedInAs': 'Accesso come {email}',
@@ -1911,6 +2009,57 @@ export const it: Messages = {
   'admin.googleCalendarSyncResult':
     'Sincronizzato: {blocked} eventi esterni, {pushed} prenotazioni inviate.',
   'admin.googleCalendarLastSync': 'Ultima sincronizzazione: {time}',
+  'admin.googleCalendarImportHistory': 'Importa storico (2 anni)',
+  'admin.googleCalendarImportingHistory': 'Importazione storico…',
+  'admin.googleCalendarHistoryResult':
+    'Storico importato: {imported} eventi ({written} aggiornati).',
+  'admin.googleCalendarLastHistoryImport': 'Ultimo import storico: {time} ({count} eventi)',
+  'admin.googleCalendarPrivateLabel': 'Privato',
+  'admin.googleCalendarPrivateToggle': 'Segna come privato',
+  'admin.googleCalendarPrivateHint':
+    'Gli eventi privati sono visibili agli altri collaboratori e agli admin solo come "Privato".',
+  'admin.googleCalendarEventDialogTitle': 'Appuntamento Google Calendar',
+  'admin.googleCalendarEventDescription': 'Note',
+  'admin.googleCalendarEventDuration': 'Durata: {duration}',
+  'admin.googleCalendarClose': 'Chiudi',
+  'admin.reservationsFilterAll': 'Tutti',
+  'admin.reservationsFilterSalonFlow': 'SalonFlow',
+  'admin.reservationsFilterGoogle': 'Google Calendar',
+  'admin.customersTitle': 'Clienti',
+  'admin.customersSubtitle':
+    'Gestisci i clienti abituali, annota formule colore e preferenze e consulta lo storico appuntamenti.',
+  'admin.customersAdd': 'Nuovo cliente',
+  'admin.customersSearchPlaceholder': 'Cerca per nome, e-mail, telefono o note…',
+  'admin.customersError': 'Impossibile caricare l’elenco clienti.',
+  'admin.customersEmpty': 'Nessun cliente trovato.',
+  'admin.customersContact': 'Contatto',
+  'admin.customersVisits': 'Visite',
+  'admin.customersLastVisit': 'Ultima visita',
+  'admin.customersHasNotes': 'Note',
+  'admin.customersProfileTitle': 'Dati cliente e note stilista',
+  'admin.customersStylistNotes': 'Note stilista (formula colore, lunghezza capelli, preferenze)',
+  'admin.customersStylistNotesHint':
+    'es. Balayage 8.1 + 6%, capelli folti, durata tipica ca. 3h 15m',
+  'admin.customersBack': 'Torna ai clienti',
+  'admin.customersBookNew': 'Prenota nuovo appuntamento',
+  'admin.customersHistoryTitle': 'Storico appuntamenti ({count})',
+  'admin.customersHistoryEmpty': 'Nessun appuntamento passato o futuro trovato.',
+  'admin.customersDuration': 'Durata',
+  'admin.customersArchive': 'Archivia',
+  'admin.customersArchiveConfirmTitle': 'Archiviare il cliente?',
+  'admin.customersArchiveConfirmBody':
+    'Il profilo verrà nascosto dall’elenco clienti. Le prenotazioni esistenti rimarranno invariate.',
+  'admin.customerContextTitle': 'Storico cliente e note',
+  'admin.customerContextLoading': 'Ricerca storico cliente…',
+  'admin.customerContextOpenProfile': 'Apri profilo cliente',
+  'admin.customerContextRecommendation':
+    'Ultimo appuntamento simile ({service}, {date}): durata {duration}.',
+  'admin.customerContextApplyDuration': 'Applica {duration}',
+  'admin.customerContextSimilarBadge': 'Servizio simile',
+  'admin.customerAutocompleteLabel': 'Cerca cliente abituale (opzionale)',
+  'admin.customerAutocompletePlaceholder': 'Inserisci nome, e-mail o telefono…',
+  'admin.durationOverrideLabel': 'Durata personalizzata (min)',
+  'admin.durationOverrideReset': 'Predefinita ({duration})',
   'admin.googleCalendarDisconnect': 'Scollega',
   'book.employeeTitle': 'Scegli stilista',
   'book.employeeAny': 'Qualsiasi (primo orario disponibile)',

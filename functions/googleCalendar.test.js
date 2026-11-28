@@ -18,16 +18,22 @@ import {
   blockedSlotDocIdForGoogleEvent,
   googleEventIdForReservation,
   googleEventToBlockedSlot,
+  hasBlockedSlotSyncedFieldsChanged,
+  isGoogleVisibilityPrivate,
+  redactBlockedSlotForViewer,
   reservationToGoogleEvent,
+  resolveEffectivePrivacy,
 } from './lib/googleCalendar/mapping.js'
 
 describe('googleCalendar mapping', () => {
-  it('converts a timed Google Calendar event into a blockedSlot', () => {
+  it('converts a timed Google Calendar event into a blockedSlot with description and visibility', () => {
     const slot = googleEventToBlockedSlot(
       {
         id: 'evt-123',
         status: 'confirmed',
         summary: 'Haircut Seminar',
+        description: '  Balayage formula 7.1 + 6%  ',
+        visibility: 'private',
         start: { dateTime: '2026-11-20T09:00:00+01:00' },
         end: { dateTime: '2026-11-20T11:30:00+01:00' },
       },
@@ -37,6 +43,9 @@ describe('googleCalendar mapping', () => {
       startAt: '2026-11-20T08:00:00.000Z',
       endAt: '2026-11-20T10:30:00.000Z',
       title: 'Haircut Seminar',
+      description: 'Balayage formula 7.1 + 6%',
+      visibility: 'private',
+      isPrivate: true,
       allDay: false,
     })
   })
@@ -56,6 +65,9 @@ describe('googleCalendar mapping', () => {
       startAt: '2026-11-20T23:00:00.000Z',
       endAt: '2026-11-21T23:00:00.000Z',
       title: 'Training Day',
+      description: null,
+      visibility: null,
+      isPrivate: false,
       allDay: true,
     })
   })
@@ -135,6 +147,108 @@ describe('googleCalendar mapping', () => {
     assert.match(id1, /^gcal_[0-9a-f]{24}$/)
     const empId = blockedSlotDocIdForGoogleEvent('abc/def@google.com', 'emp-1')
     assert.match(empId, /^gcal_emp-1_[0-9a-f]{24}$/)
+  })
+
+  it('resolves privacy from Google visibility and manual privateOverride', () => {
+    assert.equal(isGoogleVisibilityPrivate('private'), true)
+    assert.equal(isGoogleVisibilityPrivate('confidential'), true)
+    assert.equal(isGoogleVisibilityPrivate('default'), false)
+    assert.equal(isGoogleVisibilityPrivate('public'), false)
+    assert.equal(isGoogleVisibilityPrivate(null), false)
+
+    assert.equal(resolveEffectivePrivacy('default', true), true)
+    assert.equal(resolveEffectivePrivacy('private', false), false)
+    assert.equal(resolveEffectivePrivacy('private', null), true)
+    assert.equal(resolveEffectivePrivacy(null, null), false)
+  })
+
+  it('redacts private employee events for admins and other stylists, but not for the owner', () => {
+    const privateSlot = {
+      id: 'gcal_emp-1_abc',
+      source: 'GOOGLE_CALENDAR',
+      employeeId: 'emp-1',
+      title: 'Zahnarzt',
+      reason: 'Zahnarzt',
+      description: 'Dr. Huber',
+      visibility: 'private',
+      isPrivate: true,
+      privateOverride: null,
+      startAt: '2026-11-20T09:00:00.000Z',
+      endAt: '2026-11-20T10:00:00.000Z',
+      createdAt: '2026-11-19T00:00:00.000Z',
+    }
+
+    const ownerView = redactBlockedSlotForViewer(privateSlot, { uid: 'emp-1', isAdmin: false })
+    assert.equal(ownerView.redacted, false)
+    assert.equal(ownerView.title, 'Zahnarzt')
+    assert.equal(ownerView.description, 'Dr. Huber')
+    assert.equal(ownerView.canTogglePrivacy, true)
+
+    const adminView = redactBlockedSlotForViewer(privateSlot, { uid: 'admin-1', isAdmin: true })
+    assert.equal(adminView.redacted, true)
+    assert.equal(adminView.title, null)
+    assert.equal(adminView.reason, null)
+    assert.equal(adminView.description, null)
+    assert.equal(adminView.isPrivate, true)
+    assert.equal(adminView.canTogglePrivacy, false)
+
+    const otherStylistView = redactBlockedSlotForViewer(privateSlot, {
+      uid: 'emp-2',
+      isAdmin: false,
+    })
+    assert.equal(otherStylistView.redacted, true)
+    assert.equal(otherStylistView.title, null)
+    assert.equal(otherStylistView.canTogglePrivacy, false)
+  })
+
+  it('allows admins to see and toggle privacy on salon-wide (employeeId: null) events', () => {
+    const salonSlot = {
+      id: 'gcal_abc',
+      source: 'GOOGLE_CALENDAR',
+      employeeId: null,
+      title: 'Team Meeting',
+      reason: 'Team Meeting',
+      description: 'Notes',
+      visibility: 'private',
+      isPrivate: true,
+      privateOverride: null,
+      startAt: '2026-11-20T09:00:00.000Z',
+      endAt: '2026-11-20T10:00:00.000Z',
+      createdAt: '2026-11-19T00:00:00.000Z',
+    }
+
+    const adminView = redactBlockedSlotForViewer(salonSlot, { uid: 'admin-1', isAdmin: true })
+    assert.equal(adminView.redacted, false)
+    assert.equal(adminView.title, 'Team Meeting')
+    assert.equal(adminView.canTogglePrivacy, true)
+
+    const stylistView = redactBlockedSlotForViewer(salonSlot, { uid: 'emp-1', isAdmin: false })
+    assert.equal(stylistView.redacted, true)
+    assert.equal(stylistView.title, null)
+    assert.equal(stylistView.canTogglePrivacy, false)
+  })
+
+  it('detects unchanged synced fields to avoid unnecessary Firestore writes', () => {
+    const base = {
+      title: 'Maria Rossi — Balayage',
+      reason: 'Maria Rossi — Balayage',
+      description: 'Formula 8.1',
+      startAt: '2026-11-20T09:00:00.000Z',
+      endAt: '2026-11-20T12:00:00.000Z',
+      allDay: false,
+      visibility: 'default',
+      isPrivate: false,
+      privateOverride: null,
+      customerNameKey: 'maria rossi',
+    }
+    assert.equal(hasBlockedSlotSyncedFieldsChanged(undefined, base), true)
+    assert.equal(hasBlockedSlotSyncedFieldsChanged(base, base), false)
+    assert.equal(
+      hasBlockedSlotSyncedFieldsChanged(base, { ...base, description: 'Formula 9.1' }),
+      true,
+    )
+    assert.equal(hasBlockedSlotSyncedFieldsChanged(base, { ...base, isPrivate: true }), true)
+    assert.equal(hasBlockedSlotSyncedFieldsChanged(base, { ...base, customerNameKey: null }), true)
   })
 })
 

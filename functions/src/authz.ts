@@ -70,3 +70,21 @@ export async function assertAdminOrEmployeeSelf(
   }
   throw new HttpsError('permission-denied', 'Administrator or own employee access required.')
 }
+
+export async function assertStaff(
+  request: CallableRequest,
+): Promise<{ uid: string; isAdmin: boolean }> {
+  const uid = await assertSignedIn(request)
+  if (request.auth?.token?.operator === true) {
+    return { uid, isAdmin: true }
+  }
+  const snap = await getFirestore().collection('users').doc(uid).get()
+  const role = snap.exists ? snap.data()?.role : undefined
+  if (role === 'admin') {
+    return { uid, isAdmin: true }
+  }
+  if (role === 'employee') {
+    return { uid, isAdmin: false }
+  }
+  throw new HttpsError('permission-denied', 'Staff access required.')
+}

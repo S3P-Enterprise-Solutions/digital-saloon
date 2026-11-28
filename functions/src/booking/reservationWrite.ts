@@ -21,6 +21,16 @@ import {
 } from './salonContext'
 import { hashManagementToken } from './tokens'
 
+export const MIN_DURATION_OVERRIDE_MINUTES = 5
+export const MAX_DURATION_OVERRIDE_MINUTES = 600
+
+export function parseDurationOverride(value: unknown): number | null {
+  if (value === null || value === undefined) return null
+  if (typeof value !== 'number' || !Number.isInteger(value)) return null
+  if (value < MIN_DURATION_OVERRIDE_MINUTES || value > MAX_DURATION_OVERRIDE_MINUTES) return null
+  return value
+}
+
 export type CreateReservationInput = {
   firstName: string
   lastName: string
@@ -31,6 +41,8 @@ export type CreateReservationInput = {
   serviceIds?: string[]
   employeeId?: string | null
   startAt: Date
+  /** Admin-only override for individualized appointments (e.g. colouring). */
+  durationMinutesOverride?: number | null
   source: 'ONLINE' | 'MANUAL'
   internalNote: string | null
   idempotencyKey: string | null
@@ -224,8 +236,15 @@ export async function createReservationTransactional(
     return resolvedServices
   }
 
-  const { durationMinutes, priceCents, serviceName, serviceIds, serviceAllowedEmployees } =
-    resolvedServices
+  const {
+    durationMinutes: defaultDurationMinutes,
+    priceCents,
+    serviceName,
+    serviceIds,
+    serviceAllowedEmployees,
+  } = resolvedServices
+  const durationMinutes =
+    parseDurationOverride(input.durationMinutesOverride) ?? defaultDurationMinutes
   const endAt = new Date(input.startAt.getTime() + durationMinutes * 60_000)
 
   if (input.idempotencyKey) {
@@ -440,6 +459,8 @@ export type UpdateReservationInput = {
   serviceIds?: string[]
   employeeId?: string | null
   startAt: Date
+  /** Admin-only override for individualized appointments (e.g. colouring). */
+  durationMinutesOverride?: number | null
   internalNote: string | null
   enforceAdvanceRestrictions: boolean
   now?: Date
@@ -497,8 +518,15 @@ export async function updateReservationTransactional(
     return resolvedServices
   }
 
-  const { durationMinutes, priceCents, serviceName, serviceIds, serviceAllowedEmployees } =
-    resolvedServices
+  const {
+    durationMinutes: defaultDurationMinutes,
+    priceCents,
+    serviceName,
+    serviceIds,
+    serviceAllowedEmployees,
+  } = resolvedServices
+  const durationMinutes =
+    parseDurationOverride(input.durationMinutesOverride) ?? defaultDurationMinutes
   const newStartAt = input.startAt
   const newEndAt = new Date(newStartAt.getTime() + durationMinutes * 60_000)
   const oldStartAt = new Date(String(existing.startAt))
@@ -785,6 +813,8 @@ export async function previewAvailableSlots(input: {
   enforceAdvanceRestrictions?: boolean
   /** Admin edit: ignore this reservation while using selected services’ duration. */
   excludeReservationId?: string
+  /** Admin-only custom duration override (minutes). */
+  durationMinutesOverride?: number | null
   /**
    * Moving an existing booking: use its stored duration (the service may have
    * changed or been deactivated since) and ignore its own time as busy.
@@ -828,7 +858,8 @@ export async function previewAvailableSlots(input: {
     if (!resolved.ok) {
       return []
     }
-    durationMinutes = resolved.durationMinutes
+    durationMinutes =
+      parseDurationOverride(input.durationMinutesOverride) ?? resolved.durationMinutes
     serviceAllowedEmployees = resolved.serviceAllowedEmployees
   }
   const rangeStart = new Date(`${input.fromDateYmd}T00:00:00.000Z`)

@@ -2,8 +2,9 @@
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 
-import { assertAdmin } from '../authz'
+import { assertAdmin, assertStaff } from '../authz'
 import { functionsRegion, getSalonId } from '../config'
+import { extractCustomerNameFromCalendarTitle } from '../customers/matching'
 import { isObject } from '../schemas'
 import {
   getServiceAccountAccessToken,
@@ -13,9 +14,15 @@ import {
   subscribeToCalendar,
 } from './client'
 import {
+  redactBlockedSlotForViewer,
+  resolveEffectivePrivacy,
+  type StoredBlockedSlot,
+} from './mapping'
+import {
   deleteAllSyncedBlockedSlots,
   ensureWatchChannel,
   getValidAccessToken,
+  importGoogleCalendarHistory as runHistoryImport,
   integrationDocRef,
   normalizeEmployeeId,
   syncGoogleCalendarForSalon,
@@ -33,6 +40,8 @@ export type GoogleCalendarStatusResponse = {
   lastSyncAt: string | null
   lastSyncStatus: 'OK' | 'ERROR' | null
   lastSyncError: string | null
+  lastHistoryImportAt: string | null
+  lastHistoryImportCount: number | null
 }
 
 function readEmployeeId(data: unknown): string | null {
@@ -59,6 +68,9 @@ function toStatusResponse(
         ? data.lastSyncStatus
         : null,
     lastSyncError: data?.lastSyncError ?? null,
+    lastHistoryImportAt: data?.lastHistoryImportAt ?? null,
+    lastHistoryImportCount:
+      typeof data?.lastHistoryImportCount === 'number' ? data.lastHistoryImportCount : null,
   }
 }
 
@@ -150,6 +162,14 @@ export const connectGoogleCalendar = onCall({ region: functionsRegion }, async (
     // connected state with the sync warning instead of reporting that connect failed.
     console.warn('[googleCalendar] initial sync failed after connect', err)
   }
+
+  try {
+    await runHistoryImport(db, salonId, employeeId)
+  } catch (err) {
+    // Best-effort 2-year historical import on initial connect; can be retried from settings.
+    console.warn('[googleCalendar] initial history import failed after connect', err)
+  }
+
   const after = await ref.get()
   return toStatusResponse(
     employeeId,
@@ -176,6 +196,133 @@ export const syncGoogleCalendar = onCall({ region: functionsRegion }, async (req
       after.data() as Partial<GoogleCalendarIntegrationDoc> | undefined,
     ),
   }
+})
+
+export const importGoogleCalendarHistory = onCall({ region: functionsRegion }, async (request) => {
+  await assertAdmin(request)
+  const employeeId = readEmployeeId(request.data)
+  const db = getFirestore()
+  const salonId = getSalonId()
+  const result = await runHistoryImport(db, salonId, employeeId)
+  const [serviceAccountEmail, after] = await Promise.all([
+    getServiceAccountEmail(),
+    integrationDocRef(db, salonId, employeeId).get(),
+  ])
+  return {
+    ...result,
+    status: toStatusResponse(
+      employeeId,
+      serviceAccountEmail,
+      after.data() as Partial<GoogleCalendarIntegrationDoc> | undefined,
+    ),
+  }
+})
+
+export const listBlockedSlotsInRange = onCall({ region: functionsRegion }, async (request) => {
+  const viewer = await assertStaff(request)
+  if (!isObject(request.data)) {
+    throw new HttpsError('invalid-argument', 'Invalid payload.')
+  }
+  const rangeStartIso =
+    typeof request.data.rangeStartIso === 'string' ? request.data.rangeStartIso.trim() : ''
+  const rangeEndIso =
+    typeof request.data.rangeEndIso === 'string' ? request.data.rangeEndIso.trim() : ''
+  const rangeStartMs = new Date(rangeStartIso).getTime()
+  const rangeEndMs = new Date(rangeEndIso).getTime()
+  if (
+    !Number.isFinite(rangeStartMs) ||
+    !Number.isFinite(rangeEndMs) ||
+    rangeEndMs <= rangeStartMs
+  ) {
+    throw new HttpsError('invalid-argument', 'Valid rangeStartIso and rangeEndIso are required.')
+  }
+
+  const db = getFirestore()
+  const salonId = getSalonId()
+  // Bound the lower startAt to 14 days before rangeStart so multi-day/all-day events
+  // still overlap without scanning 2 years of historical calendar imports.
+  const lowerBoundIso = new Date(rangeStartMs - 14 * 24 * 60 * 60_000).toISOString()
+  const snap = await db
+    .collection('salons')
+    .doc(salonId)
+    .collection('blockedSlots')
+    .where('startAt', '>=', lowerBoundIso)
+    .where('startAt', '<', rangeEndIso)
+    .orderBy('startAt', 'asc')
+    .get()
+
+  const slots = snap.docs
+    .map((doc) => ({
+      id: doc.id,
+      ...(doc.data() as Omit<StoredBlockedSlot, 'id'>),
+    }))
+    .filter((slot) => new Date(slot.endAt).getTime() > rangeStartMs)
+    .map((slot) => redactBlockedSlotForViewer(slot, viewer))
+
+  return { slots }
+})
+
+export const setBlockedSlotPrivacy = onCall({ region: functionsRegion }, async (request) => {
+  const viewer = await assertStaff(request)
+  if (!isObject(request.data)) {
+    throw new HttpsError('invalid-argument', 'Invalid payload.')
+  }
+  const slotId = typeof request.data.slotId === 'string' ? request.data.slotId.trim() : ''
+  if (!slotId) {
+    throw new HttpsError('invalid-argument', 'slotId is required.')
+  }
+  if (typeof request.data.isPrivate !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'isPrivate boolean is required.')
+  }
+
+  const db = getFirestore()
+  const salonId = getSalonId()
+  const ref = db.collection('salons').doc(salonId).collection('blockedSlots').doc(slotId)
+  const snap = await ref.get()
+  if (!snap.exists) {
+    throw new HttpsError('not-found', 'Calendar event not found.')
+  }
+
+  const data = snap.data() as Omit<StoredBlockedSlot, 'id'>
+  if (data.source !== 'GOOGLE_CALENDAR') {
+    throw new HttpsError(
+      'failed-precondition',
+      'Only Google Calendar events support privacy toggle.',
+    )
+  }
+
+  const empId = normalizeEmployeeId(typeof data.employeeId === 'string' ? data.employeeId : null)
+  const isOwner = empId !== null ? viewer.uid === empId : viewer.isAdmin
+  if (!isOwner) {
+    throw new HttpsError(
+      'permission-denied',
+      'Only the owning stylist can change privacy for this event.',
+    )
+  }
+
+  const privateOverride = request.data.isPrivate
+  const isPrivate = resolveEffectivePrivacy(data.visibility, privateOverride)
+  const customerNameKey =
+    !isPrivate && !data.allDay && typeof data.title === 'string'
+      ? (extractCustomerNameFromCalendarTitle(data.title)?.orderInsensitiveKey ?? null)
+      : null
+  const updatedAt = new Date().toISOString()
+
+  await ref.update({
+    privateOverride,
+    isPrivate,
+    customerNameKey,
+    updatedAt,
+  })
+
+  const updated: StoredBlockedSlot = {
+    id: snap.id,
+    ...data,
+    privateOverride,
+    isPrivate,
+    updatedAt,
+  }
+  return { slot: redactBlockedSlotForViewer(updated, viewer) }
 })
 
 export const disconnectGoogleCalendar = onCall({ region: functionsRegion }, async (request) => {

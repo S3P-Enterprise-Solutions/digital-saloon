@@ -4,6 +4,7 @@ import {
   connectGoogleCalendar,
   disconnectGoogleCalendar,
   getGoogleCalendarStatus,
+  importGoogleCalendarHistory,
   syncGoogleCalendar,
 } from '../data/googleCalendarApi'
 import { getSalonId } from '../data/salonConfig'
@@ -45,6 +46,17 @@ export function useGoogleCalendarActions(employeeId?: string | null) {
     },
   })
 
+  const importHistory = useMutation({
+    mutationFn: () => importGoogleCalendarHistory(empKey),
+    onSuccess: (result) => {
+      queryClient.setQueryData(
+        queryKeyOf('googleCalendarStatus', getSalonId(), empKey),
+        result.status,
+      )
+      void queryClient.invalidateQueries({ queryKey: queryKeyOf('blockedSlots') })
+    },
+  })
+
   const disconnect = useMutation({
     mutationFn: () => disconnectGoogleCalendar(empKey),
     onSuccess: (status) => {
@@ -53,5 +65,5 @@ export function useGoogleCalendarActions(employeeId?: string | null) {
     },
   })
 
-  return { connect, sync, disconnect }
+  return { connect, sync, importHistory, disconnect }
 }

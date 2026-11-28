@@ -22,6 +22,11 @@ import { useAdminReservationActions, useAdminReservations } from '../hooks/useAd
 import { useAllServices } from '../hooks/useAllServices'
 import { useAvailableSlots } from '../hooks/useAvailableSlots'
 import { useBlockedSlots } from '../hooks/useBlockedSlots'
+import { useArchiveCustomer } from '../hooks/useArchiveCustomer'
+import { useCustomerContext } from '../hooks/useCustomerContext'
+import { useCustomerDetail } from '../hooks/useCustomerDetail'
+import { useCustomers } from '../hooks/useCustomers'
+import { useSaveCustomer } from '../hooks/useSaveCustomer'
 import { useAdminEmployees } from '../hooks/useAdminEmployees'
 import { useActiveEmployees } from '../hooks/useEmployees'
 import { useCreateEmployeeProfileForAdmin } from '../hooks/useCreateEmployeeProfileForAdmin'
@@ -36,6 +41,7 @@ import { useSaveEmployeeWeeklyWorkingHours } from '../hooks/useSaveEmployeeWeekl
 import { useSoftRemoveEmployee } from '../hooks/useSoftRemoveEmployee'
 import { useUpdateEmployeeProfile } from '../hooks/useUpdateEmployeeProfile'
 import { useGoogleCalendarActions, useGoogleCalendarStatus } from '../hooks/useGoogleCalendar'
+import { useSetBlockedSlotPrivacy } from '../hooks/useSetBlockedSlotPrivacy'
 import { useClosures } from '../hooks/useClosures'
 import { useDemoModeStatus, useSetDemoMode } from '../hooks/useDemoMode'
 import { useHomepageConfig } from '../hooks/useHomepageConfig'
@@ -56,6 +62,8 @@ import {
 import { useUserProfile } from '../hooks/useUserProfile'
 import { useLocale } from '../i18n'
 import { AdminActivityLogsPage } from '../pages/admin/AdminActivityLogsPage'
+import { AdminCustomerDetailPage } from '../pages/admin/AdminCustomerDetailPage'
+import { AdminCustomersPage } from '../pages/admin/AdminCustomersPage'
 import { AdminEmployeesPage } from '../pages/admin/AdminEmployeesPage'
 import { AdminHomePage } from '../pages/admin/AdminHomePage'
 import { AdminHomepagePage } from '../pages/admin/AdminHomepagePage'
@@ -147,6 +155,7 @@ const AdminIndexRoute: React.FunctionComponent = () => {
   const weekRange = weekQueryRange(weekStart)
   const weekReservations = useAdminReservations(weekRange.startIso, weekRange.endIso, weekReady)
   const weekBlockedSlots = useBlockedSlots(weekRange.startIso, weekRange.endIso, weekReady)
+  const setSlotPrivacy = useSetBlockedSlotPrivacy()
   const plan =
     weekReady &&
     weekReservations.data &&
@@ -243,6 +252,13 @@ const AdminIndexRoute: React.FunctionComponent = () => {
       onListViewClick={() => {
         void navigate({ to: '/admin/reservations', search: weekSearch })
       }}
+      privacyToggleBusy={setSlotPrivacy.isPending}
+      privacyToggleError={
+        setSlotPrivacy.error instanceof Error ? setSlotPrivacy.error.message : null
+      }
+      onToggleBlockedSlotPrivacy={(slotId, isPrivate) => {
+        setSlotPrivacy.mutate({ slotId, isPrivate })
+      }}
     />
   )
 }
@@ -316,12 +332,22 @@ export const adminReservationsRoute = createRoute({
     const today = todayYmdInTimeZone(salon.data?.timezone ?? 'Europe/Vienna')
     const range = listRange(today)
     const reservations = useAdminReservations(range.startIso, range.endIso, true)
+    const blockedSlots = useBlockedSlots(range.startIso, range.endIso, true)
+    const setSlotPrivacy = useSetBlockedSlotPrivacy()
 
     return (
       <AdminReservationsPage
         reservations={reservations.data}
-        isLoading={reservations.isLoading}
-        isError={reservations.isError}
+        blockedSlots={blockedSlots.data}
+        isLoading={reservations.isLoading || blockedSlots.isLoading}
+        isError={reservations.isError || blockedSlots.isError}
+        privacyToggleBusy={setSlotPrivacy.isPending}
+        privacyToggleError={
+          setSlotPrivacy.error instanceof Error ? setSlotPrivacy.error.message : null
+        }
+        onToggleBlockedSlotPrivacy={(slotId, isPrivate) => {
+          setSlotPrivacy.mutate({ slotId, isPrivate })
+        }}
         onSelectReservation={(reservationId) => {
           void navigate({
             to: '/admin/reservations/$reservationId',
@@ -352,6 +378,16 @@ export const adminReservationDetailRoute = createRoute({
     const returnWeek = search.week ? startOfWeekYmd(search.week) : undefined
     const fromPending = search.from === 'pending'
     const reservation = useAdminReservation(reservationId)
+    const customerContext = useCustomerContext(
+      {
+        customerId: reservation.data?.customerId ?? null,
+        firstName: reservation.data?.firstName ?? '',
+        lastName: reservation.data?.lastName ?? '',
+        email: reservation.data?.email ?? null,
+        excludeReservationId: reservationId,
+      },
+      Boolean(reservation.data),
+    )
     const actions = useAdminReservationActions()
 
     const failed =
@@ -365,6 +401,8 @@ export const adminReservationDetailRoute = createRoute({
     return (
       <AdminReservationDetailPage
         reservation={reservation.data ?? undefined}
+        customerContext={customerContext.data}
+        customerContextLoading={customerContext.isLoading}
         isLoading={reservation.isLoading}
         actionError={actionError}
         busy={
@@ -406,6 +444,12 @@ export const adminReservationDetailRoute = createRoute({
             },
           })
         }}
+        onOpenCustomer={(customerId) => {
+          void navigate({
+            to: '/admin/customers/$customerId',
+            params: { customerId },
+          })
+        }}
       />
     )
   },
@@ -413,6 +457,7 @@ export const adminReservationDetailRoute = createRoute({
 
 const manualSearchSchema = v.object({
   reservationId: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
+  customerId: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
   serviceId: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
   serviceIds: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
   employeeId: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
@@ -440,12 +485,73 @@ export const adminManualRoute = createRoute({
     const { t } = useLocale()
     const search = adminManualRoute.useSearch()
     const editingReservationId = search.reservationId ?? null
+    const prefillCustomerId = editingReservationId ? null : (search.customerId ?? null)
     const editing = useAdminReservation(editingReservationId)
+    const prefillCustomer = useCustomerDetail(prefillCustomerId, prefillCustomerId !== null)
+    const customers = useCustomers('', true)
     const services = useAllServices(true)
     const employees = useActiveEmployees()
     const selectedEmployeeId = search.employeeId ?? null
     const actions = useAdminReservationActions()
     const hydratedEditId = useRef<string | null>(null)
+    const [durationOverrideState, setDurationOverrideState] = useState<number | null | undefined>(
+      undefined,
+    )
+    const durationOverride =
+      durationOverrideState !== undefined
+        ? durationOverrideState
+        : editingReservationId && editing.data
+          ? editing.data.durationMinutes
+          : null
+    const [customerLookup, setCustomerLookup] = useState<{
+      customerId?: string | null
+      firstName: string
+      lastName: string
+      email: string | null
+    } | null>(null)
+    const [debouncedLookup, setDebouncedLookup] = useState<{
+      customerId?: string | null
+      firstName: string
+      lastName: string
+      email: string | null
+    } | null>(null)
+
+    useEffect(() => {
+      const effectiveLookup =
+        customerLookup ??
+        (editing.data
+          ? {
+              customerId: editing.data.customerId ?? null,
+              firstName: editing.data.firstName,
+              lastName: editing.data.lastName,
+              email: editing.data.email ?? null,
+            }
+          : prefillCustomer.data?.customer
+            ? {
+                customerId: prefillCustomer.data.customer.id,
+                firstName: prefillCustomer.data.customer.firstName,
+                lastName: prefillCustomer.data.customer.lastName,
+                email: prefillCustomer.data.customer.email ?? null,
+              }
+            : null)
+      const timer = window.setTimeout(() => {
+        setDebouncedLookup(effectiveLookup)
+      }, 300)
+      return () => {
+        window.clearTimeout(timer)
+      }
+    }, [customerLookup, editing.data, prefillCustomer.data])
+
+    const customerContext = useCustomerContext(
+      {
+        customerId: debouncedLookup?.customerId ?? null,
+        firstName: debouncedLookup?.firstName ?? '',
+        lastName: debouncedLookup?.lastName ?? '',
+        email: debouncedLookup?.email ?? null,
+        excludeReservationId: editingReservationId,
+      },
+      debouncedLookup !== null,
+    )
 
     useEffect(() => {
       if (!editingReservationId) {
@@ -502,6 +608,7 @@ export const adminManualRoute = createRoute({
       toDateYmd: monthQueryTo,
       enforceAdvanceRestrictions: false,
       excludeReservationId: editingReservationId ?? undefined,
+      durationMinutesOverride: durationOverride,
     })
     // Fallback for deep links where `date` and `month` point to different months so the
     // time list still loads for `selectedDate` without forcing a second query in the normal case.
@@ -512,6 +619,7 @@ export const adminManualRoute = createRoute({
       toDateYmd: selectedDateInVisibleMonth ? null : selectedDate,
       enforceAdvanceRestrictions: false,
       excludeReservationId: editingReservationId ?? undefined,
+      durationMinutesOverride: durationOverride,
     })
     const selectedDaySlots =
       selectedDate === null
@@ -524,7 +632,9 @@ export const adminManualRoute = createRoute({
       (selectedDateInVisibleMonth ? monthSlots.isLoading : fallbackDaySlots.isLoading)
 
     const isEdit = editingReservationId !== null
-    const editReady = !isEdit || editing.data != null
+    const editReady =
+      (!isEdit || editing.data != null) &&
+      (prefillCustomerId === null || !prefillCustomer.isLoading)
     const submitPending = isEdit ? actions.updateManual.isPending : actions.createManual.isPending
     const submitError = isEdit
       ? actions.updateManual.isError
@@ -540,6 +650,7 @@ export const adminManualRoute = createRoute({
 
     const manualSearchBase = {
       reservationId: editingReservationId ?? undefined,
+      customerId: prefillCustomerId ?? undefined,
       week: returnWeek,
       from: fromPending ? ('pending' as const) : undefined,
     }
@@ -559,9 +670,21 @@ export const adminManualRoute = createRoute({
 
     return editReady ? (
       <AdminManualBookingPage
-        key={editingReservationId ?? 'create'}
+        key={editingReservationId ?? prefillCustomerId ?? 'create'}
         mode={isEdit ? 'edit' : 'create'}
         services={services.data?.filter((service) => service.active)}
+        customers={customers.data}
+        customerContext={customerContext.data}
+        customerContextLoading={customerContext.isLoading}
+        durationMinutesOverride={durationOverride}
+        onDurationOverrideChange={setDurationOverrideState}
+        onCustomerLookupChange={setCustomerLookup}
+        onOpenCustomer={(customerId) => {
+          void navigate({
+            to: '/admin/customers/$customerId',
+            params: { customerId },
+          })
+        }}
         employees={employees.data}
         selectedEmployeeId={selectedEmployeeId}
         onEmployeeChange={(employeeId) => {
@@ -591,13 +714,23 @@ export const adminManualRoute = createRoute({
         initialCustomer={
           editing.data
             ? {
+                customerId: editing.data.customerId ?? null,
                 firstName: editing.data.firstName,
                 lastName: editing.data.lastName,
                 phone: editing.data.phone,
                 email: editing.data.email ?? '',
                 internalNote: editing.data.internalNote ?? '',
               }
-            : null
+            : prefillCustomer.data?.customer
+              ? {
+                  customerId: prefillCustomer.data.customer.id,
+                  firstName: prefillCustomer.data.customer.firstName,
+                  lastName: prefillCustomer.data.customer.lastName,
+                  phone: prefillCustomer.data.customer.phone ?? '',
+                  email: prefillCustomer.data.customer.email ?? '',
+                  internalNote: '',
+                }
+              : null
         }
         slots={selectedDaySlots}
         slotsLoading={selectedDaySlotsLoading}
@@ -886,10 +1019,12 @@ export const adminSettingsRoute = createRoute({
           connecting: gcalActions.connect.isPending,
           connectedJustNow: gcalActions.connect.isSuccess,
           syncing: gcalActions.sync.isPending,
+          importingHistory: gcalActions.importHistory.isPending,
           disconnecting: gcalActions.disconnect.isPending,
           actionError:
             errorText(gcalActions.connect.error) ??
             errorText(gcalActions.sync.error) ??
+            errorText(gcalActions.importHistory.error) ??
             errorText(gcalActions.disconnect.error),
           syncMessage: gcalActions.sync.data
             ? t('admin.googleCalendarSyncResult', {
@@ -897,11 +1032,20 @@ export const adminSettingsRoute = createRoute({
                 pushed: gcalActions.sync.data.pushedReservations,
               })
             : null,
+          historyImportMessage: gcalActions.importHistory.data
+            ? t('admin.googleCalendarHistoryResult', {
+                imported: gcalActions.importHistory.data.importedEvents,
+                written: gcalActions.importHistory.data.writtenEvents,
+              })
+            : null,
           onConnect: (calendarId) => {
             gcalActions.connect.mutate(calendarId)
           },
           onSyncNow: () => {
             gcalActions.sync.mutate()
+          },
+          onImportHistory: () => {
+            gcalActions.importHistory.mutate()
           },
           onDisconnect: () => {
             gcalActions.disconnect.mutate()
@@ -1129,6 +1273,104 @@ export const adminActivityLogsRoute = createRoute({
         }}
         onBackClick={() => {
           void navigate({ to: '/admin/settings' })
+        }}
+      />
+    )
+  },
+})
+
+const customersSearchSchema = v.object({
+  q: optionalSearchParam(v.string()),
+})
+
+export const adminCustomersRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: '/customers',
+  validateSearch: (search: Record<string, unknown>) => v.parse(customersSearchSchema, search),
+  component: function AdminCustomersRoute() {
+    const navigate = useNavigate()
+    const search = adminCustomersRoute.useSearch()
+    const q = search.q ?? ''
+    const customers = useCustomers(q, true)
+    const saveCustomer = useSaveCustomer()
+
+    return (
+      <AdminCustomersPage
+        customers={customers.data}
+        searchQuery={q}
+        onSearchChange={(next) => {
+          void navigate({
+            to: '/admin/customers',
+            search: { q: next || undefined },
+            replace: true,
+          })
+        }}
+        isLoading={customers.isLoading}
+        isError={customers.isError}
+        saving={saveCustomer.isPending}
+        saveError={saveCustomer.error instanceof Error ? saveCustomer.error.message : null}
+        onSelectCustomer={(customerId) => {
+          void navigate({
+            to: '/admin/customers/$customerId',
+            params: { customerId },
+          })
+        }}
+        onCreateCustomer={async (input) => {
+          const created = await saveCustomer.mutateAsync(input)
+          void navigate({
+            to: '/admin/customers/$customerId',
+            params: { customerId: created.id },
+          })
+        }}
+      />
+    )
+  },
+})
+
+export const adminCustomerDetailRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: '/customers/$customerId',
+  component: function AdminCustomerDetailRoute() {
+    const navigate = useNavigate()
+    const { customerId } = adminCustomerDetailRoute.useParams()
+    const detail = useCustomerDetail(customerId, true)
+    const saveCustomer = useSaveCustomer()
+    const archiveCustomer = useArchiveCustomer()
+
+    return (
+      <AdminCustomerDetailPage
+        detail={detail.data}
+        isLoading={detail.isLoading}
+        isError={detail.isError}
+        saving={saveCustomer.isPending}
+        saved={saveCustomer.isSuccess}
+        saveError={saveCustomer.error instanceof Error ? saveCustomer.error.message : null}
+        archiving={archiveCustomer.isPending}
+        archiveError={archiveCustomer.error instanceof Error ? archiveCustomer.error.message : null}
+        onBackClick={() => {
+          void navigate({ to: '/admin/customers', search: { q: undefined } })
+        }}
+        onBookForCustomer={(customer) => {
+          void navigate({
+            to: '/admin/manual',
+            search: { customerId: customer.id },
+          })
+        }}
+        onOpenReservation={(reservationId) => {
+          void navigate({
+            to: '/admin/reservations/$reservationId',
+            params: { reservationId },
+          })
+        }}
+        onSave={(input) => {
+          saveCustomer.mutate(input)
+        }}
+        onArchive={() => {
+          archiveCustomer.mutate(customerId, {
+            onSuccess: () => {
+              void navigate({ to: '/admin/customers', search: { q: undefined } })
+            },
+          })
         }}
       />
     )

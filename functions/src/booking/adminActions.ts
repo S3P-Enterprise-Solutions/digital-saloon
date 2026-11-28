@@ -3,12 +3,17 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https'
 
 import { assertAdmin } from '../authz'
 import { functionsRegion, getSalonId } from '../config'
+import { linkReservationToCustomer } from '../customers/store'
 import { isObject } from '../schemas'
 import { notifyCustomerCancelled, notifyCustomerRescheduled } from './customerNotify'
 import { toPublicReservationView } from './findByToken'
 import { syncReservationToGoogleCalendar } from '../googleCalendar/sync'
 import { recordActivityLog } from '../logging/activityLog'
-import { lockIdForStart, updateReservationTransactional } from './reservationWrite'
+import {
+  lockIdForStart,
+  parseDurationOverride,
+  updateReservationTransactional,
+} from './reservationWrite'
 import { loadSalonContext } from './salonContext'
 
 const ACTIVE = new Set(['PENDING', 'CONFIRMED'])
@@ -233,6 +238,21 @@ export const adminUpdateReservation = onCall({ region: functionsRegion }, async 
   const { db, salonId, ref, snap } = await loadReservation(reservationId)
   const beforeData = snap.data() ?? {}
 
+  let durationMinutesOverride: number | null = null
+  if (
+    request.data.durationMinutesOverride !== undefined &&
+    request.data.durationMinutesOverride !== null
+  ) {
+    const parsed = parseDurationOverride(request.data.durationMinutesOverride)
+    if (parsed === null) {
+      throw new HttpsError(
+        'invalid-argument',
+        'durationMinutesOverride must be an integer between 5 and 600.',
+      )
+    }
+    durationMinutesOverride = parsed
+  }
+
   const result = await updateReservationTransactional(
     {
       reservationId,
@@ -254,6 +274,7 @@ export const adminUpdateReservation = onCall({ region: functionsRegion }, async 
           }
         : {}),
       startAt,
+      ...(durationMinutesOverride !== null ? { durationMinutesOverride } : {}),
       internalNote:
         typeof request.data.internalNote === 'string' && request.data.internalNote.trim().length > 0
           ? request.data.internalNote.trim()
@@ -267,6 +288,28 @@ export const adminUpdateReservation = onCall({ region: functionsRegion }, async 
   if (!result.ok) {
     throw new HttpsError('failed-precondition', result.message, { reason: result.code })
   }
+
+  const editedFirstName = requireNonEmptyString(request.data.firstName, 'firstName')
+  const editedLastName = requireNonEmptyString(request.data.lastName, 'lastName')
+  const editedPhone = requireNonEmptyString(request.data.phone, 'phone')
+  const editedEmail =
+    typeof request.data.email === 'string' && request.data.email.trim().length > 0
+      ? request.data.email.trim()
+      : null
+  await linkReservationToCustomer(
+    {
+      reservationId,
+      firstName: editedFirstName,
+      lastName: editedLastName,
+      phone: editedPhone,
+      email: editedEmail,
+      startAtIso: startAt.toISOString(),
+      source: beforeData.source === 'ONLINE' ? 'ONLINE' : 'MANUAL',
+      previousCustomerId: typeof beforeData.customerId === 'string' ? beforeData.customerId : null,
+    },
+    db,
+    salonId,
+  )
 
   const after = await ref.get()
   const afterData = after.data() ?? {}

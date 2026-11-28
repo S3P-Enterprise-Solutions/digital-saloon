@@ -20,6 +20,7 @@ import EventNoteIcon from '@mui/icons-material/EventNote'
 import EditCalendarIcon from '@mui/icons-material/EditCalendar'
 
 import { AdminViewSwitch } from '../../components/AdminViewSwitch'
+import { CalendarEventDialog } from '../../components/CalendarEventDialog'
 import { WeekPlanner } from '../../components/WeekPlanner'
 import type { EmployeeWithId } from '../../data/employees'
 import { formatBookedTime, type WeekPlan } from '../../data/weekPlanner'
@@ -43,6 +44,9 @@ export type AdminHomePageProps = {
   employees?: EmployeeWithId[]
   selectedEmployeeId?: string | null
   onSelectEmployee?: (employeeId: string | null) => void
+  privacyToggleBusy?: boolean
+  privacyToggleError?: string | null
+  onToggleBlockedSlotPrivacy?: (slotId: string, isPrivate: boolean) => void
 }
 
 export const AdminHomePage: React.FunctionComponent<AdminHomePageProps> = ({
@@ -62,6 +66,9 @@ export const AdminHomePage: React.FunctionComponent<AdminHomePageProps> = ({
   employees,
   selectedEmployeeId,
   onSelectEmployee,
+  privacyToggleBusy = false,
+  privacyToggleError = null,
+  onToggleBlockedSlotPrivacy,
 }) => {
   const { t, intlLocale } = useLocale()
   const [menu, setMenu] = useState<{
@@ -69,6 +76,13 @@ export const AdminHomePage: React.FunctionComponent<AdminHomePageProps> = ({
     anchorEl: HTMLElement
     canEdit: boolean
   } | null>(null)
+  const [selectedBlockedSlotId, setSelectedBlockedSlotId] = useState<string | null>(null)
+  const selectedBlockedSlot =
+    selectedBlockedSlotId && plan
+      ? (plan.days
+          .flatMap((day) => day.blockedEntries)
+          .find((entry) => entry.block.id === selectedBlockedSlotId)?.block ?? null)
+      : null
   const revenue = new Intl.NumberFormat(intlLocale, {
     style: 'currency',
     currency: 'EUR',
@@ -174,8 +188,20 @@ export const AdminHomePage: React.FunctionComponent<AdminHomePageProps> = ({
                 canEdit: status === 'PENDING' || status === 'CONFIRMED',
               })
             }}
+            onSelectBlockedSlot={(slot) => {
+              setSelectedBlockedSlotId(slot.id)
+            }}
           />
         ) : null}
+        <CalendarEventDialog
+          slot={selectedBlockedSlot}
+          busy={privacyToggleBusy}
+          error={privacyToggleError}
+          onClose={() => {
+            setSelectedBlockedSlotId(null)
+          }}
+          onTogglePrivacy={onToggleBlockedSlotPrivacy}
+        />
         <Menu
           anchorEl={menu?.anchorEl ?? null}
           open={menu !== null}

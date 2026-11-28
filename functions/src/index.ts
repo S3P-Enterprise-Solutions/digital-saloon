@@ -36,10 +36,20 @@ import {
 } from './booking/processPendingReservations'
 import { getAvailableSlots } from './booking/getAvailableSlots'
 import {
+  archiveCustomer,
+  getCustomerDetail,
+  listCustomers,
+  lookupCustomerContext,
+  saveCustomer,
+} from './customers/functions'
+import {
   connectGoogleCalendar,
   disconnectGoogleCalendar,
   getGoogleCalendarStatus,
   googleCalendarWebhook,
+  importGoogleCalendarHistory,
+  listBlockedSlotsInRange,
+  setBlockedSlotPrivacy,
   syncGoogleCalendar,
   syncGoogleCalendarSchedule,
 } from './googleCalendar/functions'
@@ -80,9 +90,17 @@ export {
   deleteEmployeeDayException,
   listBookableEmployees,
   listMyEmployeeReservations,
+  listCustomers,
+  getCustomerDetail,
+  lookupCustomerContext,
+  saveCustomer,
+  archiveCustomer,
   getGoogleCalendarStatus,
   connectGoogleCalendar,
   syncGoogleCalendar,
+  importGoogleCalendarHistory,
+  listBlockedSlotsInRange,
+  setBlockedSlotPrivacy,
   disconnectGoogleCalendar,
   googleCalendarWebhook,
   syncGoogleCalendarSchedule,

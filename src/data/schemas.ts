@@ -97,6 +97,7 @@ export const reservationSchema = v.object({
   googleCalendarEventId: v.optional(v.nullable(v.string())),
   employeeId: v.optional(v.nullable(v.string())),
   employeeName: v.optional(v.nullable(v.string())),
+  customerId: v.optional(v.nullable(v.string())),
   idempotencyKey: v.nullable(v.pipe(v.string(), v.minLength(1), v.maxLength(128))),
   createdAt: v.string(),
   updatedAt: v.string(),
@@ -139,6 +140,14 @@ export const dayExceptionSchema = v.object({
 })
 export type DayException = v.InferOutput<typeof dayExceptionSchema>
 
+export const googleCalendarVisibilitySchema = v.picklist([
+  'default',
+  'public',
+  'private',
+  'confidential',
+] as const)
+export type GoogleCalendarVisibility = v.InferOutput<typeof googleCalendarVisibilitySchema>
+
 export const blockedSlotSchema = v.object({
   startAt: v.string(),
   endAt: v.string(),
@@ -147,7 +156,13 @@ export const blockedSlotSchema = v.object({
   source: v.optional(v.picklist(['MANUAL', 'GOOGLE_CALENDAR'] as const)),
   employeeId: v.optional(v.nullable(v.string())),
   googleEventId: v.optional(v.string()),
-  title: v.optional(v.string()),
+  title: v.optional(v.nullable(v.string())),
+  description: v.optional(v.nullable(v.string())),
+  visibility: v.optional(v.nullable(googleCalendarVisibilitySchema)),
+  isPrivate: v.optional(v.boolean()),
+  privateOverride: v.optional(v.nullable(v.boolean())),
+  redacted: v.optional(v.boolean()),
+  canTogglePrivacy: v.optional(v.boolean()),
   allDay: v.optional(v.boolean()),
   updatedAt: v.optional(v.string()),
 })
@@ -201,6 +216,27 @@ export const employeeSchema = v.object({
   removedAt: v.optional(v.nullable(v.string())),
 })
 export type Employee = v.InferOutput<typeof employeeSchema>
+
+export const customerSourceSchema = v.picklist(['ONLINE', 'MANUAL', 'GOOGLE_CALENDAR'] as const)
+export type CustomerSource = v.InferOutput<typeof customerSourceSchema>
+
+export const customerSchema = v.object({
+  id: v.pipe(v.string(), v.minLength(1)),
+  firstName: v.string(),
+  lastName: v.string(),
+  normalizedFullName: v.string(),
+  nameKey: v.string(),
+  email: v.nullable(v.string()),
+  phone: v.nullable(v.string()),
+  stylistNotes: v.nullable(v.string()),
+  source: customerSourceSchema,
+  visitCount: v.number(),
+  lastVisitAt: v.nullable(v.string()),
+  archived: v.boolean(),
+  createdAt: v.string(),
+  updatedAt: v.string(),
+})
+export type Customer = v.InferOutput<typeof customerSchema>
 
 export const activityActionSchema = v.picklist([
   'page_view',
