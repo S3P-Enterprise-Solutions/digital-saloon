@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { messages } from '../src/i18n/messages'
+import { de } from '../src/i18n/messages'
 import { signInAsDemo } from './helpers'
 
 test.describe('admin @smoke', () => {
@@ -51,7 +51,7 @@ test.describe('admin @smoke', () => {
       await expect(dateSection.getByRole('progressbar')).toHaveCount(0, { timeout: 15_000 })
       enabledIndex = await findEnabledDayIndex()
       if (enabledIndex >= 0) break
-      await dateSection.getByRole('button', { name: messages.de['book.monthNext'] }).click()
+      await dateSection.getByRole('button', { name: de['book.monthNext'] }).click()
     }
     expect(enabledIndex).toBeGreaterThanOrEqual(0)
 

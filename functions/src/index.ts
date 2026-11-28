@@ -36,12 +36,10 @@ import {
 } from './booking/processPendingReservations'
 import { getAvailableSlots } from './booking/getAvailableSlots'
 import {
+  connectGoogleCalendar,
   disconnectGoogleCalendar,
   getGoogleCalendarStatus,
-  googleCalendarOAuthCallback,
   googleCalendarWebhook,
-  selectGoogleCalendar,
-  startGoogleCalendarOAuth,
   syncGoogleCalendar,
   syncGoogleCalendarSchedule,
 } from './googleCalendar/functions'
@@ -83,9 +81,7 @@ export {
   listBookableEmployees,
   listMyEmployeeReservations,
   getGoogleCalendarStatus,
-  startGoogleCalendarOAuth,
-  googleCalendarOAuthCallback,
-  selectGoogleCalendar,
+  connectGoogleCalendar,
   syncGoogleCalendar,
   disconnectGoogleCalendar,
   googleCalendarWebhook,

@@ -2,21 +2,14 @@
 
 import { firebaseFunctions } from '../firebase'
 
-export type GoogleCalendarListItem = {
-  id: string
-  summary: string
-  primary?: boolean
-  accessRole?: string
-}
-
 export type GoogleCalendarStatus = {
   employeeId: string | null
-  oauthConfigured: boolean
+  configured: boolean
+  serviceAccountEmail: string | null
   connected: boolean
-  accountEmail: string | null
   calendarId: string | null
   calendarSummary: string | null
-  availableCalendars: GoogleCalendarListItem[]
+  accessRole: string | null
   lastSyncAt: string | null
   lastSyncStatus: 'OK' | 'ERROR' | null
   lastSyncError: string | null
@@ -39,26 +32,14 @@ export async function getGoogleCalendarStatus(
   return result.data
 }
 
-export async function startGoogleCalendarOAuth(input: {
-  returnUrl: string
-  employeeId?: string | null
-}): Promise<{ authUrl: string }> {
-  const call = httpsCallable<
-    { returnUrl: string; employeeId?: string | null },
-    { authUrl: string }
-  >(firebaseFunctions, 'startGoogleCalendarOAuth')
-  const result = await call(input)
-  return result.data
-}
-
-export async function selectGoogleCalendar(input: {
+export async function connectGoogleCalendar(input: {
   calendarId: string
   employeeId?: string | null
 }): Promise<GoogleCalendarStatus> {
   const call = httpsCallable<
     { calendarId: string; employeeId?: string | null },
     GoogleCalendarStatus
-  >(firebaseFunctions, 'selectGoogleCalendar')
+  >(firebaseFunctions, 'connectGoogleCalendar')
   const result = await call(input)
   return result.data
 }

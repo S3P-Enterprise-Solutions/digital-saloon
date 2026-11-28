@@ -1,24 +1,14 @@
-﻿import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+﻿import { createSign, randomBytes } from 'node:crypto'
+import { readFileSync, statSync } from 'node:fs'
 
 import { functionsRegion } from '../config'
 import type { GoogleCalendarEvent, GoogleCalendarEventPayload } from './mapping'
 
 export type FetchLike = typeof fetch
 
-export type GoogleOAuthConfig = {
-  clientId: string
-  clientSecret: string
-  redirectUri: string
-  stateSecret: string
-}
-
-export type GoogleOAuthStatePayload = {
-  salonId: string
-  uid: string
-  employeeId?: string | null
-  returnUrl: string
-  nonce: string
-  exp: number
+export type ServiceAccountCredentials = {
+  clientEmail: string
+  privateKey: string
 }
 
 export type GoogleCalendarListItem = {
@@ -28,49 +18,260 @@ export type GoogleCalendarListItem = {
   accessRole?: string
 }
 
-export type GoogleTokenResponse = {
+const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
+const GOOGLE_CALENDAR_API = 'https://www.googleapis.com/calendar/v3'
+const METADATA_BASE_URL =
+  'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default'
+export const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar'
+const DEFAULT_TOKEN_TTL_SECONDS = 3000
+const TOKEN_EXPIRY_MARGIN_MS = 120_000
+
+type CachedToken = {
   accessToken: string
-  refreshToken: string | null
-  expiresInSeconds: number
+  expiresAtMs: number
+  serviceAccountEmail: string
 }
 
-const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
-const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
-const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo'
-const GOOGLE_CALENDAR_API = 'https://www.googleapis.com/calendar/v3'
-const GOOGLE_CALENDAR_SCOPE =
-  'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/userinfo.email'
+type CachedFileCredentials = {
+  path: string
+  mtimeMs: number
+  credentials: ServiceAccountCredentials
+}
+
+let cachedToken: CachedToken | null = null
+let cachedMetadataEmail: string | null = null
+let cachedFileCredentials: CachedFileCredentials | null = null
+
+export function clearServiceAccountTokenCache(): void {
+  cachedToken = null
+  cachedMetadataEmail = null
+  cachedFileCredentials = null
+}
+
+/** Only `writer` and `owner` roles can create/update/delete events on a shared calendar. */
+export function isWritableAccessRole(accessRole: string | null | undefined): boolean {
+  return accessRole === 'writer' || accessRole === 'owner'
+}
 
 function envString(env: Record<string, string | undefined>, name: string): string | null {
   const value = env[name]?.trim()
   return value ? value : null
 }
 
-export function defaultOAuthRedirectUri(
-  env: Record<string, string | undefined> = process.env,
-): string | null {
-  const explicit = envString(env, 'GOOGLE_OAUTH_REDIRECT_URI')
-  if (explicit) return explicit
-  const projectId = envString(env, 'GCLOUD_PROJECT') ?? envString(env, 'GCP_PROJECT')
-  if (!projectId) return null
-  if (env.FUNCTIONS_EMULATOR === 'true') {
-    return `http://127.0.0.1:5101/${projectId}/${functionsRegion}/googleCalendarOAuthCallback`
+function parseJsonCredentials(raw: string): ServiceAccountCredentials | null {
+  const candidates = [raw]
+  if (!raw.startsWith('{')) {
+    try {
+      candidates.push(Buffer.from(raw, 'base64').toString('utf8'))
+    } catch {
+      // ignore invalid base64
+    }
   }
-  return `https://${functionsRegion}-${projectId}.cloudfunctions.net/googleCalendarOAuthCallback`
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate) as {
+        client_email?: unknown
+        private_key?: unknown
+      }
+      if (
+        typeof parsed.client_email === 'string' &&
+        parsed.client_email.trim() &&
+        typeof parsed.private_key === 'string' &&
+        parsed.private_key.trim()
+      ) {
+        return {
+          clientEmail: parsed.client_email.trim(),
+          privateKey: parsed.private_key.replace(/\\n/g, '\n'),
+        }
+      }
+    } catch {
+      // try next candidate
+    }
+  }
+  return null
 }
 
-export function getGoogleOAuthConfig(
+export function parseServiceAccountCredentials(
   env: Record<string, string | undefined> = process.env,
-): GoogleOAuthConfig | null {
-  const clientId = envString(env, 'GOOGLE_OAUTH_CLIENT_ID')
-  const clientSecret = envString(env, 'GOOGLE_OAUTH_CLIENT_SECRET')
-  const redirectUri = defaultOAuthRedirectUri(env)
-  if (!clientId || !clientSecret || !redirectUri) return null
-  const stateSecret =
-    envString(env, 'GOOGLE_OAUTH_STATE_SECRET') ??
-    (env.FUNCTIONS_EMULATOR === 'true' ? clientSecret : null)
-  if (!stateSecret) return null
-  return { clientId, clientSecret, redirectUri, stateSecret }
+): ServiceAccountCredentials | null {
+  const inlineJson = envString(env, 'GOOGLE_SERVICE_ACCOUNT_JSON')
+  if (inlineJson) {
+    const parsed = parseJsonCredentials(inlineJson)
+    if (parsed) return parsed
+  }
+
+  const email = envString(env, 'GOOGLE_SERVICE_ACCOUNT_EMAIL')
+  const privateKey = envString(env, 'GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY')
+  if (email && privateKey) {
+    return {
+      clientEmail: email,
+      privateKey: privateKey.replace(/\\n/g, '\n'),
+    }
+  }
+
+  const credentialsPath = envString(env, 'GOOGLE_APPLICATION_CREDENTIALS')
+  if (credentialsPath) {
+    try {
+      const mtimeMs = statSync(credentialsPath).mtimeMs
+      if (
+        cachedFileCredentials &&
+        cachedFileCredentials.path === credentialsPath &&
+        cachedFileCredentials.mtimeMs === mtimeMs
+      ) {
+        return cachedFileCredentials.credentials
+      }
+      const fileContents = readFileSync(credentialsPath, 'utf8')
+      const parsed = parseJsonCredentials(fileContents)
+      if (parsed) {
+        cachedFileCredentials = { path: credentialsPath, mtimeMs, credentials: parsed }
+        return parsed
+      }
+    } catch {
+      // ignore unreadable file
+    }
+  }
+
+  return null
+}
+
+export function createServiceAccountJwt(
+  credentials: ServiceAccountCredentials,
+  scope: string = GOOGLE_CALENDAR_SCOPE,
+  nowSeconds: number = Math.floor(Date.now() / 1000),
+): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' }), 'utf8').toString(
+    'base64url',
+  )
+  const payload = Buffer.from(
+    JSON.stringify({
+      iss: credentials.clientEmail,
+      scope,
+      aud: GOOGLE_TOKEN_URL,
+      iat: nowSeconds,
+      exp: nowSeconds + 3600,
+    }),
+    'utf8',
+  ).toString('base64url')
+  const unsigned = `${header}.${payload}`
+  const signature = createSign('RSA-SHA256')
+    .update(unsigned)
+    .end()
+    .sign(credentials.privateKey, 'base64url')
+  return `${unsigned}.${signature}`
+}
+
+async function exchangeJwtForAccessToken(
+  jwt: string,
+  fetchFn: FetchLike = fetch,
+): Promise<{ accessToken: string; expiresInSeconds: number }> {
+  const body = new URLSearchParams({
+    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+    assertion: jwt,
+  })
+  const res = await fetchFn(GOOGLE_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  })
+  const data = await parseJsonOrThrow<{ access_token: string; expires_in?: number }>(res)
+  return {
+    accessToken: data.access_token,
+    expiresInSeconds: Number(data.expires_in ?? DEFAULT_TOKEN_TTL_SECONDS),
+  }
+}
+
+async function fetchMetadataServiceAccountEmail(
+  fetchFn: FetchLike = fetch,
+): Promise<string | null> {
+  if (cachedMetadataEmail) return cachedMetadataEmail
+  try {
+    const res = await fetchFn(`${METADATA_BASE_URL}/email`, {
+      headers: { 'Metadata-Flavor': 'Google' },
+    })
+    if (!res.ok) return null
+    const email = (await res.text()).trim()
+    if (!email) return null
+    cachedMetadataEmail = email
+    return email
+  } catch {
+    return null
+  }
+}
+
+async function fetchMetadataAccessToken(
+  fetchFn: FetchLike = fetch,
+): Promise<{ accessToken: string; expiresInSeconds: number } | null> {
+  try {
+    const url = `${METADATA_BASE_URL}/token?scopes=${encodeURIComponent(GOOGLE_CALENDAR_SCOPE)}`
+    const res = await fetchFn(url, {
+      headers: { 'Metadata-Flavor': 'Google' },
+    })
+    if (!res.ok) return null
+    const data = (await res.json()) as { access_token?: string; expires_in?: number }
+    if (typeof data.access_token !== 'string' || !data.access_token) return null
+    return {
+      accessToken: data.access_token,
+      expiresInSeconds: Number(data.expires_in ?? DEFAULT_TOKEN_TTL_SECONDS),
+    }
+  } catch {
+    return null
+  }
+}
+
+export async function getServiceAccountEmail(
+  env: Record<string, string | undefined> = process.env,
+  fetchFn: FetchLike = fetch,
+): Promise<string | null> {
+  const creds = parseServiceAccountCredentials(env)
+  if (creds) return creds.clientEmail
+  if (env.FUNCTIONS_EMULATOR === 'true') return null
+  return fetchMetadataServiceAccountEmail(fetchFn)
+}
+
+export async function getServiceAccountAccessToken(
+  env: Record<string, string | undefined> = process.env,
+  fetchFn: FetchLike = fetch,
+  nowMs: number = Date.now(),
+): Promise<{ accessToken: string; serviceAccountEmail: string } | null> {
+  if (cachedToken && cachedToken.expiresAtMs > nowMs + TOKEN_EXPIRY_MARGIN_MS) {
+    return {
+      accessToken: cachedToken.accessToken,
+      serviceAccountEmail: cachedToken.serviceAccountEmail,
+    }
+  }
+
+  const creds = parseServiceAccountCredentials(env)
+  if (creds) {
+    const jwt = createServiceAccountJwt(creds, GOOGLE_CALENDAR_SCOPE, Math.floor(nowMs / 1000))
+    const token = await exchangeJwtForAccessToken(jwt, fetchFn)
+    cachedToken = {
+      accessToken: token.accessToken,
+      expiresAtMs: nowMs + token.expiresInSeconds * 1000,
+      serviceAccountEmail: creds.clientEmail,
+    }
+    return {
+      accessToken: token.accessToken,
+      serviceAccountEmail: creds.clientEmail,
+    }
+  }
+
+  if (env.FUNCTIONS_EMULATOR === 'true') return null
+
+  const [email, token] = await Promise.all([
+    fetchMetadataServiceAccountEmail(fetchFn),
+    fetchMetadataAccessToken(fetchFn),
+  ])
+  if (!email || !token) return null
+
+  cachedToken = {
+    accessToken: token.accessToken,
+    expiresAtMs: nowMs + token.expiresInSeconds * 1000,
+    serviceAccountEmail: email,
+  }
+  return {
+    accessToken: token.accessToken,
+    serviceAccountEmail: email,
+  }
 }
 
 export function getGoogleWebhookUrl(
@@ -84,70 +285,8 @@ export function getGoogleWebhookUrl(
   return `https://${functionsRegion}-${projectId}.cloudfunctions.net/googleCalendarWebhook`
 }
 
-export function signOAuthState(payload: GoogleOAuthStatePayload, secret: string): string {
-  const encoded = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
-  const sig = createHmac('sha256', secret).update(encoded).digest('base64url')
-  return `${encoded}.${sig}`
-}
-
-export function verifyOAuthState(
-  token: string,
-  secret: string,
-  nowMs: number = Date.now(),
-): GoogleOAuthStatePayload | null {
-  const dot = token.indexOf('.')
-  if (dot <= 0) return null
-  const encoded = token.slice(0, dot)
-  const sig = token.slice(dot + 1)
-  if (!encoded || !sig) return null
-
-  const expected = createHmac('sha256', secret).update(encoded).digest('base64url')
-  const sigBuf = Buffer.from(sig, 'utf8')
-  const expectedBuf = Buffer.from(expected, 'utf8')
-  if (sigBuf.length !== expectedBuf.length || !timingSafeEqual(sigBuf, expectedBuf)) {
-    return null
-  }
-
-  try {
-    const parsed = JSON.parse(
-      Buffer.from(encoded, 'base64url').toString('utf8'),
-    ) as Partial<GoogleOAuthStatePayload>
-    if (
-      typeof parsed.salonId !== 'string' ||
-      typeof parsed.uid !== 'string' ||
-      typeof parsed.returnUrl !== 'string' ||
-      typeof parsed.nonce !== 'string' ||
-      typeof parsed.exp !== 'number'
-    ) {
-      return null
-    }
-    if (parsed.exp < nowMs) return null
-    return parsed as GoogleOAuthStatePayload
-  } catch {
-    return null
-  }
-}
-
-export function createOAuthNonce(): string {
+export function createChannelToken(): string {
   return randomBytes(16).toString('base64url')
-}
-
-export function buildGoogleOAuthUrl(input: {
-  clientId: string
-  redirectUri: string
-  state: string
-}): string {
-  const params = new URLSearchParams({
-    client_id: input.clientId,
-    redirect_uri: input.redirectUri,
-    response_type: 'code',
-    scope: GOOGLE_CALENDAR_SCOPE,
-    access_type: 'offline',
-    prompt: 'consent',
-    include_granted_scopes: 'true',
-    state: input.state,
-  })
-  return `${GOOGLE_AUTH_URL}?${params.toString()}`
 }
 
 export class GoogleApiError extends Error {
@@ -160,107 +299,35 @@ export class GoogleApiError extends Error {
 
 async function parseJsonOrThrow<T>(res: Response): Promise<T> {
   if (!res.ok) {
+    if (res.status === 401) {
+      cachedToken = null
+    }
     const text = await res.text().catch(() => '')
     throw new GoogleApiError(res.status, `Google API error ${res.status}: ${text.slice(0, 300)}`)
   }
   return (await res.json()) as T
 }
 
-export async function exchangeCodeForTokens(
-  input: {
-    code: string
-    clientId: string
-    clientSecret: string
-    redirectUri: string
-  },
-  fetchFn: FetchLike = fetch,
-): Promise<GoogleTokenResponse> {
-  const body = new URLSearchParams({
-    code: input.code,
-    client_id: input.clientId,
-    client_secret: input.clientSecret,
-    redirect_uri: input.redirectUri,
-    grant_type: 'authorization_code',
-  })
-  const res = await fetchFn(GOOGLE_TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  })
-  const data = await parseJsonOrThrow<{
-    access_token: string
-    refresh_token?: string
-    expires_in?: number
-  }>(res)
-  return {
-    accessToken: data.access_token,
-    refreshToken: data.refresh_token ?? null,
-    expiresInSeconds: Number(data.expires_in ?? 3600),
-  }
-}
-
-export async function refreshAccessToken(
-  input: {
-    refreshToken: string
-    clientId: string
-    clientSecret: string
-  },
-  fetchFn: FetchLike = fetch,
-): Promise<{ accessToken: string; expiresInSeconds: number }> {
-  const body = new URLSearchParams({
-    refresh_token: input.refreshToken,
-    client_id: input.clientId,
-    client_secret: input.clientSecret,
-    grant_type: 'refresh_token',
-  })
-  const res = await fetchFn(GOOGLE_TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  })
-  const data = await parseJsonOrThrow<{ access_token: string; expires_in?: number }>(res)
-  return {
-    accessToken: data.access_token,
-    expiresInSeconds: Number(data.expires_in ?? 3600),
-  }
-}
-
-export async function fetchGoogleUserEmail(
+export async function getCalendarListEntry(
   accessToken: string,
+  calendarId: string,
   fetchFn: FetchLike = fetch,
-): Promise<string | null> {
-  const res = await fetchFn(GOOGLE_USERINFO_URL, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (!res.ok) return null
-  const data = (await res.json()) as { email?: string }
-  return typeof data.email === 'string' && data.email.trim() ? data.email.trim() : null
-}
-
-export async function listCalendars(
-  accessToken: string,
-  fetchFn: FetchLike = fetch,
-): Promise<GoogleCalendarListItem[]> {
-  const res = await fetchFn(`${GOOGLE_CALENDAR_API}/users/me/calendarList?minAccessRole=reader`, {
+): Promise<GoogleCalendarListItem> {
+  const encodedId = encodeURIComponent(calendarId)
+  const res = await fetchFn(`${GOOGLE_CALENDAR_API}/users/me/calendarList/${encodedId}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
   const data = await parseJsonOrThrow<{
-    items?: Array<{
-      id?: string
-      summary?: string
-      summaryOverride?: string
-      primary?: boolean
-      accessRole?: string
-    }>
+    id?: string
+    summary?: string
+    summaryOverride?: string
+    accessRole?: string
   }>(res)
-  return (data.items ?? [])
-    .filter((item): item is typeof item & { id: string } => typeof item.id === 'string')
-    .map((item) => ({
-      id: item.id,
-      summary: (item.summaryOverride || item.summary || item.id).trim(),
-      primary: item.primary === true,
-      accessRole: item.accessRole,
-    }))
+  return {
+    id: data.id || calendarId,
+    summary: (data.summaryOverride || data.summary || calendarId).trim(),
+    accessRole: data.accessRole,
+  }
 }
 
 export async function getCalendar(
@@ -276,6 +343,58 @@ export async function getCalendar(
   return {
     id: data.id || calendarId,
     summary: (data.summary || calendarId).trim(),
+  }
+}
+
+/**
+ * Adds a shared calendar to the service account's calendar list so we can read its
+ * summary and accessRole (e.g. 'writer', 'owner', 'reader'). On 409 (already subscribed)
+ * or other non-auth insert errors, reads the existing calendarList entry first so
+ * accessRole is preserved before falling back to getCalendar.
+ */
+export async function subscribeToCalendar(
+  accessToken: string,
+  calendarId: string,
+  fetchFn: FetchLike = fetch,
+): Promise<GoogleCalendarListItem> {
+  const res = await fetchFn(`${GOOGLE_CALENDAR_API}/users/me/calendarList`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ id: calendarId }),
+  })
+  if (res.ok) {
+    const data = (await res.json()) as {
+      id?: string
+      summary?: string
+      summaryOverride?: string
+      accessRole?: string
+    }
+    return {
+      id: data.id || calendarId,
+      summary: (data.summaryOverride || data.summary || calendarId).trim(),
+      accessRole: data.accessRole,
+    }
+  }
+  if (res.status === 401) {
+    cachedToken = null
+  }
+  if (res.status === 404 || res.status === 403 || res.status === 401) {
+    const text = await res.text().catch(() => '')
+    throw new GoogleApiError(res.status, `Google API error ${res.status}: ${text.slice(0, 300)}`)
+  }
+  try {
+    return await getCalendarListEntry(accessToken, calendarId, fetchFn)
+  } catch (err) {
+    if (
+      err instanceof GoogleApiError &&
+      (err.status === 404 || err.status === 403 || err.status === 401)
+    ) {
+      throw err
+    }
+    return getCalendar(accessToken, calendarId, fetchFn)
   }
 }
 

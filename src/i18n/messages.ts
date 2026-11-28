@@ -551,12 +551,16 @@ export type Messages = {
   'admin.googleCalendarHint': string
   'admin.googleCalendarNotConfigured': string
   'admin.googleCalendarConnect': string
-  'admin.googleCalendarConnectedAs': string
+  'admin.googleCalendarStep1Title': string
+  'admin.googleCalendarStep1Hint': string
+  'admin.googleCalendarCopyEmail': string
+  'admin.googleCalendarEmailCopied': string
+  'admin.googleCalendarStep2Title': string
+  'admin.googleCalendarStep2Hint': string
+  'admin.googleCalendarIdLabel': string
+  'admin.googleCalendarSharedWith': string
+  'admin.googleCalendarReadOnlyWarning': string
   'admin.googleCalendarConnectedBanner': string
-  'admin.googleCalendarErrorBanner': string
-  'admin.googleCalendarSelectLabel': string
-  'admin.googleCalendarCustomIdLabel': string
-  'admin.googleCalendarUseId': string
   'admin.googleCalendarSyncNow': string
   'admin.googleCalendarSyncResult': string
   'admin.googleCalendarLastSync': string
@@ -1220,15 +1224,21 @@ export const de: Messages = {
   'admin.googleCalendarHint':
     'Verbinde einen Google Kalender, um externe Termine automatisch zu blockieren und Kundenbuchungen dorthin zu synchronisieren.',
   'admin.googleCalendarNotConfigured':
-    'Google Kalender OAuth ist auf dem Server noch nicht konfiguriert (GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET).',
-  'admin.googleCalendarConnect': 'Google Kalender verbinden',
-  'admin.googleCalendarConnectedAs': 'Verbunden mit {email}',
+    'Lokal ist kein Google Service Account konfiguriert (setze GOOGLE_APPLICATION_CREDENTIALS oder GOOGLE_SERVICE_ACCOUNT_JSON). In Firebase Cloud Functions funktioniert dies automatisch.',
+  'admin.googleCalendarConnect': 'Kalender verbinden',
+  'admin.googleCalendarStep1Title': '1. Google Kalender teilen',
+  'admin.googleCalendarStep1Hint':
+    'Öffne in Google Kalender die Einstellungen des gewünschten Kalenders → „Für bestimmte Personen oder Gruppen freigeben“ und füge diese E-Mail mit der Berechtigung „Änderungen an Terminen vornehmen“ hinzu:',
+  'admin.googleCalendarCopyEmail': 'E-Mail kopieren',
+  'admin.googleCalendarEmailCopied': 'Kopiert',
+  'admin.googleCalendarStep2Title': '2. Kalender-ID eingeben',
+  'admin.googleCalendarStep2Hint':
+    'Gib deine Kalender-ID ein (für deinen Hauptkalender einfach deine Gmail-Adresse, oder die Kalender-ID unter „Kalender integrieren“):',
+  'admin.googleCalendarIdLabel': 'Google Kalender-ID',
+  'admin.googleCalendarSharedWith': 'Freigegeben für: {email}',
+  'admin.googleCalendarReadOnlyWarning':
+    'Dieser Kalender ist nur lesend freigegeben. Externe Termine werden blockiert, aber neue Buchungen können erst nach Freigabe mit „Änderungen an Terminen vornehmen“ eingetragen werden.',
   'admin.googleCalendarConnectedBanner': 'Google Kalender wurde erfolgreich verbunden.',
-  'admin.googleCalendarErrorBanner':
-    'Die Verbindung mit Google Kalender ist fehlgeschlagen. Bitte erneut versuchen.',
-  'admin.googleCalendarSelectLabel': 'Kalender auswählen',
-  'admin.googleCalendarCustomIdLabel': 'Oder geteilte Kalender-ID eingeben',
-  'admin.googleCalendarUseId': 'Kalender verwenden',
   'admin.googleCalendarSyncNow': 'Jetzt synchronisieren',
   'admin.googleCalendarSyncResult':
     'Synchronisiert: {blocked} externe Termine, {pushed} Buchungen übertragen.',
@@ -1882,14 +1892,21 @@ export const it: Messages = {
   'admin.googleCalendarHint':
     'Collega un calendario Google per bloccare automaticamente gli impegni esterni e sincronizzare le prenotazioni dei clienti.',
   'admin.googleCalendarNotConfigured':
-    'Google Calendar OAuth non è ancora configurato sul server (GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET).',
-  'admin.googleCalendarConnect': 'Collega Google Calendar',
-  'admin.googleCalendarConnectedAs': 'Collegato come {email}',
+    'In locale non è configurato alcun account di servizio Google (imposta GOOGLE_APPLICATION_CREDENTIALS o GOOGLE_SERVICE_ACCOUNT_JSON). In Firebase Cloud Functions funziona automaticamente.',
+  'admin.googleCalendarConnect': 'Collega calendario',
+  'admin.googleCalendarStep1Title': '1. Condividi Google Calendar',
+  'admin.googleCalendarStep1Hint':
+    'Apri le impostazioni del calendario in Google Calendar → "Condividi con persone o gruppi specifici" e aggiungi questa e-mail con l’autorizzazione "Apportare modifiche agli eventi":',
+  'admin.googleCalendarCopyEmail': 'Copia e-mail',
+  'admin.googleCalendarEmailCopied': 'Copiato',
+  'admin.googleCalendarStep2Title': '2. Inserisci l’ID del calendario',
+  'admin.googleCalendarStep2Hint':
+    'Inserisci l’ID del calendario (per il calendario principale basta il tuo indirizzo Gmail, oppure l’ID calendario in "Integra calendario"):',
+  'admin.googleCalendarIdLabel': 'ID Google Calendar',
+  'admin.googleCalendarSharedWith': 'Condiviso con: {email}',
+  'admin.googleCalendarReadOnlyWarning':
+    'Questo calendario è condiviso in sola lettura. Gli impegni esterni vengono bloccati, ma le nuove prenotazioni saranno sincronizzate solo con l’autorizzazione "Apportare modifiche agli eventi".',
   'admin.googleCalendarConnectedBanner': 'Google Calendar collegato con successo.',
-  'admin.googleCalendarErrorBanner': 'Collegamento a Google Calendar non riuscito. Riprova.',
-  'admin.googleCalendarSelectLabel': 'Seleziona calendario',
-  'admin.googleCalendarCustomIdLabel': 'Oppure inserisci ID calendario condiviso',
-  'admin.googleCalendarUseId': 'Usa calendario',
   'admin.googleCalendarSyncNow': 'Sincronizza ora',
   'admin.googleCalendarSyncResult':
     'Sincronizzato: {blocked} eventi esterni, {pushed} prenotazioni inviate.',

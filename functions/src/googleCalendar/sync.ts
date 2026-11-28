@@ -4,19 +4,19 @@ import { getFirestore, type Firestore } from 'firebase-admin/firestore'
 
 import { getDefaultTimezone, getSalonId } from '../config'
 import {
-  createOAuthNonce,
+  createChannelToken,
   deleteEvent,
-  getGoogleOAuthConfig,
+  getCalendarListEntry,
   getGoogleWebhookUrl,
+  getServiceAccountAccessToken,
   GoogleApiError,
   insertEvent,
+  isWritableAccessRole,
   listEventsInWindow,
   patchEvent,
-  refreshAccessToken,
   stopChannel,
   watchEvents,
   type FetchLike,
-  type GoogleCalendarListItem,
 } from './client'
 import {
   blockedSlotDocIdForGoogleEvent,
@@ -43,13 +43,9 @@ async function commitInChunks(
 export type GoogleCalendarIntegrationDoc = {
   employeeId: string | null
   connected: boolean
-  accountEmail: string | null
-  refreshToken: string | null
-  accessToken: string | null
-  accessTokenExpiresAt: string | null
   calendarId: string | null
   calendarSummary: string | null
-  availableCalendars: GoogleCalendarListItem[]
+  accessRole: string | null
   lastSyncAt: string | null
   lastSyncStatus: 'OK' | 'ERROR' | null
   lastSyncError: string | null
@@ -95,43 +91,14 @@ export async function getValidAccessToken(
   const snap = await ref.get()
   if (!snap.exists) return null
   const data = snap.data() as Partial<GoogleCalendarIntegrationDoc>
-  if (!data.connected || !data.refreshToken) return null
+  if (!data.connected || !data.calendarId) return null
 
-  const expiresMs = data.accessTokenExpiresAt ? new Date(data.accessTokenExpiresAt).getTime() : 0
-  if (data.accessToken && Number.isFinite(expiresMs) && expiresMs > Date.now() + 60_000) {
-    return {
-      accessToken: data.accessToken,
-      integration: data as GoogleCalendarIntegrationDoc,
-    }
-  }
-
-  const oauth = getGoogleOAuthConfig()
-  if (!oauth) return null
-
-  const refreshed = await refreshAccessToken(
-    {
-      refreshToken: data.refreshToken,
-      clientId: oauth.clientId,
-      clientSecret: oauth.clientSecret,
-    },
-    fetchFn,
-  )
-  const newExpiresAt = new Date(Date.now() + refreshed.expiresInSeconds * 1000).toISOString()
-  const updatedAt = new Date().toISOString()
-  await ref.update({
-    accessToken: refreshed.accessToken,
-    accessTokenExpiresAt: newExpiresAt,
-    updatedAt,
-  })
+  const token = await getServiceAccountAccessToken(process.env, fetchFn)
+  if (!token) return null
 
   return {
-    accessToken: refreshed.accessToken,
-    integration: {
-      ...(data as GoogleCalendarIntegrationDoc),
-      accessToken: refreshed.accessToken,
-      accessTokenExpiresAt: newExpiresAt,
-      updatedAt,
-    },
+    accessToken: token.accessToken,
+    integration: data as GoogleCalendarIntegrationDoc,
   }
 }
 
@@ -161,7 +128,7 @@ export async function ensureWatchChannel(
   }
 
   const channelId = randomUUID()
-  const channelToken = createOAuthNonce()
+  const channelToken = createChannelToken()
   const watch = await watchEvents(
     accessToken,
     calendarId,
@@ -225,6 +192,22 @@ export async function syncGoogleCalendarForSalon(
   const timeMaxIso = new Date(now.getTime() + 120 * 24 * 60 * 60_000).toISOString()
 
   try {
+    // Refresh accessRole (and summary) from calendarList so permission upgrades or legacy
+    // OAuth docs without a stored accessRole are picked up without requiring a reconnect.
+    let effectiveAccessRole: string | null = auth.integration.accessRole ?? null
+    let refreshedSummary: string | null = null
+    try {
+      const listEntry = await getCalendarListEntry(auth.accessToken, calendarId, fetchFn)
+      if (listEntry.accessRole) {
+        effectiveAccessRole = listEntry.accessRole
+      }
+      if (listEntry.summary) {
+        refreshedSummary = listEntry.summary
+      }
+    } catch {
+      // Best-effort refresh; fall back to stored accessRole (null is treated as read-only).
+    }
+
     const events = await listEventsInWindow(
       auth.accessToken,
       calendarId,
@@ -278,56 +261,61 @@ export async function syncGoogleCalendarForSalon(
     await commitInChunks(db, ops)
 
     // Backfill upcoming active reservations for this employee (or salon-wide when emp is null).
-    const resSnap = await db
-      .collection('salons')
-      .doc(salonId)
-      .collection('reservations')
-      .where('endAt', '>=', nowIso)
-      .get()
-
+    // Treat missing/unknown accessRole conservatively as read-only until verified as writer/owner.
     let pushedReservations = 0
-    for (const doc of resSnap.docs) {
-      const data = doc.data()
-      const status = String(data.status)
-      if (status !== 'PENDING' && status !== 'CONFIRMED') continue
-      const resEmp = normalizeEmployeeId(
-        typeof data.employeeId === 'string' ? data.employeeId : null,
-      )
-      if (emp !== null && resEmp !== emp) continue
-      if (emp === null && resEmp !== null) continue
-      if (typeof data.googleCalendarEventId === 'string' && data.googleCalendarEventId) continue
+    if (isWritableAccessRole(effectiveAccessRole)) {
+      const resSnap = await db
+        .collection('salons')
+        .doc(salonId)
+        .collection('reservations')
+        .where('endAt', '>=', nowIso)
+        .get()
 
-      const payload = reservationToGoogleEvent({
-        reservationId: doc.id,
-        salonId,
-        firstName: String(data.firstName ?? ''),
-        lastName: String(data.lastName ?? ''),
-        phone: String(data.phone ?? ''),
-        email: typeof data.email === 'string' ? data.email : null,
-        serviceName: String(data.serviceName ?? ''),
-        startAt: String(data.startAt),
-        endAt: String(data.endAt),
-        status,
-        notes: typeof data.notes === 'string' ? data.notes : null,
-        internalNote: typeof data.internalNote === 'string' ? data.internalNote : null,
-        timeZone,
-      })
-      const deterministicId = googleEventIdForReservation(salonId, doc.id)
-      try {
-        const created = await insertEvent(auth.accessToken, calendarId, payload, fetchFn)
-        await doc.ref.update({ googleCalendarEventId: created.id })
-      } catch (err) {
-        if (err instanceof GoogleApiError && err.status === 409) {
-          await patchEvent(auth.accessToken, calendarId, deterministicId, payload, fetchFn)
-          await doc.ref.update({ googleCalendarEventId: deterministicId })
-        } else {
-          throw err
+      for (const doc of resSnap.docs) {
+        const data = doc.data()
+        const status = String(data.status)
+        if (status !== 'PENDING' && status !== 'CONFIRMED') continue
+        const resEmp = normalizeEmployeeId(
+          typeof data.employeeId === 'string' ? data.employeeId : null,
+        )
+        if (emp !== null && resEmp !== emp) continue
+        if (emp === null && resEmp !== null) continue
+        if (typeof data.googleCalendarEventId === 'string' && data.googleCalendarEventId) continue
+
+        const payload = reservationToGoogleEvent({
+          reservationId: doc.id,
+          salonId,
+          firstName: String(data.firstName ?? ''),
+          lastName: String(data.lastName ?? ''),
+          phone: String(data.phone ?? ''),
+          email: typeof data.email === 'string' ? data.email : null,
+          serviceName: String(data.serviceName ?? ''),
+          startAt: String(data.startAt),
+          endAt: String(data.endAt),
+          status,
+          notes: typeof data.notes === 'string' ? data.notes : null,
+          internalNote: typeof data.internalNote === 'string' ? data.internalNote : null,
+          timeZone,
+        })
+        const deterministicId = googleEventIdForReservation(salonId, doc.id)
+        try {
+          const created = await insertEvent(auth.accessToken, calendarId, payload, fetchFn)
+          await doc.ref.update({ googleCalendarEventId: created.id })
+        } catch (err) {
+          if (err instanceof GoogleApiError && err.status === 409) {
+            await patchEvent(auth.accessToken, calendarId, deterministicId, payload, fetchFn)
+            await doc.ref.update({ googleCalendarEventId: deterministicId })
+          } else {
+            throw err
+          }
         }
+        pushedReservations += 1
       }
-      pushedReservations += 1
     }
 
     await ref.update({
+      accessRole: effectiveAccessRole,
+      ...(refreshedSummary ? { calendarSummary: refreshedSummary } : {}),
       lastSyncAt: nowIso,
       lastSyncStatus: 'OK',
       lastSyncError: null,
@@ -370,6 +358,9 @@ export async function syncReservationToGoogleCalendar(
 
     const auth = await getValidAccessToken(db, salonId, empId, fetchFn)
     if (!auth || !auth.integration.calendarId) return
+    if (!isWritableAccessRole(auth.integration.accessRole)) {
+      return
+    }
     const calendarId = auth.integration.calendarId
 
     const status = String(data.status)

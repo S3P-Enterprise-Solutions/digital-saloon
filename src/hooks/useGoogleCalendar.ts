@@ -1,10 +1,9 @@
 ﻿import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
+  connectGoogleCalendar,
   disconnectGoogleCalendar,
   getGoogleCalendarStatus,
-  selectGoogleCalendar,
-  startGoogleCalendarOAuth,
   syncGoogleCalendar,
 } from '../data/googleCalendarApi'
 import { getSalonId } from '../data/salonConfig'
@@ -28,11 +27,7 @@ export function useGoogleCalendarActions(employeeId?: string | null) {
   }
 
   const connect = useMutation({
-    mutationFn: (returnUrl: string) => startGoogleCalendarOAuth({ returnUrl, employeeId: empKey }),
-  })
-
-  const selectCalendar = useMutation({
-    mutationFn: (calendarId: string) => selectGoogleCalendar({ calendarId, employeeId: empKey }),
+    mutationFn: (calendarId: string) => connectGoogleCalendar({ calendarId, employeeId: empKey }),
     onSuccess: (status) => {
       queryClient.setQueryData(queryKeyOf('googleCalendarStatus', getSalonId(), empKey), status)
       void queryClient.invalidateQueries({ queryKey: queryKeyOf('blockedSlots') })
@@ -58,5 +53,5 @@ export function useGoogleCalendarActions(employeeId?: string | null) {
     },
   })
 
-  return { connect, selectCalendar, sync, disconnect }
+  return { connect, sync, disconnect }
 }
