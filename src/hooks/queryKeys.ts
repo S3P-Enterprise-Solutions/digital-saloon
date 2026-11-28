@@ -15,6 +15,8 @@ export const queryRootVisibility = {
   adminReservations: 'private',
   adminReservation: 'private',
   blockedSlots: 'private',
+  customers: 'private',
+  customerDetail: 'private',
   googleCalendarStatus: 'private',
   userProfile: 'private',
   demoMode: 'private',

@@ -27,6 +27,7 @@ export type GoogleCalendarHistoryImportResult = {
   importedEvents: number
   writtenEvents: number
   skippedUnchanged: number
+  seededCustomers?: number
   status: GoogleCalendarStatus
 }
 
