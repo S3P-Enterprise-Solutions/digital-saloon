@@ -8,7 +8,11 @@ import { notifyCustomerCancelled, notifyCustomerRescheduled } from './customerNo
 import { toPublicReservationView } from './findByToken'
 import { syncReservationToGoogleCalendar } from '../googleCalendar/sync'
 import { recordActivityLog } from '../logging/activityLog'
-import { lockIdForStart, updateReservationTransactional } from './reservationWrite'
+import {
+  lockIdForStart,
+  parseDurationOverride,
+  updateReservationTransactional,
+} from './reservationWrite'
 import { loadSalonContext } from './salonContext'
 
 const ACTIVE = new Set(['PENDING', 'CONFIRMED'])
@@ -233,6 +237,21 @@ export const adminUpdateReservation = onCall({ region: functionsRegion }, async 
   const { db, salonId, ref, snap } = await loadReservation(reservationId)
   const beforeData = snap.data() ?? {}
 
+  let durationMinutesOverride: number | null = null
+  if (
+    request.data.durationMinutesOverride !== undefined &&
+    request.data.durationMinutesOverride !== null
+  ) {
+    const parsed = parseDurationOverride(request.data.durationMinutesOverride)
+    if (parsed === null) {
+      throw new HttpsError(
+        'invalid-argument',
+        'durationMinutesOverride must be an integer between 5 and 600.',
+      )
+    }
+    durationMinutesOverride = parsed
+  }
+
   const result = await updateReservationTransactional(
     {
       reservationId,
@@ -254,6 +273,7 @@ export const adminUpdateReservation = onCall({ region: functionsRegion }, async 
           }
         : {}),
       startAt,
+      ...(durationMinutesOverride !== null ? { durationMinutesOverride } : {}),
       internalNote:
         typeof request.data.internalNote === 'string' && request.data.internalNote.trim().length > 0
           ? request.data.internalNote.trim()

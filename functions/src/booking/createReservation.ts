@@ -5,7 +5,7 @@ import { assertAdmin } from '../authz'
 import { functionsRegion, getSalonId } from '../config'
 import { upsertCustomerForBooking } from '../customers/store'
 import { isObject } from '../schemas'
-import { createReservationTransactional } from './reservationWrite'
+import { createReservationTransactional, parseDurationOverride } from './reservationWrite'
 import { syncReservationToGoogleCalendar } from '../googleCalendar/sync'
 import { recordActivityLog } from '../logging/activityLog'
 import { sendBookingConfirmationEmail } from './sendBookingEmail'
@@ -210,6 +210,18 @@ export const createManualReservation = onCall({ region: functionsRegion }, async
   const manualEmail =
     typeof data.email === 'string' && data.email.trim().length > 0 ? data.email.trim() : null
 
+  let durationMinutesOverride: number | null = null
+  if (data.durationMinutesOverride !== undefined && data.durationMinutesOverride !== null) {
+    const parsed = parseDurationOverride(data.durationMinutesOverride)
+    if (parsed === null) {
+      throw new HttpsError(
+        'invalid-argument',
+        'durationMinutesOverride must be an integer between 5 and 600.',
+      )
+    }
+    durationMinutesOverride = parsed
+  }
+
   const result = await createReservationTransactional(
     {
       firstName: manualFirstName,
@@ -223,6 +235,7 @@ export const createManualReservation = onCall({ region: functionsRegion }, async
           ? data.employeeId.trim()
           : null,
       startAt,
+      ...(durationMinutesOverride !== null ? { durationMinutesOverride } : {}),
       source: 'MANUAL',
       internalNote:
         typeof data.internalNote === 'string' && data.internalNote.trim().length > 0

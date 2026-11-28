@@ -4,7 +4,7 @@ import { assertAdmin } from '../authz'
 import { functionsRegion, getSalonId } from '../config'
 import { isObject } from '../schemas'
 import { findReservationByManagementToken } from './findByToken'
-import { previewAvailableSlots } from './reservationWrite'
+import { parseDurationOverride, previewAvailableSlots } from './reservationWrite'
 
 export const getAvailableSlots = onCall({ region: functionsRegion }, async (request) => {
   const data = request.data
@@ -93,6 +93,19 @@ export const getAvailableSlots = onCall({ region: functionsRegion }, async (requ
     excludeReservationId = data.excludeReservationId.trim()
   }
 
+  let durationMinutesOverride: number | null = null
+  if (data.durationMinutesOverride !== undefined && data.durationMinutesOverride !== null) {
+    await assertAdmin(request)
+    const parsed = parseDurationOverride(data.durationMinutesOverride)
+    if (parsed === null) {
+      throw new HttpsError(
+        'invalid-argument',
+        'durationMinutesOverride must be an integer between 5 and 600.',
+      )
+    }
+    durationMinutesOverride = parsed
+  }
+
   const slots = await previewAvailableSlots({
     ...(serviceId ? { serviceId } : {}),
     ...(serviceIds.length > 0 ? { serviceIds } : {}),
@@ -102,6 +115,7 @@ export const getAvailableSlots = onCall({ region: functionsRegion }, async (requ
     salonId: getSalonId(),
     enforceAdvanceRestrictions,
     ...(excludeReservationId ? { excludeReservationId } : {}),
+    ...(durationMinutesOverride !== null ? { durationMinutesOverride } : {}),
     reschedule,
   })
 

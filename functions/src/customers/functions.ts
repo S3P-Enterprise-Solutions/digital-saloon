@@ -114,26 +114,18 @@ export const listCustomers = onCall({ region: functionsRegion }, async (request)
   return { customers }
 })
 
-export const getCustomerDetail = onCall({ region: functionsRegion }, async (request) => {
-  await assertAdmin(request)
-  if (!isObject(request.data) || typeof request.data.customerId !== 'string') {
-    throw new HttpsError('invalid-argument', 'customerId is required.')
-  }
-  const customerId = request.data.customerId.trim()
-  if (!customerId) {
-    throw new HttpsError('invalid-argument', 'customerId is required.')
-  }
-
-  const db = getFirestore()
-  const salonId = getSalonId()
-  const customerSnap = await customersCollection(db, salonId).doc(customerId).get()
-  if (!customerSnap.exists) {
-    throw new HttpsError('not-found', 'Customer not found.')
-  }
-
-  const customer = toCustomerWithId(customerSnap.id, customerSnap.data()!)
-
-  // Load SalonFlow reservations linked by customerId, email, or normalized name.
+async function loadCustomerHistory(
+  db: FirebaseFirestore.Firestore,
+  salonId: string,
+  target: {
+    customerId: string | null
+    firstName: string
+    lastName: string
+    email: string | null
+    nameKey: string
+    excludeReservationId?: string | null
+  },
+): Promise<CustomerHistoryItem[]> {
   const [resSnap, blocksSnap] = await Promise.all([
     db.collection('salons').doc(salonId).collection('reservations').get(),
     db
@@ -146,14 +138,15 @@ export const getCustomerDetail = onCall({ region: functionsRegion }, async (requ
 
   const history: CustomerHistoryItem[] = []
   for (const doc of resSnap.docs) {
+    if (target.excludeReservationId && doc.id === target.excludeReservationId) continue
     const data = doc.data()
-    const matchesId = data.customerId === customer.id
+    const matchesId = Boolean(target.customerId && data.customerId === target.customerId)
     const resEmail = normalizeCustomerEmail(typeof data.email === 'string' ? data.email : null)
-    const matchesEmail = Boolean(customer.email && resEmail && resEmail === customer.email)
+    const matchesEmail = Boolean(target.email && resEmail && resEmail === target.email)
     const resNameKey = nameOrderInsensitiveKey(
       normalizeCustomerName(String(data.firstName ?? ''), String(data.lastName ?? '')),
     )
-    const matchesName = Boolean(customer.nameKey && resNameKey === customer.nameKey)
+    const matchesName = Boolean(target.nameKey && resNameKey === target.nameKey)
     if (!matchesId && !matchesEmail && !matchesName) continue
 
     const startAt = String(data.startAt ?? '')
@@ -181,7 +174,7 @@ export const getCustomerDetail = onCall({ region: functionsRegion }, async (requ
     const data = doc.data()
     if (data.isPrivate === true || data.allDay === true) continue
     const title = typeof data.title === 'string' ? data.title : ''
-    if (!doesCalendarTitleMatchCustomer(title, customer.firstName, customer.lastName)) continue
+    if (!doesCalendarTitleMatchCustomer(title, target.firstName, target.lastName)) continue
 
     const startAt = String(data.startAt ?? '')
     const endAt = String(data.endAt ?? '')
@@ -198,6 +191,104 @@ export const getCustomerDetail = onCall({ region: functionsRegion }, async (requ
   }
 
   history.sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime())
+  return history
+}
+
+export const getCustomerDetail = onCall({ region: functionsRegion }, async (request) => {
+  await assertAdmin(request)
+  if (!isObject(request.data) || typeof request.data.customerId !== 'string') {
+    throw new HttpsError('invalid-argument', 'customerId is required.')
+  }
+  const customerId = request.data.customerId.trim()
+  if (!customerId) {
+    throw new HttpsError('invalid-argument', 'customerId is required.')
+  }
+
+  const db = getFirestore()
+  const salonId = getSalonId()
+  const customerSnap = await customersCollection(db, salonId).doc(customerId).get()
+  if (!customerSnap.exists) {
+    throw new HttpsError('not-found', 'Customer not found.')
+  }
+
+  const customer = toCustomerWithId(customerSnap.id, customerSnap.data()!)
+  const history = await loadCustomerHistory(db, salonId, {
+    customerId: customer.id,
+    firstName: customer.firstName,
+    lastName: customer.lastName,
+    email: customer.email,
+    nameKey: customer.nameKey,
+  })
+
+  return { customer, history }
+})
+
+export const lookupCustomerContext = onCall({ region: functionsRegion }, async (request) => {
+  await assertAdmin(request)
+  if (!isObject(request.data)) {
+    throw new HttpsError('invalid-argument', 'Invalid payload.')
+  }
+
+  const customerId =
+    typeof request.data.customerId === 'string' && request.data.customerId.trim()
+      ? request.data.customerId.trim()
+      : null
+  const firstName = typeof request.data.firstName === 'string' ? request.data.firstName.trim() : ''
+  const lastName = typeof request.data.lastName === 'string' ? request.data.lastName.trim() : ''
+  const email = normalizeCustomerEmail(
+    typeof request.data.email === 'string' ? request.data.email : null,
+  )
+  const excludeReservationId =
+    typeof request.data.excludeReservationId === 'string' &&
+    request.data.excludeReservationId.trim()
+      ? request.data.excludeReservationId.trim()
+      : null
+
+  const db = getFirestore()
+  const salonId = getSalonId()
+  const col = customersCollection(db, salonId)
+
+  let customer: CustomerWithId | null = null
+  if (customerId) {
+    const snap = await col.doc(customerId).get()
+    if (snap.exists && snap.data()?.archived !== true) {
+      customer = toCustomerWithId(snap.id, snap.data()!)
+    }
+  }
+  if (!customer && email) {
+    const byEmail = await col.where('email', '==', email).limit(1).get()
+    if (!byEmail.empty && byEmail.docs[0]!.data().archived !== true) {
+      customer = toCustomerWithId(byEmail.docs[0]!.id, byEmail.docs[0]!.data())
+    }
+  }
+  const inputNameKey = nameOrderInsensitiveKey(normalizeCustomerName(firstName, lastName))
+  if (!customer && inputNameKey.length >= 2) {
+    const byName = await col.where('nameKey', '==', inputNameKey).limit(3).get()
+    const match = byName.docs.find((doc) => doc.data().archived !== true)
+    if (match) {
+      customer = toCustomerWithId(match.id, match.data())
+    }
+  }
+
+  const effectiveFirstName = customer?.firstName ?? firstName
+  const effectiveLastName = customer?.lastName ?? lastName
+  const effectiveEmail = customer?.email ?? email
+  const effectiveNameKey =
+    customer?.nameKey ??
+    nameOrderInsensitiveKey(normalizeCustomerName(effectiveFirstName, effectiveLastName))
+
+  if (!customer && !effectiveEmail && effectiveNameKey.length < 2) {
+    return { customer: null, history: [] as CustomerHistoryItem[] }
+  }
+
+  const history = await loadCustomerHistory(db, salonId, {
+    customerId: customer?.id ?? null,
+    firstName: effectiveFirstName,
+    lastName: effectiveLastName,
+    email: effectiveEmail,
+    nameKey: effectiveNameKey,
+    excludeReservationId,
+  })
 
   return { customer, history }
 })

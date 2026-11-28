@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
+import { parseDurationOverride } from './lib/booking/reservationWrite.js'
 import {
   doesCalendarTitleMatchCustomer,
   extractCustomerNameFromCalendarTitle,
@@ -76,5 +77,16 @@ describe('customer smart calendar matching & seeding', () => {
     assert.equal(doesCalendarTitleMatchCustomer('Maria Rossi — Balayage', 'Maria', 'Rossi'), true)
     assert.equal(doesCalendarTitleMatchCustomer('Rossi Maria (Färben)', 'Maria', 'Rossi'), true)
     assert.equal(doesCalendarTitleMatchCustomer('Anna Gruber — Schnitt', 'Maria', 'Rossi'), false)
+  })
+
+  it('validates admin duration overrides within 5..600 integer minutes', () => {
+    assert.equal(parseDurationOverride(180), 180)
+    assert.equal(parseDurationOverride(5), 5)
+    assert.equal(parseDurationOverride(600), 600)
+    assert.equal(parseDurationOverride(4), null)
+    assert.equal(parseDurationOverride(601), null)
+    assert.equal(parseDurationOverride(90.5), null)
+    assert.equal(parseDurationOverride(null), null)
+    assert.equal(parseDurationOverride(undefined), null)
   })
 })

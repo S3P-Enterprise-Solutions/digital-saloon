@@ -39,6 +39,7 @@ import {
   archiveCustomer,
   getCustomerDetail,
   listCustomers,
+  lookupCustomerContext,
   saveCustomer,
 } from './customers/functions'
 import {
@@ -91,6 +92,7 @@ export {
   listMyEmployeeReservations,
   listCustomers,
   getCustomerDetail,
+  lookupCustomerContext,
   saveCustomer,
   archiveCustomer,
   getGoogleCalendarStatus,
