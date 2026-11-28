@@ -133,7 +133,7 @@ export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingP
   const todayYmd = viennaTodayYmd()
   const availableDates = useMemo(
     () => (selectedServiceIds.length > 0 ? new Set(slotsByDate(monthSlots ?? []).keys()) : null),
-    [selectedServiceIds.length, monthSlots],
+    [selectedServiceIds, monthSlots],
   )
 
   return (
@@ -258,7 +258,10 @@ export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingP
               availableDates={availableDates}
               loading={monthSlotsLoading}
               error={monthSlotsError}
-              onMonthAnchorChange={onMonthAnchorChange}
+              onMonthAnchorChange={(anchorYmd) => {
+                setStartAt(null)
+                onMonthAnchorChange(anchorYmd)
+              }}
               onSelectDate={(dateYmd) => {
                 setStartAt(null)
                 onDateChange(dateYmd)

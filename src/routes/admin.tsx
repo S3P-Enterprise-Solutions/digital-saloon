@@ -8,7 +8,7 @@ import { isEmployeeManagementEnabled } from '../brands/employeeManagement'
 import { useAuth } from '../auth/AuthProvider'
 import { listRange, startOfWeekYmd } from '../data/calendarRange'
 import { addCalendarDays, todayYmdInTimeZone } from '../data/calendarMath'
-import { monthBoundsYmd, viennaTodayYmd } from '../data/bookingCalendar'
+import { monthSlotQueryPlan, viennaTodayYmd } from '../data/bookingCalendar'
 import { optionalSearchParam } from '../data/schemas'
 import { uploadHomepageImage } from '../data/homepageConfig'
 import { parseSelectedServiceIds, serializeServiceIds } from '../data/serviceSelection'
@@ -490,10 +490,11 @@ export const adminManualRoute = createRoute({
       search.month ?? (selectedDate ? `${selectedDate.slice(0, 8)}01` : `${todayYmd.slice(0, 8)}01`)
     const returnWeek = search.week ? startOfWeekYmd(search.week) : undefined
     const fromPending = search.from === 'pending'
-    const { startYmd: monthStartYmd, endYmd: monthEndYmd } = monthBoundsYmd(monthAnchorYmd)
-    const monthQueryFrom =
-      monthEndYmd < todayYmd ? null : monthStartYmd < todayYmd ? todayYmd : monthStartYmd
-    const monthQueryTo = monthQueryFrom !== null ? monthEndYmd : null
+    const { monthQueryFrom, monthQueryTo, selectedDateInVisibleMonth } = monthSlotQueryPlan(
+      monthAnchorYmd,
+      todayYmd,
+      selectedDate,
+    )
     const monthSlots = useAvailableSlots({
       serviceIds: selectedServiceIds,
       employeeId: selectedEmployeeId,
@@ -502,8 +503,8 @@ export const adminManualRoute = createRoute({
       enforceAdvanceRestrictions: false,
       excludeReservationId: editingReservationId ?? undefined,
     })
-    const selectedDateInVisibleMonth =
-      selectedDate !== null && selectedDate >= monthStartYmd && selectedDate <= monthEndYmd
+    // Fallback for deep links where `date` and `month` point to different months so the
+    // time list still loads for `selectedDate` without forcing a second query in the normal case.
     const fallbackDaySlots = useAvailableSlots({
       serviceIds: selectedDateInVisibleMonth ? [] : selectedServiceIds,
       employeeId: selectedEmployeeId,
@@ -640,9 +641,9 @@ export const adminManualRoute = createRoute({
               serviceIds: serializeServiceIds(selectedServiceIds),
               serviceId: undefined,
               employeeId: selectedEmployeeId ?? undefined,
-              date: selectedDate ?? undefined,
+              date: undefined,
               month: `${anchorYmd.slice(0, 8)}01`,
-              time: search.time,
+              time: undefined,
             },
             replace: true,
             resetScroll: false,
@@ -813,7 +814,6 @@ export const adminHolidaysRoute = createRoute({
 })
 
 const adminSettingsSearchSchema = v.object({
-  gcal: optionalSearchParam(v.picklist(['connected', 'error'] as const)),
   gcalEmployee: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
 })
 
@@ -883,14 +883,12 @@ export const adminSettingsRoute = createRoute({
           status: gcalStatus.data,
           loading: gcalStatus.isLoading,
           error: errorText(gcalStatus.error),
-          oauthCallbackResult: settingsSearch.gcal,
           connecting: gcalActions.connect.isPending,
-          selecting: gcalActions.selectCalendar.isPending,
+          connectedJustNow: gcalActions.connect.isSuccess,
           syncing: gcalActions.sync.isPending,
           disconnecting: gcalActions.disconnect.isPending,
           actionError:
             errorText(gcalActions.connect.error) ??
-            errorText(gcalActions.selectCalendar.error) ??
             errorText(gcalActions.sync.error) ??
             errorText(gcalActions.disconnect.error),
           syncMessage: gcalActions.sync.data
@@ -899,18 +897,8 @@ export const adminSettingsRoute = createRoute({
                 pushed: gcalActions.sync.data.pushedReservations,
               })
             : null,
-          onConnect: () => {
-            const returnUrl = gcalEmployeeId
-              ? `${window.location.origin}/admin/settings?gcalEmployee=${encodeURIComponent(gcalEmployeeId)}`
-              : `${window.location.origin}/admin/settings`
-            gcalActions.connect.mutate(returnUrl, {
-              onSuccess: ({ authUrl }) => {
-                window.location.assign(authUrl)
-              },
-            })
-          },
-          onSelectCalendar: (calendarId) => {
-            gcalActions.selectCalendar.mutate(calendarId)
+          onConnect: (calendarId) => {
+            gcalActions.connect.mutate(calendarId)
           },
           onSyncNow: () => {
             gcalActions.sync.mutate()

@@ -34,13 +34,13 @@ export const BookingMonthCalendar: React.FunctionComponent<BookingMonthCalendarP
 }) => {
   const { t, intlLocale } = useLocale()
   const weekdays = [
-    t('book.weekday.mo'),
-    t('book.weekday.tu'),
-    t('book.weekday.we'),
-    t('book.weekday.th'),
-    t('book.weekday.fr'),
-    t('book.weekday.sa'),
-    t('book.weekday.su'),
+    { key: 'mo', label: t('book.weekday.mo') },
+    { key: 'tu', label: t('book.weekday.tu') },
+    { key: 'we', label: t('book.weekday.we') },
+    { key: 'th', label: t('book.weekday.th') },
+    { key: 'fr', label: t('book.weekday.fr') },
+    { key: 'sa', label: t('book.weekday.sa') },
+    { key: 'su', label: t('book.weekday.su') },
   ]
   const { year, monthIndex } = parseYmd(monthAnchorYmd)
   const weeks = monthMatrix(year, monthIndex)
@@ -95,9 +95,9 @@ export const BookingMonthCalendar: React.FunctionComponent<BookingMonthCalendarP
           mb: 1,
         }}
       >
-        {weekdays.map((label) => (
+        {weekdays.map(({ key, label }) => (
           <Typography
-            key={label}
+            key={key}
             variant="caption"
             color="text.secondary"
             sx={{ textAlign: 'center', fontWeight: 600 }}

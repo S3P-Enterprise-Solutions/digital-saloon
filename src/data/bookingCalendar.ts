@@ -61,6 +61,27 @@ export function monthBoundsYmd(monthAnchorYmd: string): { startYmd: string; endY
   }
 }
 
+/**
+ * Computes the slot query range for the visible month (clamped to `todayYmd`, or `null` for
+ * past months) and whether `selectedDate` falls within that visible month.
+ */
+export function monthSlotQueryPlan(
+  monthAnchorYmd: string,
+  todayYmd: string,
+  selectedDate: string | null,
+): {
+  monthQueryFrom: string | null
+  monthQueryTo: string | null
+  selectedDateInVisibleMonth: boolean
+} {
+  const { startYmd, endYmd } = monthBoundsYmd(monthAnchorYmd)
+  const monthQueryFrom = endYmd < todayYmd ? null : startYmd < todayYmd ? todayYmd : startYmd
+  const monthQueryTo = monthQueryFrom !== null ? endYmd : null
+  const selectedDateInVisibleMonth =
+    selectedDate !== null && selectedDate >= startYmd && selectedDate <= endYmd
+  return { monthQueryFrom, monthQueryTo, selectedDateInVisibleMonth }
+}
+
 export function monthMatrix(year: number, monthIndex: number): Array<Array<string | null>> {
   const firstWeekday = new Date(Date.UTC(year, monthIndex, 1)).getUTCDay()
   // Monday-first
