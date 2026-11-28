@@ -174,23 +174,42 @@ export const Entry = styled('button')(({ theme }) => ({
   },
 }))
 
-export const BlockedEntry = styled('div')(({ theme }) => ({
+export const BlockedEntry = styled('button')(({ theme }) => ({
   position: 'absolute',
   left: 2,
   right: 2,
   zIndex: 2,
   display: 'flex',
   flexDirection: 'column',
+  alignItems: 'flex-start',
   gap: 1,
   overflow: 'hidden',
   padding: theme.spacing(0.5, 0.75),
   borderRadius: 3,
   border: `1px solid ${theme.palette.divider}`,
-  backgroundColor: 'rgba(74, 54, 49, 0.08)',
-  backgroundImage: `repeating-linear-gradient(135deg, rgba(74, 54, 49, 0.05) 0 4px, transparent 4px 8px)`,
-  color: brand.espressoMuted,
+  borderLeft: `3px solid #2E7D6B`,
+  backgroundColor: 'rgba(46, 125, 107, 0.10)',
+  color: brand.espresso,
+  font: 'inherit',
+  textAlign: 'left',
+  cursor: 'pointer',
   lineHeight: 1.2,
-  pointerEvents: 'none',
+  '&:hover': {
+    backgroundColor: 'rgba(46, 125, 107, 0.16)',
+  },
+  '&:focus-visible': {
+    outline: `2px solid ${brand.orange}`,
+    outlineOffset: 1,
+  },
+  '&.is-private': {
+    borderLeftColor: brand.espressoMuted,
+    backgroundColor: 'rgba(74, 54, 49, 0.08)',
+    backgroundImage: `repeating-linear-gradient(135deg, rgba(74, 54, 49, 0.05) 0 4px, transparent 4px 8px)`,
+    color: brand.espressoMuted,
+    '&:hover': {
+      backgroundColor: 'rgba(74, 54, 49, 0.13)',
+    },
+  },
   '& .entry-time': {
     fontSize: '0.6875rem',
     fontVariantNumeric: 'tabular-nums',
@@ -256,8 +275,8 @@ export const Legend = styled('ul')(({ theme }) => ({
     boxShadow: `inset 3px 0 0 ${brand.espressoMuted}`,
   },
   '& .swatch.is-blocked': {
-    backgroundColor: 'rgba(74, 54, 49, 0.12)',
-    boxShadow: `inset 0 0 0 1px ${theme.palette.divider}`,
+    backgroundColor: 'rgba(46, 125, 107, 0.14)',
+    boxShadow: `inset 3px 0 0 #2E7D6B`,
   },
   '& .swatch.is-closed': {
     backgroundImage: closedHatch,

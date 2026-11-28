@@ -98,11 +98,14 @@ export type AdminSettingsPageProps = {
     connecting: boolean
     connectedJustNow?: boolean
     syncing: boolean
+    importingHistory?: boolean
     disconnecting: boolean
     actionError: string | null
     syncMessage: string | null
+    historyImportMessage?: string | null
     onConnect: (calendarId: string) => void
     onSyncNow: () => void
+    onImportHistory?: () => void
     onDisconnect: () => void
   }
 }
@@ -663,22 +666,52 @@ const GoogleCalendarSection: React.FunctionComponent<GoogleCalendarSectionProps>
                 </Typography>
               ) : null}
 
+              {status.lastHistoryImportAt ? (
+                <Typography variant="body2" color="text.secondary">
+                  {t('admin.googleCalendarLastHistoryImport', {
+                    time: formatViennaDateTime(status.lastHistoryImportAt, locale),
+                    count: status.lastHistoryImportCount ?? 0,
+                  })}
+                </Typography>
+              ) : null}
+
               {status.lastSyncStatus === 'ERROR' && status.lastSyncError ? (
                 <Alert severity="warning">{status.lastSyncError}</Alert>
               ) : null}
 
-              <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
+              <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap', gap: 1.5 }}>
                 <Button
                   variant="contained"
-                  disabled={!status.calendarId || state.syncing || state.disconnecting}
+                  disabled={
+                    !status.calendarId ||
+                    state.syncing ||
+                    state.importingHistory ||
+                    state.disconnecting
+                  }
                   onClick={state.onSyncNow}
                 >
                   {t('admin.googleCalendarSyncNow')}
                 </Button>
+                {state.onImportHistory ? (
+                  <Button
+                    variant="outlined"
+                    disabled={
+                      !status.calendarId ||
+                      state.syncing ||
+                      state.importingHistory ||
+                      state.disconnecting
+                    }
+                    onClick={state.onImportHistory}
+                  >
+                    {state.importingHistory
+                      ? t('admin.googleCalendarImportingHistory')
+                      : t('admin.googleCalendarImportHistory')}
+                  </Button>
+                ) : null}
                 <Button
                   variant="outlined"
                   color="error"
-                  disabled={state.disconnecting || state.syncing}
+                  disabled={state.disconnecting || state.syncing || state.importingHistory}
                   onClick={state.onDisconnect}
                 >
                   {t('admin.googleCalendarDisconnect')}
@@ -688,6 +721,9 @@ const GoogleCalendarSection: React.FunctionComponent<GoogleCalendarSectionProps>
           )}
 
           {state.syncMessage ? <Alert severity="success">{state.syncMessage}</Alert> : null}
+          {state.historyImportMessage ? (
+            <Alert severity="success">{state.historyImportMessage}</Alert>
+          ) : null}
           {state.actionError ? <Alert severity="error">{state.actionError}</Alert> : null}
         </Stack>
       ) : null}

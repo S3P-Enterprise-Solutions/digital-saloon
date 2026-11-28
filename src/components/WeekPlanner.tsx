@@ -1,5 +1,6 @@
 import type * as React from 'react'
 
+import type { BlockedSlotWithId } from '../data/blockedSlots'
 import type { ReservationStatus } from '../data/schemas'
 import {
   formatBookedTime,
@@ -29,6 +30,7 @@ import {
 export type WeekPlannerProps = {
   plan: WeekPlan
   onSelectReservation: (reservationId: string, anchorEl: HTMLElement) => void
+  onSelectBlockedSlot?: (slot: BlockedSlotWithId) => void
 }
 
 const entryClass: Partial<Record<ReservationStatus, string>> = {
@@ -98,26 +100,37 @@ type PlannerDayColumnProps = {
   gridEndMinute: number
   nowMinute: number | null
   onSelectReservation: (reservationId: string, anchorEl: HTMLElement) => void
+  onSelectBlockedSlot?: (slot: BlockedSlotWithId) => void
 }
 
 const PlannerBlockedBlock: React.FunctionComponent<{
   entry: PlannerBlockedEntry
   gridStartMinute: number
   gridEndMinute: number
-}> = ({ entry, gridStartMinute, gridEndMinute }) => {
+  onSelect?: (slot: BlockedSlotWithId) => void
+}> = ({ entry, gridStartMinute, gridEndMinute, onSelect }) => {
   const { t } = useLocale()
   const clampedStart = Math.max(entry.startMinute, gridStartMinute)
   const clampedEnd = Math.min(entry.endMinute, gridEndMinute)
   if (clampedEnd <= clampedStart) return null
   const height = Math.max((clampedEnd - clampedStart) * pixelsPerMinute - 2, 20)
-  const label = entry.block.title || entry.block.reason || t('admin.googleCalendarEventFallback')
+  const isPrivate = Boolean(entry.block.isPrivate)
+  const label = entry.block.redacted
+    ? t('admin.googleCalendarPrivateLabel')
+    : entry.block.title || entry.block.reason || t('admin.googleCalendarEventFallback')
   const time = `${hhmmOfMinute(entry.startMinute)}–${hhmmOfMinute(entry.endMinute)}`
   return (
     <BlockedEntry
+      type="button"
+      className={isPrivate ? 'is-private' : undefined}
+      aria-label={`${time}, ${label}`}
       title={`${time}\n${label}`}
       style={{
         top: (clampedStart - gridStartMinute) * pixelsPerMinute + 1,
         height,
+      }}
+      onClick={() => {
+        onSelect?.(entry.block)
       }}
     >
       <span className="entry-time">{hhmmOfMinute(clampedStart)}</span>
@@ -132,6 +145,7 @@ const PlannerDayColumn: React.FunctionComponent<PlannerDayColumnProps> = ({
   gridEndMinute,
   nowMinute,
   onSelectReservation,
+  onSelectBlockedSlot,
 }) => (
   <DayColumn data-date={day.dateYmd}>
     {day.openIntervals.map((interval) => (
@@ -149,6 +163,7 @@ const PlannerDayColumn: React.FunctionComponent<PlannerDayColumnProps> = ({
         entry={entry}
         gridStartMinute={gridStartMinute}
         gridEndMinute={gridEndMinute}
+        onSelect={onSelectBlockedSlot}
       />
     ))}
     {day.entries.map((entry) => (
@@ -168,6 +183,7 @@ const PlannerDayColumn: React.FunctionComponent<PlannerDayColumnProps> = ({
 export const WeekPlanner: React.FunctionComponent<WeekPlannerProps> = ({
   plan,
   onSelectReservation,
+  onSelectBlockedSlot,
 }) => {
   const { t, intlLocale } = useLocale()
   const gridStartMinute = plan.firstHour * 60
@@ -241,6 +257,7 @@ export const WeekPlanner: React.FunctionComponent<WeekPlannerProps> = ({
               gridEndMinute={gridEndMinute}
               nowMinute={day.isToday ? nowMinute : null}
               onSelectReservation={onSelectReservation}
+              onSelectBlockedSlot={onSelectBlockedSlot}
             />
           ))}
         </PlannerGrid>

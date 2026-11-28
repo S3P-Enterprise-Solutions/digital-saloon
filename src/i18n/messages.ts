@@ -564,6 +564,20 @@ export type Messages = {
   'admin.googleCalendarSyncNow': string
   'admin.googleCalendarSyncResult': string
   'admin.googleCalendarLastSync': string
+  'admin.googleCalendarImportHistory': string
+  'admin.googleCalendarImportingHistory': string
+  'admin.googleCalendarHistoryResult': string
+  'admin.googleCalendarLastHistoryImport': string
+  'admin.googleCalendarPrivateLabel': string
+  'admin.googleCalendarPrivateToggle': string
+  'admin.googleCalendarPrivateHint': string
+  'admin.googleCalendarEventDialogTitle': string
+  'admin.googleCalendarEventDescription': string
+  'admin.googleCalendarEventDuration': string
+  'admin.googleCalendarClose': string
+  'admin.reservationsFilterAll': string
+  'admin.reservationsFilterSalonFlow': string
+  'admin.reservationsFilterGoogle': string
   'admin.googleCalendarDisconnect': string
   'book.employeeTitle': string
   'book.employeeAny': string
@@ -1243,6 +1257,22 @@ export const de: Messages = {
   'admin.googleCalendarSyncResult':
     'Synchronisiert: {blocked} externe Termine, {pushed} Buchungen übertragen.',
   'admin.googleCalendarLastSync': 'Letzte Synchronisierung: {time}',
+  'admin.googleCalendarImportHistory': 'Verlauf importieren (2 Jahre)',
+  'admin.googleCalendarImportingHistory': 'Verlauf wird importiert…',
+  'admin.googleCalendarHistoryResult':
+    'Verlauf importiert: {imported} Termine ({written} aktualisiert).',
+  'admin.googleCalendarLastHistoryImport': 'Letzter Verlaufs-Import: {time} ({count} Termine)',
+  'admin.googleCalendarPrivateLabel': 'Privat',
+  'admin.googleCalendarPrivateToggle': 'Als privat markieren',
+  'admin.googleCalendarPrivateHint':
+    'Private Termine sind für andere Mitarbeiter*innen und Admins nur als „Privat“ sichtbar.',
+  'admin.googleCalendarEventDialogTitle': 'Google Kalender-Termin',
+  'admin.googleCalendarEventDescription': 'Notizen',
+  'admin.googleCalendarEventDuration': 'Dauer: {duration}',
+  'admin.googleCalendarClose': 'Schließen',
+  'admin.reservationsFilterAll': 'Alle',
+  'admin.reservationsFilterSalonFlow': 'SalonFlow',
+  'admin.reservationsFilterGoogle': 'Google Kalender',
   'admin.googleCalendarDisconnect': 'Trennen',
   'book.employeeTitle': 'Stylist*in auswählen',
   'book.employeeAny': 'Beliebig (nächster freier Termin)',
@@ -1911,6 +1941,22 @@ export const it: Messages = {
   'admin.googleCalendarSyncResult':
     'Sincronizzato: {blocked} eventi esterni, {pushed} prenotazioni inviate.',
   'admin.googleCalendarLastSync': 'Ultima sincronizzazione: {time}',
+  'admin.googleCalendarImportHistory': 'Importa storico (2 anni)',
+  'admin.googleCalendarImportingHistory': 'Importazione storico…',
+  'admin.googleCalendarHistoryResult':
+    'Storico importato: {imported} eventi ({written} aggiornati).',
+  'admin.googleCalendarLastHistoryImport': 'Ultimo import storico: {time} ({count} eventi)',
+  'admin.googleCalendarPrivateLabel': 'Privato',
+  'admin.googleCalendarPrivateToggle': 'Segna come privato',
+  'admin.googleCalendarPrivateHint':
+    'Gli eventi privati sono visibili agli altri collaboratori e agli admin solo come "Privato".',
+  'admin.googleCalendarEventDialogTitle': 'Appuntamento Google Calendar',
+  'admin.googleCalendarEventDescription': 'Note',
+  'admin.googleCalendarEventDuration': 'Durata: {duration}',
+  'admin.googleCalendarClose': 'Chiudi',
+  'admin.reservationsFilterAll': 'Tutti',
+  'admin.reservationsFilterSalonFlow': 'SalonFlow',
+  'admin.reservationsFilterGoogle': 'Google Calendar',
   'admin.googleCalendarDisconnect': 'Scollega',
   'book.employeeTitle': 'Scegli stilista',
   'book.employeeAny': 'Qualsiasi (primo orario disponibile)',

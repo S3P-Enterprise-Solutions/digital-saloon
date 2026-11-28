@@ -36,6 +36,7 @@ import { useSaveEmployeeWeeklyWorkingHours } from '../hooks/useSaveEmployeeWeekl
 import { useSoftRemoveEmployee } from '../hooks/useSoftRemoveEmployee'
 import { useUpdateEmployeeProfile } from '../hooks/useUpdateEmployeeProfile'
 import { useGoogleCalendarActions, useGoogleCalendarStatus } from '../hooks/useGoogleCalendar'
+import { useSetBlockedSlotPrivacy } from '../hooks/useSetBlockedSlotPrivacy'
 import { useClosures } from '../hooks/useClosures'
 import { useDemoModeStatus, useSetDemoMode } from '../hooks/useDemoMode'
 import { useHomepageConfig } from '../hooks/useHomepageConfig'
@@ -147,6 +148,7 @@ const AdminIndexRoute: React.FunctionComponent = () => {
   const weekRange = weekQueryRange(weekStart)
   const weekReservations = useAdminReservations(weekRange.startIso, weekRange.endIso, weekReady)
   const weekBlockedSlots = useBlockedSlots(weekRange.startIso, weekRange.endIso, weekReady)
+  const setSlotPrivacy = useSetBlockedSlotPrivacy()
   const plan =
     weekReady &&
     weekReservations.data &&
@@ -243,6 +245,13 @@ const AdminIndexRoute: React.FunctionComponent = () => {
       onListViewClick={() => {
         void navigate({ to: '/admin/reservations', search: weekSearch })
       }}
+      privacyToggleBusy={setSlotPrivacy.isPending}
+      privacyToggleError={
+        setSlotPrivacy.error instanceof Error ? setSlotPrivacy.error.message : null
+      }
+      onToggleBlockedSlotPrivacy={(slotId, isPrivate) => {
+        setSlotPrivacy.mutate({ slotId, isPrivate })
+      }}
     />
   )
 }
@@ -316,12 +325,22 @@ export const adminReservationsRoute = createRoute({
     const today = todayYmdInTimeZone(salon.data?.timezone ?? 'Europe/Vienna')
     const range = listRange(today)
     const reservations = useAdminReservations(range.startIso, range.endIso, true)
+    const blockedSlots = useBlockedSlots(range.startIso, range.endIso, true)
+    const setSlotPrivacy = useSetBlockedSlotPrivacy()
 
     return (
       <AdminReservationsPage
         reservations={reservations.data}
-        isLoading={reservations.isLoading}
-        isError={reservations.isError}
+        blockedSlots={blockedSlots.data}
+        isLoading={reservations.isLoading || blockedSlots.isLoading}
+        isError={reservations.isError || blockedSlots.isError}
+        privacyToggleBusy={setSlotPrivacy.isPending}
+        privacyToggleError={
+          setSlotPrivacy.error instanceof Error ? setSlotPrivacy.error.message : null
+        }
+        onToggleBlockedSlotPrivacy={(slotId, isPrivate) => {
+          setSlotPrivacy.mutate({ slotId, isPrivate })
+        }}
         onSelectReservation={(reservationId) => {
           void navigate({
             to: '/admin/reservations/$reservationId',
@@ -886,10 +905,12 @@ export const adminSettingsRoute = createRoute({
           connecting: gcalActions.connect.isPending,
           connectedJustNow: gcalActions.connect.isSuccess,
           syncing: gcalActions.sync.isPending,
+          importingHistory: gcalActions.importHistory.isPending,
           disconnecting: gcalActions.disconnect.isPending,
           actionError:
             errorText(gcalActions.connect.error) ??
             errorText(gcalActions.sync.error) ??
+            errorText(gcalActions.importHistory.error) ??
             errorText(gcalActions.disconnect.error),
           syncMessage: gcalActions.sync.data
             ? t('admin.googleCalendarSyncResult', {
@@ -897,11 +918,20 @@ export const adminSettingsRoute = createRoute({
                 pushed: gcalActions.sync.data.pushedReservations,
               })
             : null,
+          historyImportMessage: gcalActions.importHistory.data
+            ? t('admin.googleCalendarHistoryResult', {
+                imported: gcalActions.importHistory.data.importedEvents,
+                written: gcalActions.importHistory.data.writtenEvents,
+              })
+            : null,
           onConnect: (calendarId) => {
             gcalActions.connect.mutate(calendarId)
           },
           onSyncNow: () => {
             gcalActions.sync.mutate()
+          },
+          onImportHistory: () => {
+            gcalActions.importHistory.mutate()
           },
           onDisconnect: () => {
             gcalActions.disconnect.mutate()
