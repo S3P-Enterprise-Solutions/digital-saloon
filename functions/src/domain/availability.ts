@@ -11,7 +11,8 @@ import type {
 } from './types'
 
 export type EmployeeAvailabilityEnvelope = {
-  weekly: OpeningHoursByWeekday
+  /** When omitted, the employee inherits the salon's weekly opening hours. */
+  weekly?: OpeningHoursByWeekday
   dayExceptions: readonly DayException[]
 }
 
@@ -54,7 +55,7 @@ function resolveOpenForDay(input: {
   const employeeOpen = resolveOpenIntervalsForDate({
     dateYmd: input.dateYmd,
     timeZone: input.timeZone,
-    weekly: input.employeeEnvelope.weekly,
+    weekly: input.employeeEnvelope.weekly ?? input.weekly,
     holidays: [],
     dayExceptions: input.employeeEnvelope.dayExceptions,
   })

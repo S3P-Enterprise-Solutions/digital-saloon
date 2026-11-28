@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto'
 
 import { getFirestore, type Firestore } from 'firebase-admin/firestore'
 
+import { DEMO_RESERVATION_FLAG } from '../admin/demoReservations'
 import {
   isSlotAvailable,
   listAvailableSlots,
@@ -72,6 +73,7 @@ async function resolveBookingTargets(
   salonId: string,
   serviceIds: string[],
   requestedEmployeeId: string | null,
+  serviceAllowedEmployees: ReadonlyArray<readonly string[] | undefined> = [],
 ): Promise<
   | {
       ok: true
@@ -82,11 +84,14 @@ async function resolveBookingTargets(
   | { ok: false; code: 'NOT_FOUND'; message: string }
 > {
   const featureEnabled = isEmployeeManagementEnabled()
-  const candidates = featureEnabled ? await loadBookingCandidates(db, salonId, serviceIds) : []
+  const loaded = featureEnabled
+    ? await loadBookingCandidates(db, salonId, serviceIds, serviceAllowedEmployees)
+    : { candidates: [], hasAnyBookableEmployee: false }
   const targets = resolveEmployeeIdsToCheck({
     featureEnabled,
-    candidates,
+    candidates: loaded.candidates,
     requestedEmployeeId,
+    hasAnyBookableEmployee: loaded.hasAnyBookableEmployee,
   })
   if (!targets.ok) {
     return { ok: false, code: 'NOT_FOUND', message: 'Selected employee not found.' }
@@ -95,7 +100,7 @@ async function resolveBookingTargets(
     ok: true,
     featureEnabled,
     employeeIds: targets.employeeIds,
-    candidates,
+    candidates: loaded.candidates,
   }
 }
 
@@ -131,6 +136,7 @@ type ResolvedBookingServices =
       serviceName: string
       durationMinutes: number
       priceCents: number
+      serviceAllowedEmployees: ReadonlyArray<readonly string[]>
     }
   | { ok: false; code: 'NOT_FOUND' | 'SERVICE_INACTIVE'; message: string }
 
@@ -162,6 +168,7 @@ async function loadActiveServicesForBooking(
   let durationMinutes = 0
   let priceCents = 0
   const labels: string[] = []
+  const serviceAllowedEmployees: string[][] = []
 
   for (const snap of snaps) {
     if (!snap.exists) {
@@ -176,6 +183,11 @@ async function loadActiveServicesForBooking(
     durationMinutes += Math.max(minDuration, maxDuration)
     priceCents += Number(data.priceCents)
     labels.push(bilingualLabel(data))
+    serviceAllowedEmployees.push(
+      Array.isArray(data.allowedEmployeeIds)
+        ? data.allowedEmployeeIds.filter((item): item is string => typeof item === 'string')
+        : [],
+    )
   }
 
   return {
@@ -184,6 +196,7 @@ async function loadActiveServicesForBooking(
     serviceName: labels.join(' + '),
     durationMinutes,
     priceCents,
+    serviceAllowedEmployees,
   }
 }
 
@@ -211,7 +224,8 @@ export async function createReservationTransactional(
     return resolvedServices
   }
 
-  const { durationMinutes, priceCents, serviceName, serviceIds } = resolvedServices
+  const { durationMinutes, priceCents, serviceName, serviceIds, serviceAllowedEmployees } =
+    resolvedServices
   const endAt = new Date(input.startAt.getTime() + durationMinutes * 60_000)
 
   if (input.idempotencyKey) {
@@ -241,6 +255,7 @@ export async function createReservationTransactional(
     context.salonId,
     serviceIds,
     requestedEmployeeId,
+    serviceAllowedEmployees,
   )
   if (!bookingTargets.ok) {
     return bookingTargets
@@ -293,6 +308,7 @@ export async function createReservationTransactional(
       const overlappingReservations = overlapSnap.docs
         .filter((doc) => {
           const data = doc.data()
+          if (data[DEMO_RESERVATION_FLAG] === true) return false
           if (data.status !== 'PENDING' && data.status !== 'CONFIRMED') return false
           const existingEnd = new Date(String(data.endAt))
           return existingEnd.getTime() > input.startAt.getTime()
@@ -481,7 +497,8 @@ export async function updateReservationTransactional(
     return resolvedServices
   }
 
-  const { durationMinutes, priceCents, serviceName, serviceIds } = resolvedServices
+  const { durationMinutes, priceCents, serviceName, serviceIds, serviceAllowedEmployees } =
+    resolvedServices
   const newStartAt = input.startAt
   const newEndAt = new Date(newStartAt.getTime() + durationMinutes * 60_000)
   const oldStartAt = new Date(String(existing.startAt))
@@ -505,6 +522,7 @@ export async function updateReservationTransactional(
         context.salonId,
         serviceIds,
         requestedEmpId,
+        serviceAllowedEmployees,
       )
       if (!bookingTargets.ok) {
         return bookingTargets
@@ -527,7 +545,13 @@ export async function updateReservationTransactional(
   if (featureEnabled && empId) {
     employeeEnvelope = await loadEmployeeAvailabilityEnvelope(db, context.salonId, empId)
   } else if (featureEnabled && !empId) {
-    const bookingTargets = await resolveBookingTargets(db, context.salonId, serviceIds, null)
+    const bookingTargets = await resolveBookingTargets(
+      db,
+      context.salonId,
+      serviceIds,
+      null,
+      serviceAllowedEmployees,
+    )
     if (!bookingTargets.ok || bookingTargets.employeeIds.length === 0) {
       return { ok: false, code: 'UNAVAILABLE', message: 'Timeslot is not available.' }
     }
@@ -570,6 +594,7 @@ export async function updateReservationTransactional(
         .filter((doc) => {
           if (doc.id === input.reservationId) return false
           const data = doc.data()
+          if (data[DEMO_RESERVATION_FLAG] === true) return false
           if (data.status !== 'PENDING' && data.status !== 'CONFIRMED') return false
           return new Date(String(data.endAt)).getTime() > newStartAt.getTime()
         })
@@ -769,6 +794,7 @@ export async function previewAvailableSlots(input: {
   const db = input.db ?? getFirestore()
   const context = input.context ?? (await loadSalonContext(db, input.salonId))
   let durationMinutes: number
+  let serviceAllowedEmployees: ReadonlyArray<readonly string[]> = []
   if (input.reschedule) {
     durationMinutes = input.reschedule.durationMinutes
   } else {
@@ -783,6 +809,7 @@ export async function previewAvailableSlots(input: {
       return []
     }
     durationMinutes = resolved.durationMinutes
+    serviceAllowedEmployees = resolved.serviceAllowedEmployees
   }
   const rangeStart = new Date(`${input.fromDateYmd}T00:00:00.000Z`)
   const rangeEnd = new Date(`${input.toDateYmd}T23:59:59.999Z`)
@@ -799,6 +826,7 @@ export async function previewAvailableSlots(input: {
     context.salonId,
     requestedIds,
     requestedEmployeeId,
+    serviceAllowedEmployees,
   )
   if (!bookingTargets.ok) {
     return []

@@ -70,6 +70,9 @@ export async function updateService(serviceId: string, draft: ServiceDraft): Pro
     ...fields,
     ...(parsed.durationMaxMinutes === undefined ? { durationMaxMinutes: deleteField() } : {}),
     ...(parsed.priceMaxCents === undefined ? { priceMaxCents: deleteField() } : {}),
+    ...(parsed.allowedEmployeeIds === undefined || parsed.allowedEmployeeIds.length === 0
+      ? { allowedEmployeeIds: deleteField() }
+      : {}),
     name: deleteField(),
     description: deleteField(),
     updatedAt: new Date().toISOString(),

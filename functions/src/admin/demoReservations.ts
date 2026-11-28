@@ -133,13 +133,22 @@ function zonedToUtc(ymd: string, hm: string, timeZone: string): Date {
   return new Date(utc)
 }
 
+export type DemoEmployeeInput = {
+  id: string
+  displayName: string
+}
+
 export function buildDemoReservations(input: {
   now: Date
   timeZone: string
   services: DemoServiceInput[]
+  employees?: readonly DemoEmployeeInput[]
 }): Array<{ id: string; data: Record<string, unknown> }> {
   const servicePool = input.services.length > 0 ? input.services : FALLBACK_DEMO_SERVICES
+  const shortServices = servicePool.filter((s) => s.durationMinutes <= 90)
+  const fallbackPool = shortServices.length > 0 ? shortServices : servicePool
   const byId = new Map(servicePool.map((s) => [s.id, s]))
+  const employees = input.employees ?? []
   const baseMonday = mondayOf(localYmd(input.now, input.timeZone))
   const createdAt = input.now.toISOString()
   const result: Array<{ id: string; data: Record<string, unknown> }> = []
@@ -147,8 +156,11 @@ export function buildDemoReservations(input: {
 
   for (const weekOffset of WEEK_OFFSETS) {
     const monday = addDays(baseMonday, weekOffset * 7)
-    for (const [dayOffset, startHm, preferredId] of WEEK_TEMPLATE) {
-      const service = byId.get(preferredId) ?? servicePool[seq % servicePool.length]
+    WEEK_TEMPLATE.forEach(([dayOffset, startHm, preferredId], templateIndex) => {
+      // Leave gaps so weeks look varied and days are not completely filled.
+      if ((templateIndex + weekOffset * 3) % 5 === 0) return
+
+      const service = byId.get(preferredId) ?? fallbackPool[seq % fallbackPool.length]
       const ymd = addDays(monday, dayOffset)
       const startAt = zonedToUtc(ymd, startHm, input.timeZone)
       const endAt = new Date(startAt.getTime() + service.durationMinutes * 60_000)
@@ -160,6 +172,7 @@ export function buildDemoReservations(input: {
             ? 'PENDING'
             : 'CONFIRMED'
       const source = seq % 3 === 0 ? 'MANUAL' : 'ONLINE'
+      const employee = employees.length > 0 ? employees[seq % employees.length] : null
       const id = `demo-${ymd}-${startHm.replace(':', '')}`
       const tokenHash = createHash('sha256').update(`demo-token-${id}`).digest('hex')
       seq += 1
@@ -175,6 +188,7 @@ export function buildDemoReservations(input: {
           serviceName: `${service.nameDe} / ${service.nameIt}`,
           durationMinutes: service.durationMinutes,
           priceCents: service.priceCents,
+          ...(employee ? { employeeId: employee.id, employeeName: employee.displayName } : {}),
           startAt: startAt.toISOString(),
           endAt: endAt.toISOString(),
           status,
@@ -187,7 +201,7 @@ export function buildDemoReservations(input: {
           updatedAt: createdAt,
         },
       })
-    }
+    })
   }
 
   return result

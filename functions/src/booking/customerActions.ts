@@ -1,6 +1,7 @@
 import { getFirestore } from 'firebase-admin/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 
+import { DEMO_RESERVATION_FLAG } from '../admin/demoReservations'
 import { functionsRegion, getSalonId } from '../config'
 import { isSlotAvailable } from '../domain/availability'
 import { isObject } from '../schemas'
@@ -171,6 +172,7 @@ export const rescheduleReservation = onCall({ region: functionsRegion }, async (
         .filter((item) => {
           if (item.id === doc.id) return false
           const row = item.data()
+          if (row[DEMO_RESERVATION_FLAG] === true) return false
           if (row.status !== 'PENDING' && row.status !== 'CONFIRMED') return false
           if (empId && row.employeeId && String(row.employeeId) !== empId) return false
           return new Date(String(row.endAt)).getTime() > newStartAt.getTime()

@@ -54,6 +54,7 @@ service cloud.firestore {
           'nameDe', 'nameIt', 'descriptionDe', 'descriptionIt',
           'categoryDe', 'categoryIt',
           'durationMinutes', 'durationMaxMinutes', 'priceCents', 'priceMaxCents',
+          'allowedEmployeeIds',
           'active', 'sortOrder', 'createdAt', 'updatedAt'
         ])
         && data.keys().hasAll([
@@ -70,6 +71,7 @@ service cloud.firestore {
         && (!('durationMaxMinutes' in data) || isIntInRange(data.durationMaxMinutes, 5, 480))
         && isIntInRange(data.priceCents, 0, 999999)
         && (!('priceMaxCents' in data) || isIntInRange(data.priceMaxCents, 0, 999999))
+        && (!('allowedEmployeeIds' in data) || (data.allowedEmployeeIds is list && data.allowedEmployeeIds.size() <= 50))
         && data.active is bool
         && isIntInRange(data.sortOrder, 0, 9999)
         && isBoundedString(data.createdAt, 40)

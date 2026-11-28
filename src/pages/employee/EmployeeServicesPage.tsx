@@ -20,7 +20,9 @@ export const EmployeeServicesPage: React.FunctionComponent<EmployeeServicesPageP
 }) => {
   const { t } = useLocale()
   const assigned =
-    services?.filter((service) => serviceIds.includes(service.id) && service.active) ?? []
+    services?.filter(
+      (service) => service.active && (serviceIds.length === 0 || serviceIds.includes(service.id)),
+    ) ?? []
 
   return (
     <Stack spacing={2} sx={{ maxWidth: 640 }}>

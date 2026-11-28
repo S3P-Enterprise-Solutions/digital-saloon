@@ -5,14 +5,22 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 
 import { assertOperator } from '../authz'
-import { functionsRegion, getDefaultTimezone, getOperatorCredentials, getSalonId } from '../config'
+import {
+  functionsRegion,
+  getDefaultTimezone,
+  getOperatorCredentials,
+  getSalonId,
+  isEmployeeManagementEnabled,
+} from '../config'
 import { recordActivityLog } from '../logging/activityLog'
 import { isObject } from '../schemas'
 import {
   buildDemoReservations,
   DEMO_RESERVATION_FLAG,
+  type DemoEmployeeInput,
   type DemoServiceInput,
 } from './demoReservations'
+import { filterBookableProjections } from './employees'
 
 function safeEqual(a: string, b: string): boolean {
   const hashA = createHash('sha256').update(a).digest()
@@ -100,9 +108,12 @@ export const setDemoMode = onCall({ region: functionsRegion }, async (request) =
   }
 
   if (data.enabled) {
-    const [salonSnap, servicesSnap] = await Promise.all([
+    const [salonSnap, servicesSnap, employeesSnap] = await Promise.all([
       salonRef.get(),
       salonRef.collection('services').where('active', '==', true).get(),
+      isEmployeeManagementEnabled()
+        ? salonRef.collection('employees').get()
+        : Promise.resolve(null),
     ])
     const timeZone = String(salonSnap.data()?.timezone ?? getDefaultTimezone())
     const services: DemoServiceInput[] = servicesSnap.docs.map((docSnap) => {
@@ -115,11 +126,20 @@ export const setDemoMode = onCall({ region: functionsRegion }, async (request) =
         priceCents: Number(s.priceCents ?? 2500),
       }
     })
+    const employees: DemoEmployeeInput[] = employeesSnap
+      ? filterBookableProjections(
+          employeesSnap.docs.map((docSnap) => ({
+            id: docSnap.id,
+            data: docSnap.data() as Record<string, unknown>,
+          })),
+        ).map((emp) => ({ id: emp.id, displayName: emp.displayName }))
+      : []
 
     const demoEntries = buildDemoReservations({
       now: new Date(),
       timeZone,
       services,
+      employees,
     })
 
     for (let i = 0; i < demoEntries.length; i += 400) {

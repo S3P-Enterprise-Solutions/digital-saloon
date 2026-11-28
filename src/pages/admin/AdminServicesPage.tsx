@@ -4,11 +4,19 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   CircularProgress,
+  FormControl,
   FormControlLabel,
   FormHelperText,
   IconButton,
   InputAdornment,
+  InputLabel,
+  ListItemText,
+  MenuItem,
+  OutlinedInput,
+  Select,
+  type SelectChangeEvent,
   Stack,
   Switch,
   TextField,
@@ -36,8 +44,15 @@ import type { ServiceWithId } from '../../data/services'
 import { useLocale } from '../../i18n'
 import { ServiceEditor, ServiceList, ServiceRow } from './AdminServicesPage.styles'
 
+export type ServiceEmployeeOption = {
+  id: string
+  displayName: string
+}
+
 export type AdminServicesPageProps = {
   services: ServiceWithId[] | undefined
+  /** Present when employee management is enabled; lets admins restrict a service to specific staff. */
+  employees?: ServiceEmployeeOption[]
   isLoading: boolean
   isError: boolean
   saving: boolean
@@ -56,6 +71,7 @@ type EditorTarget = { kind: 'new' } | { kind: 'edit'; serviceId: string }
 type ServiceEditorFormProps = {
   title: string
   initial: ServiceFormInput
+  employees?: ServiceEmployeeOption[]
   saving: boolean
   onSave: (draft: ServiceFormDraft) => Promise<void>
   onCancel: () => void
@@ -64,6 +80,7 @@ type ServiceEditorFormProps = {
 const ServiceEditorForm: React.FunctionComponent<ServiceEditorFormProps> = ({
   title,
   initial,
+  employees,
   saving,
   onSave,
   onCancel,
@@ -73,7 +90,10 @@ const ServiceEditorForm: React.FunctionComponent<ServiceEditorFormProps> = ({
   const [errors, setErrors] = useState<Partial<Record<ServiceFormField, string>>>({})
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  const update = (field: Exclude<keyof ServiceFormInput, 'active'>, value: string) => {
+  const update = (
+    field: Exclude<keyof ServiceFormInput, 'active' | 'allowedEmployeeIds'>,
+    value: string,
+  ) => {
     setValues((current) => ({ ...current, [field]: value }))
     setErrors((current) => {
       if (!current[field]) return current
@@ -199,6 +219,42 @@ const ServiceEditorForm: React.FunctionComponent<ServiceEditorFormProps> = ({
           }}
         />
       </div>
+      {employees && employees.length > 0 ? (
+        <FormControl fullWidth size="small">
+          <InputLabel id="service-allowed-employees-label" shrink>
+            {t('admin.fieldAllowedEmployees')}
+          </InputLabel>
+          <Select<string[]>
+            labelId="service-allowed-employees-label"
+            multiple
+            displayEmpty
+            value={values.allowedEmployeeIds ?? []}
+            onChange={(event: SelectChangeEvent<string[]>) => {
+              const raw = event.target.value
+              const next = typeof raw === 'string' ? raw.split(',') : raw
+              setValues((current) => ({ ...current, allowedEmployeeIds: next }))
+            }}
+            input={<OutlinedInput notched label={t('admin.fieldAllowedEmployees')} />}
+            renderValue={(selected) => {
+              if (selected.length === 0) return t('admin.allEmployees')
+              return selected
+                .map((id) => employees.find((emp) => emp.id === id)?.displayName ?? id)
+                .join(', ')
+            }}
+          >
+            {employees.map((emp) => (
+              <MenuItem key={emp.id} value={emp.id}>
+                <Checkbox
+                  checked={(values.allowedEmployeeIds ?? []).includes(emp.id)}
+                  size="small"
+                />
+                <ListItemText primary={emp.displayName} />
+              </MenuItem>
+            ))}
+          </Select>
+          <FormHelperText>{t('admin.fieldAllowedEmployeesHint')}</FormHelperText>
+        </FormControl>
+      ) : null}
       <Box>
         <FormControlLabel
           control={
@@ -230,6 +286,7 @@ const ServiceEditorForm: React.FunctionComponent<ServiceEditorFormProps> = ({
 
 export const AdminServicesPage: React.FunctionComponent<AdminServicesPageProps> = ({
   services,
+  employees,
   isLoading,
   isError,
   saving,
@@ -317,6 +374,7 @@ export const AdminServicesPage: React.FunctionComponent<AdminServicesPageProps> 
         <ServiceEditorForm
           title={t('admin.newService')}
           initial={emptyServiceFormInput}
+          employees={employees}
           saving={saving}
           onSave={(draft) => save(null, draft)}
           onCancel={() => setEditor(null)}
@@ -406,6 +464,7 @@ export const AdminServicesPage: React.FunctionComponent<AdminServicesPageProps> 
                   <ServiceEditorForm
                     title={t('admin.editServiceTitle')}
                     initial={serviceFormInputOf(service)}
+                    employees={employees}
                     saving={saving}
                     onSave={(draft) => save(service.id, draft)}
                     onCancel={() => setEditor(null)}

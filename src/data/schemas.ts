@@ -54,6 +54,8 @@ export const serviceSchema = v.object({
   durationMaxMinutes: v.optional(v.pipe(v.number(), v.integer(), v.minValue(5), v.maxValue(480))),
   priceCents: v.pipe(v.number(), v.integer(), v.minValue(0)),
   priceMaxCents: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
+  /** When non-empty, only these employee UIDs can perform the service. Empty/omitted = any employee. */
+  allowedEmployeeIds: v.optional(v.array(v.pipe(v.string(), v.minLength(1)))),
   active: v.boolean(),
   /** Lower values appear first in booking, price list, and admin. */
   sortOrder: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(9999)),

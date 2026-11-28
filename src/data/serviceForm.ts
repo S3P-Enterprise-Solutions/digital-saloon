@@ -21,6 +21,7 @@ export type ServiceDraft = Pick<
   | 'durationMaxMinutes'
   | 'priceCents'
   | 'priceMaxCents'
+  | 'allowedEmployeeIds'
   | 'active'
   | 'sortOrder'
 >
@@ -48,6 +49,8 @@ export type ServiceFormInput = {
   /** Euro amount as typed, e.g. `26`, `26,50`, or `26.5`. */
   price: string
   priceMax: string
+  /** Optional list of employee UIDs restricted to this service. Empty = any employee. */
+  allowedEmployeeIds?: string[]
   active: boolean
 }
 
@@ -60,6 +63,7 @@ export const emptyServiceFormInput: ServiceFormInput = {
   durationMax: '',
   price: '',
   priceMax: '',
+  allowedEmployeeIds: [],
   active: true,
 }
 
@@ -101,6 +105,13 @@ export function normalizeServiceDocument(raw: Record<string, unknown>): Service 
       ? Math.round(raw.priceMaxCents)
       : undefined
 
+  const allowedEmployeeIds = Array.isArray(raw.allowedEmployeeIds)
+    ? raw.allowedEmployeeIds
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : undefined
+
   return {
     nameDe,
     nameIt,
@@ -111,6 +122,7 @@ export function normalizeServiceDocument(raw: Record<string, unknown>): Service 
     durationMinutes: Number(raw.durationMinutes),
     priceCents: Number(raw.priceCents),
     ...(priceMaxCents !== undefined ? { priceMaxCents } : {}),
+    ...(allowedEmployeeIds && allowedEmployeeIds.length > 0 ? { allowedEmployeeIds } : {}),
     active: Boolean(raw.active),
     sortOrder:
       typeof raw.sortOrder === 'number' && Number.isFinite(raw.sortOrder)
@@ -191,6 +203,7 @@ export function serviceFormInputOf(service: ServiceDraft): ServiceFormInput {
       service.priceMaxCents !== undefined && service.priceMaxCents > service.priceCents
         ? formatInputPrice(service.priceMaxCents)
         : '',
+    allowedEmployeeIds: service.allowedEmployeeIds ?? [],
     active: service.active,
   }
 }
@@ -294,6 +307,10 @@ export function validateServiceForm(
   const priceMaxCents =
     priceFrom !== null && priceTo !== null && priceTo > priceFrom ? priceTo : undefined
 
+  const allowedEmployeeIds = Array.from(
+    new Set((input.allowedEmployeeIds ?? []).map((id) => id.trim()).filter(Boolean)),
+  )
+
   if (Object.keys(issues).length > 0 || durationMinutes === null || priceCents === null) {
     return { ok: false, issues }
   }
@@ -308,6 +325,7 @@ export function validateServiceForm(
       ...(durationMaxMinutes !== undefined ? { durationMaxMinutes } : {}),
       priceCents,
       ...(priceMaxCents !== undefined ? { priceMaxCents } : {}),
+      ...(allowedEmployeeIds.length > 0 ? { allowedEmployeeIds } : {}),
       active: input.active,
     },
   }
