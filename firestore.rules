@@ -154,8 +154,8 @@ service cloud.firestore {
       }
 
       match /blockedSlots/{blockedSlotId} {
-        allow read: if isAdmin();
-        allow write: if false;
+        // Read via listBlockedSlotsInRange callable so private events are redacted server-side.
+        allow read, write: if false;
       }
 
       match /slotLocks/{lockId} {

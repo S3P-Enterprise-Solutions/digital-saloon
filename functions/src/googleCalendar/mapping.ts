@@ -8,12 +8,15 @@ export type GoogleCalendarEventDateTime = {
   timeZone?: string
 }
 
+export type GoogleCalendarVisibility = 'default' | 'public' | 'private' | 'confidential'
+
 export type GoogleCalendarEvent = {
   id: string
   status?: string
   summary?: string
   description?: string
   transparency?: string
+  visibility?: string
   start?: GoogleCalendarEventDateTime
   end?: GoogleCalendarEventDateTime
   extendedProperties?: {
@@ -25,7 +28,143 @@ export type MappedBlockedSlot = {
   startAt: string
   endAt: string
   title: string
+  description: string | null
+  visibility: GoogleCalendarVisibility | null
+  isPrivate: boolean
   allDay: boolean
+}
+
+export function normalizeGoogleVisibility(
+  visibility: string | null | undefined,
+): GoogleCalendarVisibility | null {
+  if (
+    visibility === 'default' ||
+    visibility === 'public' ||
+    visibility === 'private' ||
+    visibility === 'confidential'
+  ) {
+    return visibility
+  }
+  return null
+}
+
+export function isGoogleVisibilityPrivate(visibility: string | null | undefined): boolean {
+  return visibility === 'private' || visibility === 'confidential'
+}
+
+export function resolveEffectivePrivacy(
+  googleVisibility: string | null | undefined,
+  privateOverride: boolean | null | undefined,
+): boolean {
+  if (typeof privateOverride === 'boolean') return privateOverride
+  return isGoogleVisibilityPrivate(googleVisibility)
+}
+
+export type SyncedBlockedSlotComparable = {
+  title?: string | null
+  reason?: string | null
+  description?: string | null
+  startAt?: string | null
+  endAt?: string | null
+  allDay?: boolean
+  visibility?: string | null
+  isPrivate?: boolean
+  privateOverride?: boolean | null
+}
+
+/** Returns true when any synced field differs so unchanged Google Calendar docs can skip writes. */
+export function hasBlockedSlotSyncedFieldsChanged(
+  prev: SyncedBlockedSlotComparable | undefined,
+  next: Required<SyncedBlockedSlotComparable>,
+): boolean {
+  if (!prev) return true
+  return (
+    (prev.title ?? null) !== next.title ||
+    (prev.reason ?? null) !== next.reason ||
+    (prev.description ?? null) !== next.description ||
+    (prev.startAt ?? null) !== next.startAt ||
+    (prev.endAt ?? null) !== next.endAt ||
+    Boolean(prev.allDay) !== next.allDay ||
+    (prev.visibility ?? null) !== next.visibility ||
+    Boolean(prev.isPrivate) !== next.isPrivate ||
+    (typeof prev.privateOverride === 'boolean' ? prev.privateOverride : null) !==
+      next.privateOverride
+  )
+}
+
+export type ViewerContext = {
+  uid: string
+  isAdmin: boolean
+}
+
+export type StoredBlockedSlot = {
+  id: string
+  startAt: string
+  endAt: string
+  reason?: string | null
+  createdAt: string
+  source?: 'MANUAL' | 'GOOGLE_CALENDAR'
+  employeeId?: string | null
+  googleEventId?: string
+  title?: string | null
+  description?: string | null
+  visibility?: GoogleCalendarVisibility | null
+  isPrivate?: boolean
+  privateOverride?: boolean | null
+  allDay?: boolean
+  updatedAt?: string
+}
+
+export type RedactedBlockedSlot = Omit<StoredBlockedSlot, 'title' | 'reason' | 'description'> & {
+  title: string | null
+  reason: string | null
+  description: string | null
+  isPrivate: boolean
+  redacted: boolean
+  canTogglePrivacy: boolean
+}
+
+/**
+ * Enforces owner-only visibility for private Google Calendar events:
+ * - For employee-owned events (`employeeId` set): only the owning stylist (`viewer.uid === employeeId`)
+ *   sees title, reason, and description when `isPrivate` is true. Admins and other stylists see a redacted slot.
+ * - For salon-wide events (`employeeId === null`): admins can view and toggle privacy.
+ */
+export function redactBlockedSlotForViewer(
+  slot: StoredBlockedSlot,
+  viewer: ViewerContext,
+): RedactedBlockedSlot {
+  const employeeId =
+    typeof slot.employeeId === 'string' && slot.employeeId.trim() ? slot.employeeId.trim() : null
+  const isPrivate =
+    resolveEffectivePrivacy(slot.visibility, slot.privateOverride) || Boolean(slot.isPrivate)
+  const isOwner = employeeId !== null ? viewer.uid === employeeId : viewer.isAdmin
+  const canTogglePrivacy = slot.source === 'GOOGLE_CALENDAR' && isOwner
+  const shouldRedact = isPrivate && !isOwner
+
+  if (shouldRedact) {
+    return {
+      ...slot,
+      employeeId,
+      title: null,
+      reason: null,
+      description: null,
+      isPrivate: true,
+      redacted: true,
+      canTogglePrivacy: false,
+    }
+  }
+
+  return {
+    ...slot,
+    employeeId,
+    title: slot.title ?? null,
+    reason: slot.reason ?? null,
+    description: slot.description ?? null,
+    isPrivate,
+    redacted: false,
+    canTogglePrivacy,
+  }
 }
 
 const BASE32HEX = '0123456789abcdefghijklmnopqrstuv'
@@ -72,6 +211,10 @@ export function googleEventToBlockedSlot(
   if (event.extendedProperties?.private?.salonReservationId) return null
 
   const title = event.summary?.trim() || 'Google Calendar'
+  const rawDescription = typeof event.description === 'string' ? event.description.trim() : ''
+  const description = rawDescription.length > 0 ? rawDescription.slice(0, 2000) : null
+  const visibility = normalizeGoogleVisibility(event.visibility)
+  const isPrivate = isGoogleVisibilityPrivate(visibility)
 
   if (event.start?.dateTime && event.end?.dateTime) {
     const start = new Date(event.start.dateTime)
@@ -82,6 +225,9 @@ export function googleEventToBlockedSlot(
       startAt: start.toISOString(),
       endAt: end.toISOString(),
       title,
+      description,
+      visibility,
+      isPrivate,
       allDay: false,
     }
   }
@@ -97,6 +243,9 @@ export function googleEventToBlockedSlot(
       startAt: start.toISOString(),
       endAt: end.toISOString(),
       title,
+      description,
+      visibility,
+      isPrivate,
       allDay: true,
     }
   }
