@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { addDays, findEarliestAvailableDate, weekDays, weekStartMondayYmd } from './bookingCalendar'
+import {
+  addDays,
+  findEarliestAvailableDate,
+  monthBoundsYmd,
+  monthSlotQueryPlan,
+  weekDays,
+  weekStartMondayYmd,
+} from './bookingCalendar'
 
 describe('bookingCalendar week helpers', () => {
   it('computes Monday of the week for any weekday', () => {
@@ -35,5 +42,43 @@ describe('bookingCalendar week helpers', () => {
     ])
     expect(findEarliestAvailableDate(days, byDate, '2026-11-17')).toBe('2026-11-18')
     expect(findEarliestAvailableDate(days, new Map(), '2026-11-17')).toBeNull()
+  })
+
+  it('computes first and last day of a month including leap years', () => {
+    expect(monthBoundsYmd('2026-11-23')).toEqual({
+      startYmd: '2026-11-01',
+      endYmd: '2026-11-30',
+    })
+    expect(monthBoundsYmd('2026-12-01')).toEqual({
+      startYmd: '2026-12-01',
+      endYmd: '2026-12-31',
+    })
+    expect(monthBoundsYmd('2028-02-10')).toEqual({
+      startYmd: '2028-02-01',
+      endYmd: '2028-02-29',
+    })
+  })
+
+  it('plans monthly slot queries and tracks whether selectedDate is in the visible month', () => {
+    // Current month: clamped to todayYmd
+    expect(monthSlotQueryPlan('2026-11-01', '2026-11-28', '2026-11-30')).toEqual({
+      monthQueryFrom: '2026-11-28',
+      monthQueryTo: '2026-11-30',
+      selectedDateInVisibleMonth: true,
+    })
+
+    // Future month with selectedDate in a different month
+    expect(monthSlotQueryPlan('2026-12-01', '2026-11-28', '2026-11-30')).toEqual({
+      monthQueryFrom: '2026-12-01',
+      monthQueryTo: '2026-12-31',
+      selectedDateInVisibleMonth: false,
+    })
+
+    // Past month: skips slot query entirely
+    expect(monthSlotQueryPlan('2026-10-01', '2026-11-28', null)).toEqual({
+      monthQueryFrom: null,
+      monthQueryTo: null,
+      selectedDateInVisibleMonth: false,
+    })
   })
 })

@@ -8,7 +8,7 @@ import { isEmployeeManagementEnabled } from '../brands/employeeManagement'
 import { useAuth } from '../auth/AuthProvider'
 import { listRange, startOfWeekYmd } from '../data/calendarRange'
 import { addCalendarDays, todayYmdInTimeZone } from '../data/calendarMath'
-import { upcomingViennaDates } from '../data/dateFormat'
+import { monthSlotQueryPlan, viennaTodayYmd } from '../data/bookingCalendar'
 import { optionalSearchParam } from '../data/schemas'
 import { uploadHomepageImage } from '../data/homepageConfig'
 import { parseSelectedServiceIds, serializeServiceIds } from '../data/serviceSelection'
@@ -417,6 +417,7 @@ const manualSearchSchema = v.object({
   serviceIds: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
   employeeId: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
   date: ymdSearchParam,
+  month: ymdSearchParam,
   time: optionalSearchParam(v.pipe(v.string(), v.regex(/^\d{2}:\d{2}$/))),
   week: ymdSearchParam,
   from: optionalSearchParam(v.literal('pending')),
@@ -459,6 +460,7 @@ export const adminManualRoute = createRoute({
         reservation.serviceIds && reservation.serviceIds.length > 0
           ? reservation.serviceIds
           : [reservation.serviceId]
+      const date = viennaYmdOfIso(reservation.startAt)
       const time = new Intl.DateTimeFormat('de-AT', {
         timeZone: 'Europe/Vienna',
         hour: '2-digit',
@@ -470,7 +472,8 @@ export const adminManualRoute = createRoute({
           reservationId: editingReservationId,
           serviceIds: serializeServiceIds(serviceIds),
           employeeId: reservation.employeeId ?? undefined,
-          date: viennaYmdOfIso(reservation.startAt),
+          date,
+          month: `${date.slice(0, 8)}01`,
           time,
           week: search.week ? startOfWeekYmd(search.week) : undefined,
           from: search.from === 'pending' ? 'pending' : undefined,
@@ -480,23 +483,45 @@ export const adminManualRoute = createRoute({
       })
     }, [editingReservationId, editing.data, navigate, search.week, search.from])
 
+    const todayYmd = viennaTodayYmd()
     const selectedServiceIds = parseSelectedServiceIds(search)
     const selectedDate = search.date ?? null
+    const monthAnchorYmd =
+      search.month ?? (selectedDate ? `${selectedDate.slice(0, 8)}01` : `${todayYmd.slice(0, 8)}01`)
     const returnWeek = search.week ? startOfWeekYmd(search.week) : undefined
     const fromPending = search.from === 'pending'
-    const baseDates = upcomingViennaDates(14)
-    const dates =
-      selectedDate && !baseDates.includes(selectedDate)
-        ? [selectedDate, ...baseDates].sort()
-        : baseDates
-    const slots = useAvailableSlots({
+    const { monthQueryFrom, monthQueryTo, selectedDateInVisibleMonth } = monthSlotQueryPlan(
+      monthAnchorYmd,
+      todayYmd,
+      selectedDate,
+    )
+    const monthSlots = useAvailableSlots({
       serviceIds: selectedServiceIds,
       employeeId: selectedEmployeeId,
-      fromDateYmd: selectedDate,
-      toDateYmd: selectedDate,
+      fromDateYmd: monthQueryFrom,
+      toDateYmd: monthQueryTo,
       enforceAdvanceRestrictions: false,
       excludeReservationId: editingReservationId ?? undefined,
     })
+    // Fallback for deep links where `date` and `month` point to different months so the
+    // time list still loads for `selectedDate` without forcing a second query in the normal case.
+    const fallbackDaySlots = useAvailableSlots({
+      serviceIds: selectedDateInVisibleMonth ? [] : selectedServiceIds,
+      employeeId: selectedEmployeeId,
+      fromDateYmd: selectedDateInVisibleMonth ? null : selectedDate,
+      toDateYmd: selectedDateInVisibleMonth ? null : selectedDate,
+      enforceAdvanceRestrictions: false,
+      excludeReservationId: editingReservationId ?? undefined,
+    })
+    const selectedDaySlots =
+      selectedDate === null
+        ? undefined
+        : selectedDateInVisibleMonth
+          ? monthSlots.data?.filter((slot) => viennaYmdOfIso(slot.startAt) === selectedDate)
+          : fallbackDaySlots.data
+    const selectedDaySlotsLoading =
+      selectedDate !== null &&
+      (selectedDateInVisibleMonth ? monthSlots.isLoading : fallbackDaySlots.isLoading)
 
     const isEdit = editingReservationId !== null
     const editReady = !isEdit || editing.data != null
@@ -548,13 +573,17 @@ export const adminManualRoute = createRoute({
               serviceId: undefined,
               employeeId: employeeId ?? undefined,
               date: selectedDate ?? undefined,
+              month: search.month,
               time: undefined,
             },
             replace: true,
             resetScroll: false,
           })
         }}
-        dates={dates}
+        monthAnchorYmd={monthAnchorYmd}
+        monthSlots={monthSlots.data}
+        monthSlotsLoading={monthSlots.isLoading}
+        monthSlotsError={monthSlots.isError}
         selectedServiceIds={selectedServiceIds}
         selectedDate={selectedDate}
         preferredTime={search.time ?? null}
@@ -570,8 +599,8 @@ export const adminManualRoute = createRoute({
               }
             : null
         }
-        slots={slots.data}
-        slotsLoading={slots.isLoading}
+        slots={selectedDaySlots}
+        slotsLoading={selectedDaySlotsLoading}
         isSubmitting={submitPending}
         submitError={submitError}
         onBackClick={() => {
@@ -597,6 +626,23 @@ export const adminManualRoute = createRoute({
               serviceId: undefined,
               employeeId: selectedEmployeeId ?? undefined,
               date: selectedDate ?? undefined,
+              month: search.month,
+              time: undefined,
+            },
+            replace: true,
+            resetScroll: false,
+          })
+        }}
+        onMonthAnchorChange={(anchorYmd) => {
+          void navigate({
+            to: '/admin/manual',
+            search: {
+              ...manualSearchBase,
+              serviceIds: serializeServiceIds(selectedServiceIds),
+              serviceId: undefined,
+              employeeId: selectedEmployeeId ?? undefined,
+              date: undefined,
+              month: `${anchorYmd.slice(0, 8)}01`,
               time: undefined,
             },
             replace: true,
@@ -612,6 +658,7 @@ export const adminManualRoute = createRoute({
               serviceId: undefined,
               employeeId: selectedEmployeeId ?? undefined,
               date: dateYmd,
+              month: `${dateYmd.slice(0, 8)}01`,
               time: undefined,
             },
             replace: true,
@@ -767,7 +814,6 @@ export const adminHolidaysRoute = createRoute({
 })
 
 const adminSettingsSearchSchema = v.object({
-  gcal: optionalSearchParam(v.picklist(['connected', 'error'] as const)),
   gcalEmployee: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
 })
 
@@ -837,14 +883,12 @@ export const adminSettingsRoute = createRoute({
           status: gcalStatus.data,
           loading: gcalStatus.isLoading,
           error: errorText(gcalStatus.error),
-          oauthCallbackResult: settingsSearch.gcal,
           connecting: gcalActions.connect.isPending,
-          selecting: gcalActions.selectCalendar.isPending,
+          connectedJustNow: gcalActions.connect.isSuccess,
           syncing: gcalActions.sync.isPending,
           disconnecting: gcalActions.disconnect.isPending,
           actionError:
             errorText(gcalActions.connect.error) ??
-            errorText(gcalActions.selectCalendar.error) ??
             errorText(gcalActions.sync.error) ??
             errorText(gcalActions.disconnect.error),
           syncMessage: gcalActions.sync.data
@@ -853,18 +897,8 @@ export const adminSettingsRoute = createRoute({
                 pushed: gcalActions.sync.data.pushedReservations,
               })
             : null,
-          onConnect: () => {
-            const returnUrl = gcalEmployeeId
-              ? `${window.location.origin}/admin/settings?gcalEmployee=${encodeURIComponent(gcalEmployeeId)}`
-              : `${window.location.origin}/admin/settings`
-            gcalActions.connect.mutate(returnUrl, {
-              onSuccess: ({ authUrl }) => {
-                window.location.assign(authUrl)
-              },
-            })
-          },
-          onSelectCalendar: (calendarId) => {
-            gcalActions.selectCalendar.mutate(calendarId)
+          onConnect: (calendarId) => {
+            gcalActions.connect.mutate(calendarId)
           },
           onSyncNow: () => {
             gcalActions.sync.mutate()

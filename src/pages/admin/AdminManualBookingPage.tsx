@@ -14,8 +14,10 @@ import {
   Typography,
 } from '@mui/material'
 
+import { BookingMonthCalendar } from '../../components/BookingMonthCalendar'
 import type { AvailableSlotDto } from '../../data/bookingApi'
-import { formatViennaDate, formatViennaTime } from '../../data/dateFormat'
+import { slotsByDate, viennaTodayYmd } from '../../data/bookingCalendar'
+import { formatViennaTime } from '../../data/dateFormat'
 import type { EmployeeWithId } from '../../data/employees'
 import { arePricesVisible } from '../../data/salonConfig'
 import { formatServicePriceRange, localizedServiceName } from '../../data/serviceForm'
@@ -37,7 +39,10 @@ export type AdminManualBookingPageProps = {
   employees?: EmployeeWithId[]
   selectedEmployeeId?: string | null
   onEmployeeChange?: (employeeId: string | null) => void
-  dates: string[]
+  monthAnchorYmd: string
+  monthSlots: AvailableSlotDto[] | undefined
+  monthSlotsLoading: boolean
+  monthSlotsError: boolean
   selectedServiceIds: string[]
   selectedDate: string | null
   /** `HH:MM` picked in the week planner; preselects that slot when it is free. */
@@ -51,6 +56,7 @@ export type AdminManualBookingPageProps = {
   submitError: string | null
   onBackClick: () => void
   onToggleService: (serviceId: string) => void
+  onMonthAnchorChange: (anchorYmd: string) => void
   onDateChange: (dateYmd: string) => void
   onSubmit: (input: {
     serviceIds: string[]
@@ -70,7 +76,10 @@ export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingP
   employees,
   selectedEmployeeId,
   onEmployeeChange,
-  dates,
+  monthAnchorYmd,
+  monthSlots,
+  monthSlotsLoading,
+  monthSlotsError,
   selectedServiceIds,
   selectedDate,
   preferredTime,
@@ -82,6 +91,7 @@ export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingP
   submitError,
   onBackClick,
   onToggleService,
+  onMonthAnchorChange,
   onDateChange,
   onSubmit,
 }) => {
@@ -120,6 +130,11 @@ export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingP
     0,
   )
   const pricesVisible = arePricesVisible()
+  const todayYmd = viennaTodayYmd()
+  const availableDates = useMemo(
+    () => (selectedServiceIds.length > 0 ? new Set(slotsByDate(monthSlots ?? []).keys()) : null),
+    [selectedServiceIds, monthSlots],
+  )
 
   return (
     <Stack spacing={3}>
@@ -227,22 +242,32 @@ export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingP
             </TextField>
           ) : null}
 
-          <Typography variant="subtitle2">{t('admin.dayLabel')}</Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            {dates.map((dateYmd) => (
-              <Button
-                key={dateYmd}
-                size="small"
-                variant={selectedDate === dateYmd ? 'contained' : 'outlined'}
-                onClick={() => {
-                  setStartAt(null)
-                  onDateChange(dateYmd)
-                }}
-              >
-                {formatViennaDate(dateYmd, intlLocale)}
-              </Button>
-            ))}
-          </Box>
+          <Paper
+            variant="outlined"
+            component="section"
+            aria-labelledby="admin-manual-date"
+            sx={{ p: { xs: 2, sm: 3 }, maxWidth: 640 }}
+          >
+            <Typography id="admin-manual-date" variant="h2" sx={{ fontSize: '1.15rem', mb: 1.5 }}>
+              {t('book.step.date')}
+            </Typography>
+            <BookingMonthCalendar
+              monthAnchorYmd={monthAnchorYmd}
+              selectedDate={selectedDate}
+              todayYmd={todayYmd}
+              availableDates={availableDates}
+              loading={monthSlotsLoading}
+              error={monthSlotsError}
+              onMonthAnchorChange={(anchorYmd) => {
+                setStartAt(null)
+                onMonthAnchorChange(anchorYmd)
+              }}
+              onSelectDate={(dateYmd) => {
+                setStartAt(null)
+                onDateChange(dateYmd)
+              }}
+            />
+          </Paper>
 
           {selectedDate && selectedServiceIds.length > 0 ? (
             <>
