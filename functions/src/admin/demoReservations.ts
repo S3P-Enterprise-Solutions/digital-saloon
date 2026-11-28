@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto'
 
-export const DEMO_RESERVATION_FLAG = 'seededDemo'
+import { DEMO_RESERVATION_FLAG } from '../demoFlags'
+
+export { DEMO_RESERVATION_FLAG }
 
 export type DemoServiceInput = {
   id: string
@@ -160,7 +162,11 @@ export function buildDemoReservations(input: {
       // Leave gaps so weeks look varied and days are not completely filled.
       if ((templateIndex + weekOffset * 3) % 5 === 0) return
 
-      const service = byId.get(preferredId) ?? fallbackPool[seq % fallbackPool.length]
+      const preferred = byId.get(preferredId)
+      const service =
+        preferred && preferred.durationMinutes <= 90
+          ? preferred
+          : fallbackPool[seq % fallbackPool.length]
       const ymd = addDays(monday, dayOffset)
       const startAt = zonedToUtc(ymd, startHm, input.timeZone)
       const endAt = new Date(startAt.getTime() + service.durationMinutes * 60_000)

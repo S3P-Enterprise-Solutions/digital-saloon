@@ -69,12 +69,19 @@ test('resolveEmployeeIdsToCheck requested employee must be eligible', () => {
   assert.deepEqual(result, { ok: false, code: 'NOT_FOUND' })
 })
 
-test('buildDemoReservations avoids long fallback services, leaves gaps, and assigns employees', () => {
+test('buildDemoReservations avoids long services even for matching template ids, leaves gaps, and assigns employees', () => {
   const entries = buildDemoReservations({
     now: new Date('2026-11-28T09:00:00.000Z'),
     timeZone: 'Europe/Vienna',
     services: [
       { id: 'svc-short', nameDe: 'Kurz', nameIt: 'Corto', durationMinutes: 30, priceCents: 2000 },
+      {
+        id: 'coloring',
+        nameDe: 'Farbe',
+        nameIt: 'Colore',
+        durationMinutes: 120,
+        priceCents: 8500,
+      },
       {
         id: 'svc-long',
         nameDe: 'Balayage',

@@ -1,7 +1,7 @@
 import { getFirestore } from 'firebase-admin/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 
-import { DEMO_RESERVATION_FLAG } from '../admin/demoReservations'
+import { DEMO_RESERVATION_FLAG } from '../demoFlags'
 import { functionsRegion, getSalonId } from '../config'
 import { isSlotAvailable } from '../domain/availability'
 import { isObject } from '../schemas'

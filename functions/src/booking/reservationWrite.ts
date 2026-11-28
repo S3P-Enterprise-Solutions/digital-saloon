@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto'
 
 import { getFirestore, type Firestore } from 'firebase-admin/firestore'
 
-import { DEMO_RESERVATION_FLAG } from '../admin/demoReservations'
+import { DEMO_RESERVATION_FLAG } from '../demoFlags'
 import {
   isSlotAvailable,
   listAvailableSlots,
@@ -789,21 +789,41 @@ export async function previewAvailableSlots(input: {
    * Moving an existing booking: use its stored duration (the service may have
    * changed or been deactivated since) and ignore its own time as busy.
    */
-  reschedule?: { reservationId: string; durationMinutes: number }
+  reschedule?: {
+    reservationId: string
+    durationMinutes: number
+    employeeId?: string | null
+    serviceIds?: string[]
+  }
 }): Promise<{ startAt: string; endAt: string }[]> {
   const db = input.db ?? getFirestore()
   const context = input.context ?? (await loadSalonContext(db, input.salonId))
-  let durationMinutes: number
-  let serviceAllowedEmployees: ReadonlyArray<readonly string[]> = []
-  if (input.reschedule) {
-    durationMinutes = input.reschedule.durationMinutes
-  } else {
-    const requestedIds =
-      input.serviceIds && input.serviceIds.length > 0
+  const requestedIds =
+    input.reschedule?.serviceIds && input.reschedule.serviceIds.length > 0
+      ? input.reschedule.serviceIds
+      : input.serviceIds && input.serviceIds.length > 0
         ? input.serviceIds
         : input.serviceId
           ? [input.serviceId]
           : []
+  let durationMinutes: number
+  let serviceAllowedEmployees: ReadonlyArray<readonly string[]> = []
+  if (input.reschedule) {
+    durationMinutes = input.reschedule.durationMinutes
+    if (requestedIds.length > 0) {
+      const snaps = await Promise.all(
+        requestedIds.map((id) =>
+          db.collection('salons').doc(context.salonId).collection('services').doc(id).get(),
+        ),
+      )
+      serviceAllowedEmployees = snaps.map((snap) => {
+        const data = snap.exists ? snap.data() : undefined
+        return Array.isArray(data?.allowedEmployeeIds)
+          ? data.allowedEmployeeIds.filter((item): item is string => typeof item === 'string')
+          : []
+      })
+    }
+  } else {
     const resolved = await loadActiveServicesForBooking(db, context.salonId, requestedIds)
     if (!resolved.ok) {
       return []
@@ -814,13 +834,10 @@ export async function previewAvailableSlots(input: {
   const rangeStart = new Date(`${input.fromDateYmd}T00:00:00.000Z`)
   const rangeEnd = new Date(`${input.toDateYmd}T23:59:59.999Z`)
   const requestedEmployeeId =
-    typeof input.employeeId === 'string' && input.employeeId.trim() ? input.employeeId.trim() : null
-  const requestedIds =
-    input.serviceIds && input.serviceIds.length > 0
-      ? input.serviceIds
-      : input.serviceId
-        ? [input.serviceId]
-        : []
+    input.reschedule?.employeeId ??
+    (typeof input.employeeId === 'string' && input.employeeId.trim()
+      ? input.employeeId.trim()
+      : null)
   const bookingTargets = await resolveBookingTargets(
     db,
     context.salonId,

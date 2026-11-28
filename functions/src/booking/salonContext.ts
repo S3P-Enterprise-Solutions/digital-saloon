@@ -9,7 +9,7 @@ import type {
   TimeInterval,
   Weekday,
 } from '../domain/types'
-import { DEMO_RESERVATION_FLAG } from '../admin/demoReservations'
+import { DEMO_RESERVATION_FLAG } from '../demoFlags'
 import { sanitizeTimeIntervals } from '../domain/openingIntervals'
 import type { EmployeeAvailabilityEnvelope } from '../domain/availability'
 import { getSalonId } from '../config'
@@ -209,11 +209,14 @@ export async function loadEmployeeAvailabilityEnvelope(
   ])
   let weekly: OpeningHoursByWeekday | undefined
   if (!hoursSnap.empty) {
-    weekly = emptyWeekly()
+    const parsed = emptyWeekly()
     for (const doc of hoursSnap.docs) {
       const weekday = doc.id as Weekday
       if (!WEEKDAYS.includes(weekday)) continue
-      weekly[weekday] = sanitizeTimeIntervals((doc.data() as { intervals?: unknown }).intervals)
+      parsed[weekday] = sanitizeTimeIntervals((doc.data() as { intervals?: unknown }).intervals)
+    }
+    if (WEEKDAYS.some((day) => parsed[day].length > 0)) {
+      weekly = parsed
     }
   }
   const dayExceptions: DayException[] = exceptionsSnap.docs.map((doc) => {

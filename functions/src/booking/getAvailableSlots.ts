@@ -43,7 +43,14 @@ export const getAvailableSlots = onCall({ region: functionsRegion }, async (requ
     enforceAdvanceRestrictions = false
   }
 
-  let reschedule: { reservationId: string; durationMinutes: number } | undefined
+  let reschedule:
+    | {
+        reservationId: string
+        durationMinutes: number
+        employeeId?: string | null
+        serviceIds?: string[]
+      }
+    | undefined
   if (typeof data.managementToken === 'string' && data.managementToken.trim().length > 0) {
     if (data.managementToken.trim().length < 16) {
       throw new HttpsError('invalid-argument', 'managementToken is invalid.')
@@ -52,13 +59,28 @@ export const getAvailableSlots = onCall({ region: functionsRegion }, async (requ
     if (!reservation) {
       throw new HttpsError('not-found', 'Reservation not found or token invalid.')
     }
-    const status = String(reservation.data().status)
+    const resData = reservation.data()
+    const status = String(resData.status)
     if (status !== 'PENDING' && status !== 'CONFIRMED') {
       return { slots: [] }
     }
+    const resEmployeeId =
+      typeof resData.employeeId === 'string' && resData.employeeId.trim()
+        ? resData.employeeId.trim()
+        : null
+    const resServiceIds = Array.isArray(resData.serviceIds)
+      ? resData.serviceIds
+          .filter((item): item is string => typeof item === 'string')
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : typeof resData.serviceId === 'string' && resData.serviceId.trim()
+        ? [resData.serviceId.trim()]
+        : []
     reschedule = {
       reservationId: reservation.id,
-      durationMinutes: Number(reservation.data().durationMinutes),
+      durationMinutes: Number(resData.durationMinutes),
+      ...(resEmployeeId ? { employeeId: resEmployeeId } : {}),
+      ...(resServiceIds.length > 0 ? { serviceIds: resServiceIds } : {}),
     }
   }
 
