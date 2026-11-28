@@ -15,14 +15,19 @@ import {
   Typography,
 } from '@mui/material'
 
+import { CustomerHistoryCard } from '../../components/CustomerHistoryCard'
+import type { CustomerContextResponse } from '../../data/customersApi'
 import { formatViennaDateTime } from '../../data/dateFormat'
 import { reservationStatusColor } from '../../data/reservationStatus'
 import type { ReservationWithId } from '../../data/reservations'
+import { formatBookedTime } from '../../data/weekPlanner'
 import { useLocale } from '../../i18n'
 import type { MessageKey } from '../../i18n'
 
 export type AdminReservationDetailPageProps = {
   reservation: ReservationWithId | undefined
+  customerContext?: CustomerContextResponse
+  customerContextLoading?: boolean
   isLoading: boolean
   actionError: string | null
   busy: boolean
@@ -33,12 +38,15 @@ export type AdminReservationDetailPageProps = {
   onCancel: () => void
   onComplete: () => void
   onEditClick: () => void
+  onOpenCustomer?: (customerId: string) => void
 }
 
 export const AdminReservationDetailPage: React.FunctionComponent<
   AdminReservationDetailPageProps
 > = ({
   reservation,
+  customerContext,
+  customerContextLoading = false,
   isLoading,
   actionError,
   busy,
@@ -49,6 +57,7 @@ export const AdminReservationDetailPage: React.FunctionComponent<
   onCancel,
   onComplete,
   onEditClick,
+  onOpenCustomer,
 }) => {
   const { t, intlLocale } = useLocale()
   const [confirmAction, setConfirmAction] = useState<'cancel' | 'decline' | null>(null)
@@ -74,7 +83,9 @@ export const AdminReservationDetailPage: React.FunctionComponent<
               color={reservationStatusColor[reservation.status] ?? 'default'}
               label={t(`status.${reservation.status}` as MessageKey)}
             />
-            <Typography sx={{ fontWeight: 600 }}>{reservation.serviceName}</Typography>
+            <Typography sx={{ fontWeight: 600 }}>
+              {reservation.serviceName} · {formatBookedTime(reservation.durationMinutes)}
+            </Typography>
             <Typography>{formatViennaDateTime(reservation.startAt, intlLocale)}</Typography>
             <Typography>
               {reservation.firstName} {reservation.lastName}
@@ -135,6 +146,16 @@ export const AdminReservationDetailPage: React.FunctionComponent<
             ) : null}
           </Stack>
         </Paper>
+      ) : null}
+
+      {reservation ? (
+        <CustomerHistoryCard
+          context={customerContext}
+          loading={customerContextLoading}
+          selectedServiceNames={[reservation.serviceName]}
+          currentDurationMinutes={reservation.durationMinutes}
+          onOpenCustomer={onOpenCustomer}
+        />
       ) : null}
 
       <Dialog

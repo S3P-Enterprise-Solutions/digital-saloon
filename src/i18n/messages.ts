@@ -600,6 +600,16 @@ export type Messages = {
   'admin.customersArchive': string
   'admin.customersArchiveConfirmTitle': string
   'admin.customersArchiveConfirmBody': string
+  'admin.customerContextTitle': string
+  'admin.customerContextLoading': string
+  'admin.customerContextOpenProfile': string
+  'admin.customerContextRecommendation': string
+  'admin.customerContextApplyDuration': string
+  'admin.customerContextSimilarBadge': string
+  'admin.customerAutocompleteLabel': string
+  'admin.customerAutocompletePlaceholder': string
+  'admin.durationOverrideLabel': string
+  'admin.durationOverrideReset': string
   'admin.googleCalendarDisconnect': string
   'book.employeeTitle': string
   'book.employeeAny': string
@@ -1319,6 +1329,17 @@ export const de: Messages = {
   'admin.customersArchiveConfirmTitle': 'Kunde archivieren?',
   'admin.customersArchiveConfirmBody':
     'Der Eintrag wird aus dem Kundenstamm ausgeblendet. Bestehende Buchungen bleiben erhalten.',
+  'admin.customerContextTitle': 'Kundenhistorie & Notizen',
+  'admin.customerContextLoading': 'Kundenhistorie wird gesucht…',
+  'admin.customerContextOpenProfile': 'Kundenprofil öffnen',
+  'admin.customerContextRecommendation':
+    'Letzter ähnlicher Termin ({service}, {date}) dauerte {duration}.',
+  'admin.customerContextApplyDuration': '{duration} übernehmen',
+  'admin.customerContextSimilarBadge': 'Ähnliche Leistung',
+  'admin.customerAutocompleteLabel': 'Stammkunde suchen (optional)',
+  'admin.customerAutocompletePlaceholder': 'Name, E-Mail oder Telefon eingeben…',
+  'admin.durationOverrideLabel': 'Individuelle Dauer (Min.)',
+  'admin.durationOverrideReset': 'Standard ({duration})',
   'admin.googleCalendarDisconnect': 'Trennen',
   'book.employeeTitle': 'Stylist*in auswählen',
   'book.employeeAny': 'Beliebig (nächster freier Termin)',
@@ -2028,6 +2049,17 @@ export const it: Messages = {
   'admin.customersArchiveConfirmTitle': 'Archiviare il cliente?',
   'admin.customersArchiveConfirmBody':
     'Il profilo verrà nascosto dall’elenco clienti. Le prenotazioni esistenti rimarranno invariate.',
+  'admin.customerContextTitle': 'Storico cliente e note',
+  'admin.customerContextLoading': 'Ricerca storico cliente…',
+  'admin.customerContextOpenProfile': 'Apri profilo cliente',
+  'admin.customerContextRecommendation':
+    'Ultimo appuntamento simile ({service}, {date}): durata {duration}.',
+  'admin.customerContextApplyDuration': 'Applica {duration}',
+  'admin.customerContextSimilarBadge': 'Servizio simile',
+  'admin.customerAutocompleteLabel': 'Cerca cliente abituale (opzionale)',
+  'admin.customerAutocompletePlaceholder': 'Inserisci nome, e-mail o telefono…',
+  'admin.durationOverrideLabel': 'Durata personalizzata (min)',
+  'admin.durationOverrideReset': 'Predefinita ({duration})',
   'admin.googleCalendarDisconnect': 'Scollega',
   'book.employeeTitle': 'Scegli stilista',
   'book.employeeAny': 'Qualsiasi (primo orario disponibile)',

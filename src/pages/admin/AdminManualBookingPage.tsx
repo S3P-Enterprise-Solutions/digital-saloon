@@ -2,6 +2,7 @@ import type * as React from 'react'
 import { useMemo, useState } from 'react'
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Checkbox,
@@ -15,17 +16,22 @@ import {
 } from '@mui/material'
 
 import { BookingMonthCalendar } from '../../components/BookingMonthCalendar'
+import { CustomerHistoryCard } from '../../components/CustomerHistoryCard'
 import type { AvailableSlotDto } from '../../data/bookingApi'
 import { slotsByDate, viennaTodayYmd } from '../../data/bookingCalendar'
+import type { CustomerContextResponse } from '../../data/customersApi'
 import { formatViennaTime } from '../../data/dateFormat'
 import type { EmployeeWithId } from '../../data/employees'
 import { arePricesVisible } from '../../data/salonConfig'
+import type { Customer } from '../../data/schemas'
 import { formatServicePriceRange, localizedServiceName } from '../../data/serviceForm'
 import type { ServiceWithId } from '../../data/services'
+import { formatBookedTime } from '../../data/weekPlanner'
 import { useLocale } from '../../i18n'
 import { brand } from '../../theme'
 
 export type AdminManualBookingInitialCustomer = {
+  customerId?: string | null
   firstName: string
   lastName: string
   phone: string
@@ -36,6 +42,18 @@ export type AdminManualBookingInitialCustomer = {
 export type AdminManualBookingPageProps = {
   mode: 'create' | 'edit'
   services: ServiceWithId[] | undefined
+  customers?: Customer[]
+  customerContext?: CustomerContextResponse
+  customerContextLoading?: boolean
+  durationMinutesOverride?: number | null
+  onDurationOverrideChange?: (minutes: number | null) => void
+  onCustomerLookupChange?: (lookup: {
+    customerId?: string | null
+    firstName: string
+    lastName: string
+    email: string | null
+  }) => void
+  onOpenCustomer?: (customerId: string) => void
   employees?: EmployeeWithId[]
   selectedEmployeeId?: string | null
   onEmployeeChange?: (employeeId: string | null) => void
@@ -62,6 +80,7 @@ export type AdminManualBookingPageProps = {
     serviceIds: string[]
     employeeId?: string | null
     startAt: string
+    durationMinutesOverride?: number | null
     firstName: string
     lastName: string
     phone: string
@@ -73,6 +92,13 @@ export type AdminManualBookingPageProps = {
 export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingPageProps> = ({
   mode,
   services,
+  customers,
+  customerContext,
+  customerContextLoading = false,
+  durationMinutesOverride = null,
+  onDurationOverrideChange,
+  onCustomerLookupChange,
+  onOpenCustomer,
   employees,
   selectedEmployeeId,
   onEmployeeChange,
@@ -96,6 +122,9 @@ export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingP
   onSubmit,
 }) => {
   const { t, locale, intlLocale } = useLocale()
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
+    initialCustomer?.customerId ?? null,
+  )
   const [firstName, setFirstName] = useState(initialCustomer?.firstName ?? '')
   const [lastName, setLastName] = useState(initialCustomer?.lastName ?? '')
   const [phone, setPhone] = useState(initialCustomer?.phone ?? '')
@@ -126,9 +155,27 @@ export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingP
     [services, selectedServiceIds],
   )
   const totalDurationMinutes = selectedServices.reduce(
-    (sum, service) => sum + service.durationMinutes,
+    (sum, service) => sum + Math.max(service.durationMinutes, service.durationMaxMinutes ?? 0),
     0,
   )
+  const effectiveDurationMinutes = durationMinutesOverride ?? totalDurationMinutes
+  const selectedServiceNames = useMemo(
+    () => selectedServices.map((service) => localizedServiceName(service, locale)),
+    [selectedServices, locale],
+  )
+  const notifyCustomerLookup = (next: {
+    customerId?: string | null
+    firstName: string
+    lastName: string
+    email: string
+  }) => {
+    onCustomerLookupChange?.({
+      customerId: next.customerId ?? null,
+      firstName: next.firstName,
+      lastName: next.lastName,
+      email: next.email.trim() || null,
+    })
+  }
   const pricesVisible = arePricesVisible()
   const todayYmd = viennaTodayYmd()
   const availableDates = useMemo(
@@ -152,6 +199,60 @@ export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingP
 
       <Paper sx={{ p: 3 }}>
         <Stack spacing={2}>
+          {customers && customers.length > 0 ? (
+            <Autocomplete
+              options={customers}
+              value={customers.find((c) => c.id === selectedCustomerId) ?? null}
+              getOptionLabel={(option) => {
+                const name = `${option.firstName} ${option.lastName}`.trim()
+                const meta = [option.email, option.phone].filter(Boolean).join(' · ')
+                return meta ? `${name} (${meta})` : name
+              }}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              onChange={(_, selected) => {
+                if (!selected) {
+                  setSelectedCustomerId(null)
+                  return
+                }
+                setSelectedCustomerId(selected.id)
+                setFirstName(selected.firstName)
+                setLastName(selected.lastName)
+                setPhone(selected.phone ?? '')
+                setEmail(selected.email ?? '')
+                notifyCustomerLookup({
+                  customerId: selected.id,
+                  firstName: selected.firstName,
+                  lastName: selected.lastName,
+                  email: selected.email ?? '',
+                })
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label={t('admin.customerAutocompleteLabel')}
+                  placeholder={t('admin.customerAutocompletePlaceholder')}
+                  size="small"
+                />
+              )}
+            />
+          ) : null}
+
+          <CustomerHistoryCard
+            context={customerContext}
+            loading={customerContextLoading}
+            selectedServiceNames={selectedServiceNames}
+            currentDurationMinutes={effectiveDurationMinutes}
+            onApplyDuration={
+              onDurationOverrideChange
+                ? (minutes) => {
+                    setStartAt(null)
+                    onDurationOverrideChange(minutes)
+                  }
+                : undefined
+            }
+            onOpenCustomer={onOpenCustomer}
+          />
+
           <Typography variant="subtitle2">{t('admin.services')}</Typography>
           <Box
             sx={{
@@ -219,10 +320,71 @@ export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingP
           </Box>
 
           {selectedServiceIds.length > 0 ? (
-            <Typography variant="body2" color="text.secondary">
-              {t('book.selectedServicesCount', { count: selectedServiceIds.length })} ·{' '}
-              {t('book.totalDuration', { minutes: totalDurationMinutes })}
-            </Typography>
+            <Stack spacing={1.5}>
+              <Typography variant="body2" color="text.secondary">
+                {t('book.selectedServicesCount', { count: selectedServiceIds.length })} ·{' '}
+                {t('book.totalDuration', { minutes: effectiveDurationMinutes })}
+              </Typography>
+              {onDurationOverrideChange ? (
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1 }}
+                >
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    disabled={effectiveDurationMinutes <= 15}
+                    onClick={() => {
+                      setStartAt(null)
+                      onDurationOverrideChange(Math.max(5, effectiveDurationMinutes - 15))
+                    }}
+                  >
+                    -15 min
+                  </Button>
+                  <TextField
+                    label={t('admin.durationOverrideLabel')}
+                    type="number"
+                    size="small"
+                    value={effectiveDurationMinutes}
+                    onChange={(event) => {
+                      const next = Number(event.target.value)
+                      if (Number.isInteger(next) && next >= 5 && next <= 600) {
+                        setStartAt(null)
+                        onDurationOverrideChange(next === totalDurationMinutes ? null : next)
+                      }
+                    }}
+                    slotProps={{ htmlInput: { min: 5, max: 600, step: 5 } }}
+                    sx={{ width: 170 }}
+                  />
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    disabled={effectiveDurationMinutes >= 600}
+                    onClick={() => {
+                      setStartAt(null)
+                      onDurationOverrideChange(Math.min(600, effectiveDurationMinutes + 15))
+                    }}
+                  >
+                    +15 min
+                  </Button>
+                  {durationMinutesOverride !== null &&
+                  durationMinutesOverride !== totalDurationMinutes ? (
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        setStartAt(null)
+                        onDurationOverrideChange(null)
+                      }}
+                    >
+                      {t('admin.durationOverrideReset', {
+                        duration: formatBookedTime(totalDurationMinutes),
+                      })}
+                    </Button>
+                  ) : null}
+                </Stack>
+              ) : null}
+            </Stack>
           ) : null}
 
           {employees && employees.length > 0 && onEmployeeChange ? (
@@ -325,14 +487,24 @@ export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingP
           <TextField
             label={t('book.firstName')}
             value={firstName}
-            onChange={(event) => setFirstName(event.target.value)}
+            onChange={(event) => {
+              const next = event.target.value
+              setFirstName(next)
+              setSelectedCustomerId(null)
+              notifyCustomerLookup({ firstName: next, lastName, email })
+            }}
             required
             fullWidth
           />
           <TextField
             label={t('book.lastName')}
             value={lastName}
-            onChange={(event) => setLastName(event.target.value)}
+            onChange={(event) => {
+              const next = event.target.value
+              setLastName(next)
+              setSelectedCustomerId(null)
+              notifyCustomerLookup({ firstName, lastName: next, email })
+            }}
             required
             fullWidth
           />
@@ -346,7 +518,16 @@ export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingP
           <TextField
             label={t('admin.emailOptional')}
             value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            onChange={(event) => {
+              const next = event.target.value
+              setEmail(next)
+              notifyCustomerLookup({
+                customerId: selectedCustomerId,
+                firstName,
+                lastName,
+                email: next,
+              })
+            }}
             fullWidth
           />
           <TextField
@@ -376,6 +557,7 @@ export const AdminManualBookingPage: React.FunctionComponent<AdminManualBookingP
                 serviceIds: selectedServiceIds,
                 ...(selectedEmployeeId ? { employeeId: selectedEmployeeId } : {}),
                 startAt,
+                ...(durationMinutesOverride !== null ? { durationMinutesOverride } : {}),
                 firstName: firstName.trim(),
                 lastName: lastName.trim(),
                 phone: phone.trim(),

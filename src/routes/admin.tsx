@@ -23,6 +23,7 @@ import { useAllServices } from '../hooks/useAllServices'
 import { useAvailableSlots } from '../hooks/useAvailableSlots'
 import { useBlockedSlots } from '../hooks/useBlockedSlots'
 import { useArchiveCustomer } from '../hooks/useArchiveCustomer'
+import { useCustomerContext } from '../hooks/useCustomerContext'
 import { useCustomerDetail } from '../hooks/useCustomerDetail'
 import { useCustomers } from '../hooks/useCustomers'
 import { useSaveCustomer } from '../hooks/useSaveCustomer'
@@ -377,6 +378,16 @@ export const adminReservationDetailRoute = createRoute({
     const returnWeek = search.week ? startOfWeekYmd(search.week) : undefined
     const fromPending = search.from === 'pending'
     const reservation = useAdminReservation(reservationId)
+    const customerContext = useCustomerContext(
+      {
+        customerId: reservation.data?.customerId ?? null,
+        firstName: reservation.data?.firstName ?? '',
+        lastName: reservation.data?.lastName ?? '',
+        email: reservation.data?.email ?? null,
+        excludeReservationId: reservationId,
+      },
+      Boolean(reservation.data),
+    )
     const actions = useAdminReservationActions()
 
     const failed =
@@ -390,6 +401,8 @@ export const adminReservationDetailRoute = createRoute({
     return (
       <AdminReservationDetailPage
         reservation={reservation.data ?? undefined}
+        customerContext={customerContext.data}
+        customerContextLoading={customerContext.isLoading}
         isLoading={reservation.isLoading}
         actionError={actionError}
         busy={
@@ -431,6 +444,12 @@ export const adminReservationDetailRoute = createRoute({
             },
           })
         }}
+        onOpenCustomer={(customerId) => {
+          void navigate({
+            to: '/admin/customers/$customerId',
+            params: { customerId },
+          })
+        }}
       />
     )
   },
@@ -469,11 +488,70 @@ export const adminManualRoute = createRoute({
     const prefillCustomerId = editingReservationId ? null : (search.customerId ?? null)
     const editing = useAdminReservation(editingReservationId)
     const prefillCustomer = useCustomerDetail(prefillCustomerId, prefillCustomerId !== null)
+    const customers = useCustomers('', true)
     const services = useAllServices(true)
     const employees = useActiveEmployees()
     const selectedEmployeeId = search.employeeId ?? null
     const actions = useAdminReservationActions()
     const hydratedEditId = useRef<string | null>(null)
+    const [durationOverrideState, setDurationOverrideState] = useState<number | null | undefined>(
+      undefined,
+    )
+    const durationOverride =
+      durationOverrideState !== undefined
+        ? durationOverrideState
+        : editingReservationId && editing.data
+          ? editing.data.durationMinutes
+          : null
+    const [customerLookup, setCustomerLookup] = useState<{
+      customerId?: string | null
+      firstName: string
+      lastName: string
+      email: string | null
+    } | null>(null)
+    const [debouncedLookup, setDebouncedLookup] = useState<{
+      customerId?: string | null
+      firstName: string
+      lastName: string
+      email: string | null
+    } | null>(null)
+
+    useEffect(() => {
+      const effectiveLookup =
+        customerLookup ??
+        (editing.data
+          ? {
+              customerId: editing.data.customerId ?? null,
+              firstName: editing.data.firstName,
+              lastName: editing.data.lastName,
+              email: editing.data.email ?? null,
+            }
+          : prefillCustomer.data?.customer
+            ? {
+                customerId: prefillCustomer.data.customer.id,
+                firstName: prefillCustomer.data.customer.firstName,
+                lastName: prefillCustomer.data.customer.lastName,
+                email: prefillCustomer.data.customer.email ?? null,
+              }
+            : null)
+      const timer = window.setTimeout(() => {
+        setDebouncedLookup(effectiveLookup)
+      }, 300)
+      return () => {
+        window.clearTimeout(timer)
+      }
+    }, [customerLookup, editing.data, prefillCustomer.data])
+
+    const customerContext = useCustomerContext(
+      {
+        customerId: debouncedLookup?.customerId ?? null,
+        firstName: debouncedLookup?.firstName ?? '',
+        lastName: debouncedLookup?.lastName ?? '',
+        email: debouncedLookup?.email ?? null,
+        excludeReservationId: editingReservationId,
+      },
+      debouncedLookup !== null,
+    )
 
     useEffect(() => {
       if (!editingReservationId) {
@@ -530,6 +608,7 @@ export const adminManualRoute = createRoute({
       toDateYmd: monthQueryTo,
       enforceAdvanceRestrictions: false,
       excludeReservationId: editingReservationId ?? undefined,
+      durationMinutesOverride: durationOverride,
     })
     // Fallback for deep links where `date` and `month` point to different months so the
     // time list still loads for `selectedDate` without forcing a second query in the normal case.
@@ -540,6 +619,7 @@ export const adminManualRoute = createRoute({
       toDateYmd: selectedDateInVisibleMonth ? null : selectedDate,
       enforceAdvanceRestrictions: false,
       excludeReservationId: editingReservationId ?? undefined,
+      durationMinutesOverride: durationOverride,
     })
     const selectedDaySlots =
       selectedDate === null
@@ -593,6 +673,18 @@ export const adminManualRoute = createRoute({
         key={editingReservationId ?? prefillCustomerId ?? 'create'}
         mode={isEdit ? 'edit' : 'create'}
         services={services.data?.filter((service) => service.active)}
+        customers={customers.data}
+        customerContext={customerContext.data}
+        customerContextLoading={customerContext.isLoading}
+        durationMinutesOverride={durationOverride}
+        onDurationOverrideChange={setDurationOverrideState}
+        onCustomerLookupChange={setCustomerLookup}
+        onOpenCustomer={(customerId) => {
+          void navigate({
+            to: '/admin/customers/$customerId',
+            params: { customerId },
+          })
+        }}
         employees={employees.data}
         selectedEmployeeId={selectedEmployeeId}
         onEmployeeChange={(employeeId) => {
@@ -622,6 +714,7 @@ export const adminManualRoute = createRoute({
         initialCustomer={
           editing.data
             ? {
+                customerId: editing.data.customerId ?? null,
                 firstName: editing.data.firstName,
                 lastName: editing.data.lastName,
                 phone: editing.data.phone,
@@ -630,6 +723,7 @@ export const adminManualRoute = createRoute({
               }
             : prefillCustomer.data?.customer
               ? {
+                  customerId: prefillCustomer.data.customer.id,
                   firstName: prefillCustomer.data.customer.firstName,
                   lastName: prefillCustomer.data.customer.lastName,
                   phone: prefillCustomer.data.customer.phone ?? '',
