@@ -36,6 +36,12 @@ import {
 } from './booking/processPendingReservations'
 import { getAvailableSlots } from './booking/getAvailableSlots'
 import {
+  archiveCustomer,
+  getCustomerDetail,
+  listCustomers,
+  saveCustomer,
+} from './customers/functions'
+import {
   connectGoogleCalendar,
   disconnectGoogleCalendar,
   getGoogleCalendarStatus,
@@ -83,6 +89,10 @@ export {
   deleteEmployeeDayException,
   listBookableEmployees,
   listMyEmployeeReservations,
+  listCustomers,
+  getCustomerDetail,
+  saveCustomer,
+  archiveCustomer,
   getGoogleCalendarStatus,
   connectGoogleCalendar,
   syncGoogleCalendar,

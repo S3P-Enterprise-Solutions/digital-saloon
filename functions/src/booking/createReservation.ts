@@ -1,7 +1,9 @@
+import { getFirestore } from 'firebase-admin/firestore'
 import { onCall, HttpsError } from 'firebase-functions/v2/https'
 
 import { assertAdmin } from '../authz'
 import { functionsRegion, getSalonId } from '../config'
+import { upsertCustomerForBooking } from '../customers/store'
 import { isObject } from '../schemas'
 import { createReservationTransactional } from './reservationWrite'
 import { syncReservationToGoogleCalendar } from '../googleCalendar/sync'
@@ -121,6 +123,24 @@ export const createReservation = onCall({ region: functionsRegion }, async (requ
   }
 
   if (!result.reused) {
+    try {
+      const customerId = await upsertCustomerForBooking({
+        firstName,
+        lastName,
+        email,
+        phone: requireString(data.phone, 'phone'),
+        startAtIso: startAt.toISOString(),
+        source: 'ONLINE',
+      })
+      await getFirestore()
+        .collection('salons')
+        .doc(getSalonId())
+        .collection('reservations')
+        .doc(result.reservationId)
+        .update({ customerId })
+    } catch (error) {
+      console.warn('[customers] upsertCustomerForBooking failed on online booking', error)
+    }
     await syncReservationToGoogleCalendar(result.reservationId)
     await recordActivityLog({
       request,
@@ -184,14 +204,18 @@ export const createManualReservation = onCall({ region: functionsRegion }, async
   }
 
   const { serviceId, serviceIds } = resolveServiceIds(data)
+  const manualFirstName = requireString(data.firstName, 'firstName')
+  const manualLastName = requireString(data.lastName, 'lastName')
+  const manualPhone = requireString(data.phone, 'phone')
+  const manualEmail =
+    typeof data.email === 'string' && data.email.trim().length > 0 ? data.email.trim() : null
 
   const result = await createReservationTransactional(
     {
-      firstName: requireString(data.firstName, 'firstName'),
-      lastName: requireString(data.lastName, 'lastName'),
-      phone: requireString(data.phone, 'phone'),
-      email:
-        typeof data.email === 'string' && data.email.trim().length > 0 ? data.email.trim() : null,
+      firstName: manualFirstName,
+      lastName: manualLastName,
+      phone: manualPhone,
+      email: manualEmail,
       serviceId,
       serviceIds,
       employeeId:
@@ -219,6 +243,24 @@ export const createManualReservation = onCall({ region: functionsRegion }, async
   }
 
   if (!result.reused) {
+    try {
+      const customerId = await upsertCustomerForBooking({
+        firstName: manualFirstName,
+        lastName: manualLastName,
+        email: manualEmail,
+        phone: manualPhone,
+        startAtIso: startAt.toISOString(),
+        source: 'MANUAL',
+      })
+      await getFirestore()
+        .collection('salons')
+        .doc(getSalonId())
+        .collection('reservations')
+        .doc(result.reservationId)
+        .update({ customerId })
+    } catch (error) {
+      console.warn('[customers] upsertCustomerForBooking failed on manual booking', error)
+    }
     await syncReservationToGoogleCalendar(result.reservationId)
     await recordActivityLog({
       request,

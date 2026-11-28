@@ -3,6 +3,7 @@
 import { getFirestore, type Firestore } from 'firebase-admin/firestore'
 
 import { getDefaultTimezone, getSalonId } from '../config'
+import { seedCustomersFromCalendarEvents } from '../customers/store'
 import {
   createChannelToken,
   deleteEvent,
@@ -305,12 +306,17 @@ export async function importGoogleCalendarHistory(
   employeeId?: string | null,
   fetchFn: FetchLike = fetch,
   now: Date = new Date(),
-): Promise<{ importedEvents: number; writtenEvents: number; skippedUnchanged: number }> {
+): Promise<{
+  importedEvents: number
+  writtenEvents: number
+  skippedUnchanged: number
+  seededCustomers: number
+}> {
   const emp = normalizeEmployeeId(employeeId)
   const ref = integrationDocRef(db, salonId, emp)
   const auth = await getValidAccessToken(db, salonId, emp, fetchFn)
   if (!auth || !auth.integration.calendarId) {
-    return { importedEvents: 0, writtenEvents: 0, skippedUnchanged: 0 }
+    return { importedEvents: 0, writtenEvents: 0, skippedUnchanged: 0, seededCustomers: 0 }
   }
 
   const timeZone = await loadSalonTimezone(db, salonId)
@@ -331,6 +337,14 @@ export async function importGoogleCalendarHistory(
     fetchFn,
   })
 
+  let seededCustomers = 0
+  try {
+    const seeded = await seedCustomersFromCalendarEvents(db, salonId, emp)
+    seededCustomers = seeded.createdCount
+  } catch (err) {
+    console.warn('[customers] seedCustomersFromCalendarEvents failed after history import', err)
+  }
+
   await ref.update({
     lastHistoryImportAt: nowIso,
     lastHistoryImportCount: result.syncedCount,
@@ -341,6 +355,7 @@ export async function importGoogleCalendarHistory(
     importedEvents: result.syncedCount,
     writtenEvents: result.writtenCount,
     skippedUnchanged: result.skippedUnchanged,
+    seededCustomers,
   }
 }
 

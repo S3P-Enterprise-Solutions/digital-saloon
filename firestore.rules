@@ -158,6 +158,11 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
+      match /customers/{customerId} {
+        // Managed exclusively via authenticated admin Cloud Functions.
+        allow read, write: if false;
+      }
+
       match /slotLocks/{lockId} {
         allow read, write: if false;
       }
