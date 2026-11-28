@@ -16,6 +16,7 @@ import {
   Divider,
   FormControl,
   FormControlLabel,
+  FormHelperText,
   InputLabel,
   ListItemText,
   MenuItem,
@@ -451,23 +452,25 @@ const EmployeeEditor: React.FunctionComponent<EmployeeEditorProps> = ({
             ) : null}
             {serviceOptions.length > 0 ? (
               <FormControl fullWidth size="small">
-                <InputLabel id={`employee-services-${employee.id}`}>
+                <InputLabel id={`employee-services-${employee.id}`} shrink>
                   {t('admin.employeesServicesTitle')}
                 </InputLabel>
                 <Select
                   labelId={`employee-services-${employee.id}`}
                   multiple
+                  displayEmpty
                   value={serviceIds}
                   onChange={handleServicesChange}
-                  input={<OutlinedInput label={t('admin.employeesServicesTitle')} />}
-                  renderValue={(selected) =>
-                    selected
+                  input={<OutlinedInput notched label={t('admin.employeesServicesTitle')} />}
+                  renderValue={(selected) => {
+                    if (selected.length === 0) return t('admin.employeesServicesAll')
+                    return selected
                       .map((id) => {
                         const service = serviceOptions.find((item) => item.id === id)
                         return service ? bilingualServiceName(service) : id
                       })
                       .join(', ')
-                  }
+                  }}
                   disabled={removed}
                 >
                   {serviceOptions.map((service) => (
@@ -477,6 +480,7 @@ const EmployeeEditor: React.FunctionComponent<EmployeeEditorProps> = ({
                     </MenuItem>
                   ))}
                 </Select>
+                <FormHelperText>{t('admin.employeesServicesHint')}</FormHelperText>
               </FormControl>
             ) : null}
             <FormControlLabel

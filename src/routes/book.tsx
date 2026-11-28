@@ -43,13 +43,26 @@ export const bookRoute = createRoute({
     const selectedServiceIds = parseSelectedServiceIds(search)
     const employeeManagementEnabled = isEmployeeManagementEnabled()
     const bookableEmployees = useListBookableEmployees(employeeManagementEnabled)
+    const selectedServices = useMemo(
+      () => services.data?.filter((item) => selectedServiceIds.includes(item.id)) ?? [],
+      [services.data, selectedServiceIds],
+    )
     const employees = useMemo(() => {
       if (!employeeManagementEnabled || !bookableEmployees.data) return undefined
-      const eligible = bookableEmployees.data.filter((emp) =>
-        selectedServiceIds.every((serviceId) => emp.serviceIds.includes(serviceId)),
-      )
+      const eligible = bookableEmployees.data.filter((emp) => {
+        const employeeOffersAll =
+          emp.serviceIds.length === 0 ||
+          selectedServiceIds.every((serviceId) => emp.serviceIds.includes(serviceId))
+        if (!employeeOffersAll) return false
+        return selectedServices.every(
+          (service) =>
+            !service.allowedEmployeeIds ||
+            service.allowedEmployeeIds.length === 0 ||
+            service.allowedEmployeeIds.includes(emp.id),
+        )
+      })
       return eligible.map((emp) => ({ id: emp.id, displayName: emp.displayName }))
-    }, [bookableEmployees.data, employeeManagementEnabled, selectedServiceIds])
+    }, [bookableEmployees.data, employeeManagementEnabled, selectedServiceIds, selectedServices])
     const step: 1 | 2 =
       search.step === '2' || (!search.step && selectedServiceIds.length > 0) ? 2 : 1
     const weekAnchorYmd = search.week ?? weekStartMondayYmd(today)
@@ -65,9 +78,6 @@ export const bookRoute = createRoute({
       fromDateYmd: step === 2 && selectedServiceIds.length > 0 ? rangeFrom : null,
       toDateYmd: step === 2 && selectedServiceIds.length > 0 ? rangeTo : null,
     })
-
-    const selectedServices =
-      services.data?.filter((item) => selectedServiceIds.includes(item.id)) ?? []
 
     const attemptKey = `${selectedServiceIds.join(',')}|${search.startAt ?? ''}`
     const idempotencyKey = useMemo(() => {

@@ -234,6 +234,17 @@ describe('validateServiceForm', () => {
       },
     })
   })
+
+  it('omits empty allowedEmployeeIds and dedupes non-empty restrictions', () => {
+    const unrestricted = validateServiceForm({ ...validInput, allowedEmployeeIds: [] })
+    expect(unrestricted.ok && unrestricted.value.allowedEmployeeIds).toBeUndefined()
+
+    const restricted = validateServiceForm({
+      ...validInput,
+      allowedEmployeeIds: ['emp-1', ' emp-1 ', 'emp-2'],
+    })
+    expect(restricted.ok && restricted.value.allowedEmployeeIds).toEqual(['emp-1', 'emp-2'])
+  })
 })
 
 describe('serviceFormInputOf', () => {

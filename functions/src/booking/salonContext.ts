@@ -9,6 +9,7 @@ import type {
   TimeInterval,
   Weekday,
 } from '../domain/types'
+import { DEMO_RESERVATION_FLAG } from '../demoFlags'
 import { sanitizeTimeIntervals } from '../domain/openingIntervals'
 import type { EmployeeAvailabilityEnvelope } from '../domain/availability'
 import { getSalonId } from '../config'
@@ -116,8 +117,19 @@ export function coversRequestedServices(
   requestedServiceIds: readonly string[],
 ): boolean {
   if (requestedServiceIds.length === 0) return true
+  // Empty serviceIds on an employee means unrestricted (can perform all services).
+  if (employeeServiceIds.length === 0) return true
   const offered = new Set(employeeServiceIds)
   return requestedServiceIds.every((id) => offered.has(id))
+}
+
+export function isEmployeeAllowedForServices(
+  employeeId: string,
+  serviceAllowedEmployees: ReadonlyArray<readonly string[] | undefined>,
+): boolean {
+  return serviceAllowedEmployees.every(
+    (allowed) => !allowed || allowed.length === 0 || allowed.includes(employeeId),
+  )
 }
 
 export function bookingCandidateFromDoc(
@@ -139,13 +151,23 @@ export async function loadBookingCandidates(
   db: Firestore,
   salonId: string,
   requestedServiceIds: readonly string[],
-): Promise<BookingCandidateEmployee[]> {
+  serviceAllowedEmployees: ReadonlyArray<readonly string[] | undefined> = [],
+): Promise<{
+  candidates: BookingCandidateEmployee[]
+  hasAnyBookableEmployee: boolean
+}> {
   const snap = await db.collection('salons').doc(salonId).collection('employees').get()
-  return snap.docs
+  const bookable = snap.docs
     .map((doc) => bookingCandidateFromDoc(doc.id, doc.data() as Record<string, unknown>))
     .filter((emp): emp is BookingCandidateEmployee => emp !== null)
+  const candidates = bookable
     .filter((emp) => coversRequestedServices(emp.serviceIds, requestedServiceIds))
+    .filter((emp) => isEmployeeAllowedForServices(emp.id, serviceAllowedEmployees))
     .sort((a, b) => a.displayName.localeCompare(b.displayName))
+  return {
+    candidates,
+    hasAnyBookableEmployee: bookable.length > 0,
+  }
 }
 
 /** @deprecated Prefer loadBookingCandidates when employee management is enabled. */
@@ -185,11 +207,17 @@ export async function loadEmployeeAvailabilityEnvelope(
     empRef.collection('workingHours').get(),
     empRef.collection('dayExceptions').get(),
   ])
-  const weekly = emptyWeekly()
-  for (const doc of hoursSnap.docs) {
-    const weekday = doc.id as Weekday
-    if (!WEEKDAYS.includes(weekday)) continue
-    weekly[weekday] = sanitizeTimeIntervals((doc.data() as { intervals?: unknown }).intervals)
+  let weekly: OpeningHoursByWeekday | undefined
+  if (!hoursSnap.empty) {
+    const parsed = emptyWeekly()
+    for (const doc of hoursSnap.docs) {
+      const weekday = doc.id as Weekday
+      if (!WEEKDAYS.includes(weekday)) continue
+      parsed[weekday] = sanitizeTimeIntervals((doc.data() as { intervals?: unknown }).intervals)
+    }
+    if (WEEKDAYS.some((day) => parsed[day].length > 0)) {
+      weekly = parsed
+    }
   }
   const dayExceptions: DayException[] = exceptionsSnap.docs.map((doc) => {
     const data = doc.data()
@@ -201,7 +229,7 @@ export async function loadEmployeeAvailabilityEnvelope(
       closed,
     }
   })
-  return { weekly, dayExceptions }
+  return { ...(weekly ? { weekly } : {}), dayExceptions }
 }
 
 export async function loadBusyIntervals(
@@ -223,6 +251,7 @@ export async function loadBusyIntervals(
   for (const doc of reservationsSnap.docs) {
     if (excludeReservationId && doc.id === excludeReservationId) continue
     const data = doc.data()
+    if (data[DEMO_RESERVATION_FLAG] === true) continue
     if (!BLOCKING_STATUSES.has(String(data.status))) continue
     if (employeeId && data.employeeId && String(data.employeeId) !== employeeId) continue
     const startAt = new Date(String(data.startAt))

@@ -294,6 +294,9 @@ export type Messages = {
   'admin.fieldDurationHint': string
   'admin.fieldActive': string
   'admin.fieldActiveHint': string
+  'admin.fieldAllowedEmployees': string
+  'admin.fieldAllowedEmployeesHint': string
+  'admin.allEmployees': string
   'admin.inactiveTag': string
   'admin.cancelEdit': string
   'admin.priceError': string
@@ -389,6 +392,8 @@ export type Messages = {
   'admin.employeesAuthDisabled': string
   'admin.employeesSetPassword': string
   'admin.employeesServicesTitle': string
+  'admin.employeesServicesAll': string
+  'admin.employeesServicesHint': string
   'admin.employeesServiceAssignmentTitle': string
   'admin.employeesServiceAssignmentHint': string
   'admin.employeesServiceAssignmentEmpty': string
@@ -937,6 +942,10 @@ export const de: Messages = {
   'admin.fieldActive': 'Online buchbar',
   'admin.fieldActiveHint':
     'Ausgeschaltet verschwindet die Leistung aus Preisliste und Buchung. Gebuchte Termine bleiben bestehen.',
+  'admin.fieldAllowedEmployees': 'Mitarbeiter*innen (optional)',
+  'admin.fieldAllowedEmployeesHint':
+    'Leer lassen, wenn alle Mitarbeiter*innen diese Leistung ausführen dürfen.',
+  'admin.allEmployees': 'Alle Mitarbeiter*innen',
   'admin.inactiveTag': 'Nicht online buchbar',
   'admin.cancelEdit': 'Abbrechen',
   'admin.priceError': 'Bitte einen Betrag wie 26 oder 26,50 eingeben.',
@@ -1042,6 +1051,8 @@ export const de: Messages = {
   'admin.employeesAuthDisabled': 'Login deaktiviert',
   'admin.employeesSetPassword': 'Passwort setzen',
   'admin.employeesServicesTitle': 'Dienste',
+  'admin.employeesServicesAll': 'Alle Dienste',
+  'admin.employeesServicesHint': 'Leer lassen, wenn diese Person alle Dienste ausführen darf.',
   'admin.employeesServiceAssignmentTitle': 'Dienst-Zuordnung',
   'admin.employeesServiceAssignmentHint':
     'Pro Dienst festlegen, welche Mitarbeiter*innen buchbar sind. Änderungen werden sofort gespeichert.',
@@ -1598,6 +1609,10 @@ export const it: Messages = {
   'admin.fieldActive': 'Prenotabile online',
   'admin.fieldActiveHint':
     'Se disattivato, il servizio sparisce dal listino e dalla prenotazione. Gli appuntamenti prenotati restano.',
+  'admin.fieldAllowedEmployees': 'Collaboratori (opzionale)',
+  'admin.fieldAllowedEmployeesHint':
+    'Lasciare vuoto se tutti i collaboratori possono eseguire questo servizio.',
+  'admin.allEmployees': 'Tutti i collaboratori',
   'admin.inactiveTag': 'Non prenotabile online',
   'admin.cancelEdit': 'Annulla',
   'admin.priceError': 'Inserite un importo come 26 o 26,50.',
@@ -1702,6 +1717,8 @@ export const it: Messages = {
   'admin.employeesAuthDisabled': 'Accesso disattivato',
   'admin.employeesSetPassword': 'Imposta password',
   'admin.employeesServicesTitle': 'Servizi',
+  'admin.employeesServicesAll': 'Tutti i servizi',
+  'admin.employeesServicesHint': 'Lasciare vuoto se questa persona può eseguire tutti i servizi.',
   'admin.employeesServiceAssignmentTitle': 'Assegnazione servizi',
   'admin.employeesServiceAssignmentHint':
     'Per ogni servizio scegli chi è prenotabile. Le modifiche vengono salvate subito.',

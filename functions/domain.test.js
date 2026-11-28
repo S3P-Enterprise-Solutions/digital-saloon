@@ -218,3 +218,40 @@ test('listAvailableSlots uses 15-minute interval by default settings', () => {
   const second = slots[1].startAt
   assert.equal(second.getTime() - first.getTime(), 15 * 60_000)
 })
+
+test('listAvailableSlots inherits salon weekly hours when employee has no custom weekly schedule', () => {
+  const now = zonedLocalToUtc(2026, 4, 7, 8, 0, TZ)
+  const openSlots = listAvailableSlots({
+    timeZone: TZ,
+    weekly,
+    holidays: [],
+    dayExceptions: [],
+    busy: [],
+    durationMinutes: 30,
+    settings,
+    now,
+    fromDateYmd: '2026-04-11',
+    toDateYmd: '2026-04-11',
+    enforceAdvanceRestrictions: false,
+    employeeEnvelope: { dayExceptions: [] },
+  })
+  assert.ok(openSlots.length > 0)
+
+  const closedByException = listAvailableSlots({
+    timeZone: TZ,
+    weekly,
+    holidays: [],
+    dayExceptions: [],
+    busy: [],
+    durationMinutes: 30,
+    settings,
+    now,
+    fromDateYmd: '2026-04-11',
+    toDateYmd: '2026-04-11',
+    enforceAdvanceRestrictions: false,
+    employeeEnvelope: {
+      dayExceptions: [{ date: '2026-04-11', closed: true, intervals: [] }],
+    },
+  })
+  assert.equal(closedByException.length, 0)
+})

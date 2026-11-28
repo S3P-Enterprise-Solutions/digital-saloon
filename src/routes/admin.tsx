@@ -670,11 +670,18 @@ export const adminServicesRoute = createRoute({
   component: function AdminServicesRoute() {
     const navigate = useNavigate()
     const services = useAllServices(true)
+    const employeeManagementEnabled = isEmployeeManagementEnabled()
+    const employees = useActiveEmployees(employeeManagementEnabled)
     const saveService = useSaveService()
     const moveServiceMutation = useMoveService()
     return (
       <AdminServicesPage
         services={services.data}
+        employees={
+          employeeManagementEnabled
+            ? employees.data?.map((emp) => ({ id: emp.id, displayName: emp.displayName }))
+            : undefined
+        }
         isLoading={services.isLoading}
         isError={services.isError}
         saving={saveService.isPending}
