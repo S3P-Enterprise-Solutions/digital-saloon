@@ -13,11 +13,20 @@ export type GoogleCalendarStatus = {
   lastSyncAt: string | null
   lastSyncStatus: 'OK' | 'ERROR' | null
   lastSyncError: string | null
+  lastHistoryImportAt: string | null
+  lastHistoryImportCount: number | null
 }
 
 export type GoogleCalendarSyncResult = {
   syncedBlockedSlots: number
   pushedReservations: number
+  status: GoogleCalendarStatus
+}
+
+export type GoogleCalendarHistoryImportResult = {
+  importedEvents: number
+  writtenEvents: number
+  skippedUnchanged: number
   status: GoogleCalendarStatus
 }
 
@@ -50,6 +59,17 @@ export async function syncGoogleCalendar(
   const call = httpsCallable<{ employeeId?: string | null }, GoogleCalendarSyncResult>(
     firebaseFunctions,
     'syncGoogleCalendar',
+  )
+  const result = await call(employeeId ? { employeeId } : {})
+  return result.data
+}
+
+export async function importGoogleCalendarHistory(
+  employeeId?: string | null,
+): Promise<GoogleCalendarHistoryImportResult> {
+  const call = httpsCallable<{ employeeId?: string | null }, GoogleCalendarHistoryImportResult>(
+    firebaseFunctions,
+    'importGoogleCalendarHistory',
   )
   const result = await call(employeeId ? { employeeId } : {})
   return result.data

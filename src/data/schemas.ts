@@ -139,6 +139,14 @@ export const dayExceptionSchema = v.object({
 })
 export type DayException = v.InferOutput<typeof dayExceptionSchema>
 
+export const googleCalendarVisibilitySchema = v.picklist([
+  'default',
+  'public',
+  'private',
+  'confidential',
+] as const)
+export type GoogleCalendarVisibility = v.InferOutput<typeof googleCalendarVisibilitySchema>
+
 export const blockedSlotSchema = v.object({
   startAt: v.string(),
   endAt: v.string(),
@@ -147,7 +155,13 @@ export const blockedSlotSchema = v.object({
   source: v.optional(v.picklist(['MANUAL', 'GOOGLE_CALENDAR'] as const)),
   employeeId: v.optional(v.nullable(v.string())),
   googleEventId: v.optional(v.string()),
-  title: v.optional(v.string()),
+  title: v.optional(v.nullable(v.string())),
+  description: v.optional(v.nullable(v.string())),
+  visibility: v.optional(v.nullable(googleCalendarVisibilitySchema)),
+  isPrivate: v.optional(v.boolean()),
+  privateOverride: v.optional(v.nullable(v.boolean())),
+  redacted: v.optional(v.boolean()),
+  canTogglePrivacy: v.optional(v.boolean()),
   allDay: v.optional(v.boolean()),
   updatedAt: v.optional(v.string()),
 })
