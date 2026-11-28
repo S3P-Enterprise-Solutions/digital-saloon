@@ -5,7 +5,9 @@ import { assertAdmin } from '../authz'
 import { functionsRegion, getSalonId } from '../config'
 import { isObject } from '../schemas'
 import {
+  customerDocIdForEmail,
   doesCalendarTitleMatchCustomer,
+  doesReservationMatchCustomerTarget,
   nameOrderInsensitiveKey,
   normalizeCustomerEmail,
   normalizeCustomerName,
@@ -13,6 +15,7 @@ import {
 import { customersCollection, type CustomerDoc, type CustomerWithId } from './store'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const MAX_HISTORY_ITEMS = 50
 
 function toCustomerWithId(id: string, data: FirebaseFirestore.DocumentData): CustomerWithId {
   const firstName = String(data.firstName ?? '')
@@ -126,72 +129,107 @@ async function loadCustomerHistory(
     excludeReservationId?: string | null
   },
 ): Promise<CustomerHistoryItem[]> {
-  const [resSnap, blocksSnap] = await Promise.all([
-    db.collection('salons').doc(salonId).collection('reservations').get(),
-    db
-      .collection('salons')
-      .doc(salonId)
-      .collection('blockedSlots')
-      .where('source', '==', 'GOOGLE_CALENDAR')
-      .get(),
+  const resCol = db.collection('salons').doc(salonId).collection('reservations')
+  const blocksCol = db.collection('salons').doc(salonId).collection('blockedSlots')
+
+  // Run targeted single-field indexed queries instead of full collection scans.
+  const reservationQueries: Array<Promise<FirebaseFirestore.QuerySnapshot>> = []
+  if (target.customerId) {
+    reservationQueries.push(resCol.where('customerId', '==', target.customerId).limit(50).get())
+  }
+  if (target.email) {
+    reservationQueries.push(resCol.where('email', '==', target.email).limit(50).get())
+  }
+  // Fallback for legacy reservations created before customerId existed when searching by name.
+  if (target.firstName && (!target.email || !target.customerId)) {
+    reservationQueries.push(resCol.where('firstName', '==', target.firstName).limit(50).get())
+  }
+
+  const blockQueries: Array<Promise<FirebaseFirestore.QuerySnapshot>> = []
+  if (target.nameKey) {
+    blockQueries.push(blocksCol.where('customerNameKey', '==', target.nameKey).limit(50).get())
+  }
+
+  const [resSnaps, blockSnaps] = await Promise.all([
+    Promise.all(reservationQueries),
+    Promise.all(blockQueries),
   ])
 
+  const seenResIds = new Set<string>()
   const history: CustomerHistoryItem[] = []
-  for (const doc of resSnap.docs) {
-    if (target.excludeReservationId && doc.id === target.excludeReservationId) continue
-    const data = doc.data()
-    const matchesId = Boolean(target.customerId && data.customerId === target.customerId)
-    const resEmail = normalizeCustomerEmail(typeof data.email === 'string' ? data.email : null)
-    const matchesEmail = Boolean(target.email && resEmail && resEmail === target.email)
-    const resNameKey = nameOrderInsensitiveKey(
-      normalizeCustomerName(String(data.firstName ?? ''), String(data.lastName ?? '')),
-    )
-    const matchesName = Boolean(target.nameKey && resNameKey === target.nameKey)
-    if (!matchesId && !matchesEmail && !matchesName) continue
 
-    const startAt = String(data.startAt ?? '')
-    const endAt = String(data.endAt ?? '')
-    history.push({
-      kind: 'reservation',
-      id: `res:${doc.id}`,
-      reservationId: doc.id,
-      startAt,
-      endAt,
-      durationMinutes:
-        typeof data.durationMinutes === 'number'
-          ? data.durationMinutes
-          : minutesBetween(startAt, endAt),
-      serviceName: String(data.serviceName ?? ''),
-      status: String(data.status ?? ''),
-      employeeName: typeof data.employeeName === 'string' ? data.employeeName : null,
-      notes: typeof data.notes === 'string' ? data.notes : null,
-      internalNote: typeof data.internalNote === 'string' ? data.internalNote : null,
-    })
+  for (const snap of resSnaps) {
+    for (const doc of snap.docs) {
+      if (seenResIds.has(doc.id)) continue
+      seenResIds.add(doc.id)
+      if (target.excludeReservationId && doc.id === target.excludeReservationId) continue
+
+      const data = doc.data()
+      const matches = doesReservationMatchCustomerTarget(
+        {
+          customerId: typeof data.customerId === 'string' ? data.customerId : null,
+          firstName: typeof data.firstName === 'string' ? data.firstName : null,
+          lastName: typeof data.lastName === 'string' ? data.lastName : null,
+          email: typeof data.email === 'string' ? data.email : null,
+        },
+        {
+          customerId: target.customerId,
+          email: target.email,
+          nameKey: target.nameKey,
+        },
+      )
+      if (!matches) continue
+
+      const startAt = String(data.startAt ?? '')
+      const endAt = String(data.endAt ?? '')
+      history.push({
+        kind: 'reservation',
+        id: `res:${doc.id}`,
+        reservationId: doc.id,
+        startAt,
+        endAt,
+        durationMinutes:
+          typeof data.durationMinutes === 'number'
+            ? data.durationMinutes
+            : minutesBetween(startAt, endAt),
+        serviceName: String(data.serviceName ?? ''),
+        status: String(data.status ?? ''),
+        employeeName: typeof data.employeeName === 'string' ? data.employeeName : null,
+        notes: typeof data.notes === 'string' ? data.notes : null,
+        internalNote: typeof data.internalNote === 'string' ? data.internalNote : null,
+      })
+    }
   }
 
   // Strictly exclude private Google Calendar events from customer history.
-  for (const doc of blocksSnap.docs) {
-    const data = doc.data()
-    if (data.isPrivate === true || data.allDay === true) continue
-    const title = typeof data.title === 'string' ? data.title : ''
-    if (!doesCalendarTitleMatchCustomer(title, target.firstName, target.lastName)) continue
+  const seenBlockIds = new Set<string>()
+  for (const snap of blockSnaps) {
+    for (const doc of snap.docs) {
+      if (seenBlockIds.has(doc.id)) continue
+      seenBlockIds.add(doc.id)
+      const data = doc.data()
+      if (data.source !== 'GOOGLE_CALENDAR') continue
+      if (data.isPrivate === true || data.allDay === true) continue
+      const title = typeof data.title === 'string' ? data.title : ''
+      if (!doesCalendarTitleMatchCustomer(title, target.firstName, target.lastName)) continue
 
-    const startAt = String(data.startAt ?? '')
-    const endAt = String(data.endAt ?? '')
-    history.push({
-      kind: 'googleCalendar',
-      id: `gcal:${doc.id}`,
-      startAt,
-      endAt,
-      durationMinutes: minutesBetween(startAt, endAt),
-      title,
-      description: typeof data.description === 'string' ? data.description : null,
-      employeeId: typeof data.employeeId === 'string' ? data.employeeId : null,
-    })
+      const startAt = String(data.startAt ?? '')
+      const endAt = String(data.endAt ?? '')
+      history.push({
+        kind: 'googleCalendar',
+        id: `gcal:${doc.id}`,
+        startAt,
+        endAt,
+        durationMinutes: minutesBetween(startAt, endAt),
+        title,
+        description: typeof data.description === 'string' ? data.description : null,
+        employeeId: typeof data.employeeId === 'string' ? data.employeeId : null,
+      })
+    }
   }
 
   history.sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime())
-  return history
+  return history.slice(0, MAX_HISTORY_ITEMS)
 }
 
 export const getCustomerDetail = onCall({ region: functionsRegion }, async (request) => {
@@ -368,7 +406,7 @@ export const saveCustomer = onCall({ region: functionsRegion }, async (request) 
     return { customer: toCustomerWithId(after.id, after.data()!) }
   }
 
-  const ref = col.doc()
+  const ref = email ? col.doc(customerDocIdForEmail(email)) : col.doc()
   const doc: CustomerDoc = {
     firstName,
     lastName,

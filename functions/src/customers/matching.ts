@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 /**
  * Pure customer name normalization, Google Calendar smart parsing, and recurring customer extraction.
  */
@@ -128,6 +130,74 @@ export function normalizeCustomerEmail(email: string | null | undefined): string
   if (typeof email !== 'string') return null
   const trimmed = email.trim().toLowerCase()
   return trimmed.length > 0 ? trimmed : null
+}
+
+/** Deterministic Firestore doc ID for email-keyed customers to prevent concurrent duplicate creates. */
+export function customerDocIdForEmail(normalizedEmail: string): string {
+  const hash = createHash('sha256').update(normalizedEmail.trim().toLowerCase()).digest('hex')
+  return `cust_email_${hash.slice(0, 24)}`
+}
+
+export type ReservationMatchCandidate = {
+  customerId?: string | null
+  firstName?: string | null
+  lastName?: string | null
+  email?: string | null
+}
+
+export type CustomerMatchTarget = {
+  customerId: string | null
+  email: string | null
+  nameKey: string
+}
+
+/**
+ * Strictly determines whether a reservation belongs to a customer target without homonym bleed:
+ * - If the reservation already has a `customerId` and the target has a `customerId`, they MUST match.
+ * - If both sides have an email, the normalized emails MUST match.
+ * - Name-key fallback only applies to legacy reservations without a conflicting `customerId` or email.
+ */
+export function doesReservationMatchCustomerTarget(
+  res: ReservationMatchCandidate,
+  target: CustomerMatchTarget,
+): boolean {
+  const resCustomerId =
+    typeof res.customerId === 'string' && res.customerId.trim() ? res.customerId.trim() : null
+  const resEmail = normalizeCustomerEmail(res.email)
+  const targetEmail = normalizeCustomerEmail(target.email)
+
+  if (target.customerId && resCustomerId) {
+    return resCustomerId === target.customerId
+  }
+
+  if (targetEmail && resEmail) {
+    return resEmail === targetEmail
+  }
+
+  // If the reservation is explicitly linked to a different customerId (or has a different email),
+  // never fall back to name matching (prevents homonym bleed).
+  if (resCustomerId && target.customerId && resCustomerId !== target.customerId) {
+    return false
+  }
+
+  // Legacy reservation without customerId (or lookup without customerId):
+  // only fall back to nameKey when emails do not conflict.
+  if (!resCustomerId && target.nameKey) {
+    const resNameKey = nameOrderInsensitiveKey(
+      normalizeCustomerName(String(res.firstName ?? ''), String(res.lastName ?? '')),
+    )
+    return resNameKey === target.nameKey
+  }
+
+  // Lookup by name/email before customerId is known, against a linked reservation:
+  if (!target.customerId && target.nameKey && !targetEmail) {
+    const resNameKey = nameOrderInsensitiveKey(
+      normalizeCustomerName(String(res.firstName ?? ''), String(res.lastName ?? '')),
+    )
+    return resNameKey === target.nameKey
+  }
+
+  return false
 }
 
 export function normalizeFullName(fullName: string): string {

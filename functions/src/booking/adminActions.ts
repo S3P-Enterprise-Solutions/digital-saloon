@@ -3,6 +3,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https'
 
 import { assertAdmin } from '../authz'
 import { functionsRegion, getSalonId } from '../config'
+import { linkReservationToCustomer } from '../customers/store'
 import { isObject } from '../schemas'
 import { notifyCustomerCancelled, notifyCustomerRescheduled } from './customerNotify'
 import { toPublicReservationView } from './findByToken'
@@ -287,6 +288,28 @@ export const adminUpdateReservation = onCall({ region: functionsRegion }, async 
   if (!result.ok) {
     throw new HttpsError('failed-precondition', result.message, { reason: result.code })
   }
+
+  const editedFirstName = requireNonEmptyString(request.data.firstName, 'firstName')
+  const editedLastName = requireNonEmptyString(request.data.lastName, 'lastName')
+  const editedPhone = requireNonEmptyString(request.data.phone, 'phone')
+  const editedEmail =
+    typeof request.data.email === 'string' && request.data.email.trim().length > 0
+      ? request.data.email.trim()
+      : null
+  await linkReservationToCustomer(
+    {
+      reservationId,
+      firstName: editedFirstName,
+      lastName: editedLastName,
+      phone: editedPhone,
+      email: editedEmail,
+      startAtIso: startAt.toISOString(),
+      source: beforeData.source === 'ONLINE' ? 'ONLINE' : 'MANUAL',
+      previousCustomerId: typeof beforeData.customerId === 'string' ? beforeData.customerId : null,
+    },
+    db,
+    salonId,
+  )
 
   const after = await ref.get()
   const afterData = after.data() ?? {}

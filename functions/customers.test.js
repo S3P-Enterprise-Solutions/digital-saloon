@@ -3,7 +3,9 @@ import { describe, it } from 'node:test'
 
 import { parseDurationOverride } from './lib/booking/reservationWrite.js'
 import {
+  customerDocIdForEmail,
   doesCalendarTitleMatchCustomer,
+  doesReservationMatchCustomerTarget,
   extractCustomerNameFromCalendarTitle,
   extractRecurringCalendarCustomers,
   isLikelyPrivateOrNonCustomerEvent,
@@ -88,5 +90,91 @@ describe('customer smart calendar matching & seeding', () => {
     assert.equal(parseDurationOverride(90.5), null)
     assert.equal(parseDurationOverride(null), null)
     assert.equal(parseDurationOverride(undefined), null)
+  })
+
+  it('prevents homonym history bleed between customers sharing the same name', () => {
+    const maria1Target = {
+      customerId: 'cust-maria-1',
+      email: 'maria1@example.com',
+      nameKey: 'maria rossi',
+    }
+
+    // Same customerId matches
+    assert.equal(
+      doesReservationMatchCustomerTarget(
+        {
+          customerId: 'cust-maria-1',
+          firstName: 'Maria',
+          lastName: 'Rossi',
+          email: 'maria1@example.com',
+        },
+        maria1Target,
+      ),
+      true,
+    )
+
+    // Different customerId with same name MUST NOT match
+    assert.equal(
+      doesReservationMatchCustomerTarget(
+        {
+          customerId: 'cust-maria-2',
+          firstName: 'Maria',
+          lastName: 'Rossi',
+          email: 'maria2@example.com',
+        },
+        maria1Target,
+      ),
+      false,
+    )
+
+    // Legacy reservation without customerId but different email MUST NOT match
+    assert.equal(
+      doesReservationMatchCustomerTarget(
+        {
+          customerId: null,
+          firstName: 'Maria',
+          lastName: 'Rossi',
+          email: 'maria2@example.com',
+        },
+        maria1Target,
+      ),
+      false,
+    )
+
+    // Legacy reservation without customerId and matching email DOES match
+    assert.equal(
+      doesReservationMatchCustomerTarget(
+        {
+          customerId: null,
+          firstName: 'Maria',
+          lastName: 'Rossi',
+          email: 'MARIA1@example.com',
+        },
+        maria1Target,
+      ),
+      true,
+    )
+
+    // Legacy reservation without customerId and without email falls back to nameKey
+    assert.equal(
+      doesReservationMatchCustomerTarget(
+        {
+          customerId: null,
+          firstName: 'Maria',
+          lastName: 'Rossi',
+          email: null,
+        },
+        maria1Target,
+      ),
+      true,
+    )
+  })
+
+  it('generates deterministic email-keyed customer doc IDs case-insensitively', () => {
+    const id1 = customerDocIdForEmail('Maria@Example.com')
+    const id2 = customerDocIdForEmail('  maria@example.com ')
+    assert.equal(id1, id2)
+    assert.match(id1, /^cust_email_[0-9a-f]{24}$/)
+    assert.notEqual(id1, customerDocIdForEmail('other@example.com'))
   })
 })
