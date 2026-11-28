@@ -1,5 +1,5 @@
 ﻿import { createSign, randomBytes } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 
 import { functionsRegion } from '../config'
 import type { GoogleCalendarEvent, GoogleCalendarEventPayload } from './mapping'
@@ -23,6 +23,8 @@ const GOOGLE_CALENDAR_API = 'https://www.googleapis.com/calendar/v3'
 const METADATA_BASE_URL =
   'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default'
 export const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar'
+const DEFAULT_TOKEN_TTL_SECONDS = 3000
+const TOKEN_EXPIRY_MARGIN_MS = 120_000
 
 type CachedToken = {
   accessToken: string
@@ -30,12 +32,25 @@ type CachedToken = {
   serviceAccountEmail: string
 }
 
+type CachedFileCredentials = {
+  path: string
+  mtimeMs: number
+  credentials: ServiceAccountCredentials
+}
+
 let cachedToken: CachedToken | null = null
 let cachedMetadataEmail: string | null = null
+let cachedFileCredentials: CachedFileCredentials | null = null
 
 export function clearServiceAccountTokenCache(): void {
   cachedToken = null
   cachedMetadataEmail = null
+  cachedFileCredentials = null
+}
+
+/** Only `writer` and `owner` roles can create/update/delete events on a shared calendar. */
+export function isWritableAccessRole(accessRole: string | null | undefined): boolean {
+  return accessRole === 'writer' || accessRole === 'owner'
 }
 
 function envString(env: Record<string, string | undefined>, name: string): string | null {
@@ -97,9 +112,20 @@ export function parseServiceAccountCredentials(
   const credentialsPath = envString(env, 'GOOGLE_APPLICATION_CREDENTIALS')
   if (credentialsPath) {
     try {
+      const mtimeMs = statSync(credentialsPath).mtimeMs
+      if (
+        cachedFileCredentials &&
+        cachedFileCredentials.path === credentialsPath &&
+        cachedFileCredentials.mtimeMs === mtimeMs
+      ) {
+        return cachedFileCredentials.credentials
+      }
       const fileContents = readFileSync(credentialsPath, 'utf8')
       const parsed = parseJsonCredentials(fileContents)
-      if (parsed) return parsed
+      if (parsed) {
+        cachedFileCredentials = { path: credentialsPath, mtimeMs, credentials: parsed }
+        return parsed
+      }
     } catch {
       // ignore unreadable file
     }
@@ -150,7 +176,7 @@ async function exchangeJwtForAccessToken(
   const data = await parseJsonOrThrow<{ access_token: string; expires_in?: number }>(res)
   return {
     accessToken: data.access_token,
-    expiresInSeconds: Number(data.expires_in ?? 3600),
+    expiresInSeconds: Number(data.expires_in ?? DEFAULT_TOKEN_TTL_SECONDS),
   }
 }
 
@@ -185,7 +211,7 @@ async function fetchMetadataAccessToken(
     if (typeof data.access_token !== 'string' || !data.access_token) return null
     return {
       accessToken: data.access_token,
-      expiresInSeconds: Number(data.expires_in ?? 3000),
+      expiresInSeconds: Number(data.expires_in ?? DEFAULT_TOKEN_TTL_SECONDS),
     }
   } catch {
     return null
@@ -207,7 +233,7 @@ export async function getServiceAccountAccessToken(
   fetchFn: FetchLike = fetch,
   nowMs: number = Date.now(),
 ): Promise<{ accessToken: string; serviceAccountEmail: string } | null> {
-  if (cachedToken && cachedToken.expiresAtMs > nowMs + 60_000) {
+  if (cachedToken && cachedToken.expiresAtMs > nowMs + TOKEN_EXPIRY_MARGIN_MS) {
     return {
       accessToken: cachedToken.accessToken,
       serviceAccountEmail: cachedToken.serviceAccountEmail,
@@ -273,10 +299,35 @@ export class GoogleApiError extends Error {
 
 async function parseJsonOrThrow<T>(res: Response): Promise<T> {
   if (!res.ok) {
+    if (res.status === 401) {
+      cachedToken = null
+    }
     const text = await res.text().catch(() => '')
     throw new GoogleApiError(res.status, `Google API error ${res.status}: ${text.slice(0, 300)}`)
   }
   return (await res.json()) as T
+}
+
+export async function getCalendarListEntry(
+  accessToken: string,
+  calendarId: string,
+  fetchFn: FetchLike = fetch,
+): Promise<GoogleCalendarListItem> {
+  const encodedId = encodeURIComponent(calendarId)
+  const res = await fetchFn(`${GOOGLE_CALENDAR_API}/users/me/calendarList/${encodedId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  const data = await parseJsonOrThrow<{
+    id?: string
+    summary?: string
+    summaryOverride?: string
+    accessRole?: string
+  }>(res)
+  return {
+    id: data.id || calendarId,
+    summary: (data.summaryOverride || data.summary || calendarId).trim(),
+    accessRole: data.accessRole,
+  }
 }
 
 export async function getCalendar(
@@ -297,8 +348,9 @@ export async function getCalendar(
 
 /**
  * Adds a shared calendar to the service account's calendar list so we can read its
- * summary and accessRole (e.g. 'writer', 'owner', 'reader'). Falls back to getCalendar
- * if calendarList insert returns an unexpected non-auth error.
+ * summary and accessRole (e.g. 'writer', 'owner', 'reader'). On 409 (already subscribed)
+ * or other non-auth insert errors, reads the existing calendarList entry first so
+ * accessRole is preserved before falling back to getCalendar.
  */
 export async function subscribeToCalendar(
   accessToken: string,
@@ -326,11 +378,24 @@ export async function subscribeToCalendar(
       accessRole: data.accessRole,
     }
   }
-  if (res.status === 404 || res.status === 403) {
+  if (res.status === 401) {
+    cachedToken = null
+  }
+  if (res.status === 404 || res.status === 403 || res.status === 401) {
     const text = await res.text().catch(() => '')
     throw new GoogleApiError(res.status, `Google API error ${res.status}: ${text.slice(0, 300)}`)
   }
-  return getCalendar(accessToken, calendarId, fetchFn)
+  try {
+    return await getCalendarListEntry(accessToken, calendarId, fetchFn)
+  } catch (err) {
+    if (
+      err instanceof GoogleApiError &&
+      (err.status === 404 || err.status === 403 || err.status === 401)
+    ) {
+      throw err
+    }
+    return getCalendar(accessToken, calendarId, fetchFn)
+  }
 }
 
 export async function listEventsInWindow(

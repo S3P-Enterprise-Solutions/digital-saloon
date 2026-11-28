@@ -5,9 +5,12 @@ import { describe, it } from 'node:test'
 import {
   clearServiceAccountTokenCache,
   createServiceAccountJwt,
+  getCalendar,
   getServiceAccountAccessToken,
   getServiceAccountEmail,
   GOOGLE_CALENDAR_SCOPE,
+  GoogleApiError,
+  isWritableAccessRole,
   parseServiceAccountCredentials,
   subscribeToCalendar,
 } from './lib/googleCalendar/client.js'
@@ -228,5 +231,103 @@ describe('googleCalendar service account auth & calendar sharing', () => {
       summary: 'Salon Termine',
       accessRole: 'writer',
     })
+  })
+
+  it('preserves accessRole via calendarList.get when calendarList.insert returns 409', async () => {
+    const calls = []
+    const fakeFetch = async (url, init) => {
+      calls.push({ url: String(url), method: init?.method ?? 'GET' })
+      if (init?.method === 'POST' && String(url).endsWith('/users/me/calendarList')) {
+        return new Response('already exists', { status: 409 })
+      }
+      if (String(url).includes('/users/me/calendarList/salon%40gmail.com')) {
+        return new Response(
+          JSON.stringify({
+            id: 'salon@gmail.com',
+            summary: 'Salon Termine',
+            accessRole: 'reader',
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      return new Response('unexpected', { status: 500 })
+    }
+
+    const cal = await subscribeToCalendar('tok', 'salon@gmail.com', fakeFetch)
+    assert.deepEqual(cal, {
+      id: 'salon@gmail.com',
+      summary: 'Salon Termine',
+      accessRole: 'reader',
+    })
+    assert.equal(calls.length, 2)
+    assert.equal(calls[1].method, 'GET')
+  })
+
+  it('falls back to getCalendar when both calendarList.insert and calendarList.get return non-auth errors', async () => {
+    const fakeFetch = async (url, init) => {
+      if (init?.method === 'POST') return new Response('conflict', { status: 409 })
+      if (String(url).includes('/users/me/calendarList/'))
+        return new Response('err', { status: 500 })
+      if (String(url).includes('/calendars/salon%40gmail.com')) {
+        return new Response(JSON.stringify({ id: 'salon@gmail.com', summary: 'Fallback Cal' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      return new Response('unexpected', { status: 500 })
+    }
+
+    const cal = await subscribeToCalendar('tok', 'salon@gmail.com', fakeFetch)
+    assert.deepEqual(cal, {
+      id: 'salon@gmail.com',
+      summary: 'Fallback Cal',
+    })
+  })
+
+  it('throws GoogleApiError on 403/404 from subscribeToCalendar', async () => {
+    const fakeFetch = async () => new Response('forbidden', { status: 403 })
+    await assert.rejects(
+      () => subscribeToCalendar('tok', 'salon@gmail.com', fakeFetch),
+      (err) => err instanceof GoogleApiError && err.status === 403,
+    )
+  })
+
+  it('treats only writer and owner roles as writable', () => {
+    assert.equal(isWritableAccessRole('writer'), true)
+    assert.equal(isWritableAccessRole('owner'), true)
+    assert.equal(isWritableAccessRole('reader'), false)
+    assert.equal(isWritableAccessRole('freeBusyReader'), false)
+    assert.equal(isWritableAccessRole(null), false)
+    assert.equal(isWritableAccessRole(undefined), false)
+  })
+
+  it('invalidates cached service account token after a 401 response', async () => {
+    clearServiceAccountTokenCache()
+    let tokenCounter = 0
+    const fakeFetch = async (url) => {
+      if (String(url).endsWith('/email')) {
+        return new Response('proj@appspot.gserviceaccount.com', { status: 200 })
+      }
+      if (String(url).includes('/token?scopes=')) {
+        tokenCounter += 1
+        return new Response(JSON.stringify({ access_token: `tok-${tokenCounter}` }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      return new Response('unauthorized', { status: 401 })
+    }
+
+    const first = await getServiceAccountAccessToken({}, fakeFetch, 1_700_000_000_000)
+    assert.equal(first?.accessToken, 'tok-1')
+
+    await assert.rejects(
+      () => getCalendar('tok-1', 'salon@gmail.com', fakeFetch),
+      (err) => err instanceof GoogleApiError && err.status === 401,
+    )
+
+    const second = await getServiceAccountAccessToken({}, fakeFetch, 1_700_000_001_000)
+    assert.equal(second?.accessToken, 'tok-2')
+    clearServiceAccountTokenCache()
   })
 })

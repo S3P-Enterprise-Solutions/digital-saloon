@@ -6,10 +6,12 @@ import { getDefaultTimezone, getSalonId } from '../config'
 import {
   createChannelToken,
   deleteEvent,
+  getCalendarListEntry,
   getGoogleWebhookUrl,
   getServiceAccountAccessToken,
   GoogleApiError,
   insertEvent,
+  isWritableAccessRole,
   listEventsInWindow,
   patchEvent,
   stopChannel,
@@ -190,6 +192,22 @@ export async function syncGoogleCalendarForSalon(
   const timeMaxIso = new Date(now.getTime() + 120 * 24 * 60 * 60_000).toISOString()
 
   try {
+    // Refresh accessRole (and summary) from calendarList so permission upgrades or legacy
+    // OAuth docs without a stored accessRole are picked up without requiring a reconnect.
+    let effectiveAccessRole: string | null = auth.integration.accessRole ?? null
+    let refreshedSummary: string | null = null
+    try {
+      const listEntry = await getCalendarListEntry(auth.accessToken, calendarId, fetchFn)
+      if (listEntry.accessRole) {
+        effectiveAccessRole = listEntry.accessRole
+      }
+      if (listEntry.summary) {
+        refreshedSummary = listEntry.summary
+      }
+    } catch {
+      // Best-effort refresh; fall back to stored accessRole (null is treated as read-only).
+    }
+
     const events = await listEventsInWindow(
       auth.accessToken,
       calendarId,
@@ -243,10 +261,9 @@ export async function syncGoogleCalendarForSalon(
     await commitInChunks(db, ops)
 
     // Backfill upcoming active reservations for this employee (or salon-wide when emp is null).
-    const isReadOnly =
-      auth.integration.accessRole === 'reader' || auth.integration.accessRole === 'freeBusyReader'
+    // Treat missing/unknown accessRole conservatively as read-only until verified as writer/owner.
     let pushedReservations = 0
-    if (!isReadOnly) {
+    if (isWritableAccessRole(effectiveAccessRole)) {
       const resSnap = await db
         .collection('salons')
         .doc(salonId)
@@ -297,6 +314,8 @@ export async function syncGoogleCalendarForSalon(
     }
 
     await ref.update({
+      accessRole: effectiveAccessRole,
+      ...(refreshedSummary ? { calendarSummary: refreshedSummary } : {}),
       lastSyncAt: nowIso,
       lastSyncStatus: 'OK',
       lastSyncError: null,
@@ -339,10 +358,7 @@ export async function syncReservationToGoogleCalendar(
 
     const auth = await getValidAccessToken(db, salonId, empId, fetchFn)
     if (!auth || !auth.integration.calendarId) return
-    if (
-      auth.integration.accessRole === 'reader' ||
-      auth.integration.accessRole === 'freeBusyReader'
-    ) {
+    if (!isWritableAccessRole(auth.integration.accessRole)) {
       return
     }
     const calendarId = auth.integration.calendarId

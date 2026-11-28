@@ -142,7 +142,14 @@ export const connectGoogleCalendar = onCall({ region: functionsRegion }, async (
     console.warn('[googleCalendar] watch registration skipped', err)
   }
 
-  await syncGoogleCalendarForSalon(db, salonId, employeeId)
+  try {
+    await syncGoogleCalendarForSalon(db, salonId, employeeId)
+  } catch (err) {
+    // The calendar is already persisted as connected and syncGoogleCalendarForSalon recorded
+    // lastSyncStatus: 'ERROR' + lastSyncError; return the updated status so the UI shows
+    // connected state with the sync warning instead of reporting that connect failed.
+    console.warn('[googleCalendar] initial sync failed after connect', err)
+  }
   const after = await ref.get()
   return toStatusResponse(
     employeeId,
