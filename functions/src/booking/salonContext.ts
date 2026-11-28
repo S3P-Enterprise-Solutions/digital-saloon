@@ -241,9 +241,14 @@ export async function loadBusyIntervals(
   employeeId?: string | null,
 ): Promise<BusyInterval[]> {
   const salonRef = db.collection('salons').doc(salonId)
+  const blocksLowerBoundIso = new Date(rangeStart.getTime() - 14 * 24 * 60 * 60_000).toISOString()
   const [reservationsSnap, blocksSnap] = await Promise.all([
     salonRef.collection('reservations').where('startAt', '<', rangeEnd.toISOString()).get(),
-    salonRef.collection('blockedSlots').where('startAt', '<', rangeEnd.toISOString()).get(),
+    salonRef
+      .collection('blockedSlots')
+      .where('startAt', '>=', blocksLowerBoundIso)
+      .where('startAt', '<', rangeEnd.toISOString())
+      .get(),
   ])
 
   const busy: BusyInterval[] = []

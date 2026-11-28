@@ -70,6 +70,7 @@ export type SyncedBlockedSlotComparable = {
   visibility?: string | null
   isPrivate?: boolean
   privateOverride?: boolean | null
+  customerNameKey?: string | null
 }
 
 /** Returns true when any synced field differs so unchanged Google Calendar docs can skip writes. */
@@ -88,7 +89,8 @@ export function hasBlockedSlotSyncedFieldsChanged(
     (prev.visibility ?? null) !== next.visibility ||
     Boolean(prev.isPrivate) !== next.isPrivate ||
     (typeof prev.privateOverride === 'boolean' ? prev.privateOverride : null) !==
-      next.privateOverride
+      next.privateOverride ||
+    (prev.customerNameKey ?? null) !== next.customerNameKey
   )
 }
 

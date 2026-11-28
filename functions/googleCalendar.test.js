@@ -239,6 +239,7 @@ describe('googleCalendar mapping', () => {
       visibility: 'default',
       isPrivate: false,
       privateOverride: null,
+      customerNameKey: 'maria rossi',
     }
     assert.equal(hasBlockedSlotSyncedFieldsChanged(undefined, base), true)
     assert.equal(hasBlockedSlotSyncedFieldsChanged(base, base), false)
@@ -247,6 +248,7 @@ describe('googleCalendar mapping', () => {
       true,
     )
     assert.equal(hasBlockedSlotSyncedFieldsChanged(base, { ...base, isPrivate: true }), true)
+    assert.equal(hasBlockedSlotSyncedFieldsChanged(base, { ...base, customerNameKey: null }), true)
   })
 })
 

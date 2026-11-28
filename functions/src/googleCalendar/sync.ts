@@ -3,6 +3,7 @@
 import { getFirestore, type Firestore } from 'firebase-admin/firestore'
 
 import { getDefaultTimezone, getSalonId } from '../config'
+import { extractCustomerNameFromCalendarTitle } from '../customers/matching'
 import { seedCustomersFromCalendarEvents } from '../customers/store'
 import {
   createChannelToken,
@@ -219,14 +220,43 @@ async function syncWindowEventsToBlockedSlots(input: {
   )
 
   const blocksCol = db.collection('salons').doc(salonId).collection('blockedSlots')
-  const existingSnap = await blocksCol.where('source', '==', 'GOOGLE_CALENDAR').get()
+  // Query only docs whose startAt falls inside this sync window (single-field index)
+  // rather than loading the entire multi-year calendar mirror on every rolling sync.
+  const existingSnap = await blocksCol
+    .where('startAt', '>=', timeMinIso)
+    .where('startAt', '<=', timeMaxIso)
+    .get()
   const existingForEmployee = existingSnap.docs.filter((doc) => {
-    const docEmp = normalizeEmployeeId(
-      typeof doc.data().employeeId === 'string' ? doc.data().employeeId : null,
-    )
+    const data = doc.data()
+    if (data.source !== 'GOOGLE_CALENDAR') return false
+    const docEmp = normalizeEmployeeId(typeof data.employeeId === 'string' ? data.employeeId : null)
     return docEmp === emp
   })
-  const existingById = new Map(existingForEmployee.map((doc) => [doc.id, doc]))
+  const existingById = new Map<string, FirebaseFirestore.DocumentSnapshot>(
+    existingForEmployee.map((doc) => [doc.id, doc]),
+  )
+
+  const mappedEvents = events
+    .map((event) => {
+      const mapped = googleEventToBlockedSlot(event, timeZone)
+      if (!mapped) return null
+      return { event, mapped, docId: blockedSlotDocIdForGoogleEvent(event.id, emp) }
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+
+  // Batch-fetch any incoming events that moved into this window from outside so
+  // `createdAt` and `privateOverride` are preserved.
+  const missingDocIds = mappedEvents
+    .map((entry) => entry.docId)
+    .filter((docId) => !existingById.has(docId))
+  if (missingDocIds.length > 0) {
+    const fetched = await db.getAll(...missingDocIds.map((id) => blocksCol.doc(id)))
+    for (const snap of fetched) {
+      if (snap.exists) {
+        existingById.set(snap.id, snap)
+      }
+    }
+  }
 
   const activeIds = new Set<string>()
   let syncedCount = 0
@@ -234,16 +264,17 @@ async function syncWindowEventsToBlockedSlots(input: {
   let skippedUnchanged = 0
 
   const ops: Array<(batch: FirebaseFirestore.WriteBatch) => void> = []
-  for (const event of events) {
-    const mapped = googleEventToBlockedSlot(event, timeZone)
-    if (!mapped) continue
-    const docId = blockedSlotDocIdForGoogleEvent(event.id, emp)
+  for (const { event, mapped, docId } of mappedEvents) {
     activeIds.add(docId)
     const prev = existingById.get(docId)
     const prevData = prev?.data() as SyncedBlockedSlotComparable | undefined
     const privateOverride =
       typeof prevData?.privateOverride === 'boolean' ? prevData.privateOverride : null
     const isPrivate = resolveEffectivePrivacy(mapped.visibility, privateOverride)
+    const customerNameKey =
+      !isPrivate && !mapped.allDay
+        ? (extractCustomerNameFromCalendarTitle(mapped.title)?.orderInsensitiveKey ?? null)
+        : null
 
     const nextComparable: Required<SyncedBlockedSlotComparable> = {
       title: mapped.title,
@@ -255,6 +286,7 @@ async function syncWindowEventsToBlockedSlots(input: {
       visibility: mapped.visibility,
       isPrivate,
       privateOverride,
+      customerNameKey,
     }
 
     syncedCount += 1
@@ -278,20 +310,16 @@ async function syncWindowEventsToBlockedSlots(input: {
         visibility: mapped.visibility,
         isPrivate,
         privateOverride,
-        createdAt: prev ? String(prev.data().createdAt ?? nowIso) : nowIso,
+        customerNameKey,
+        createdAt: prev ? String(prev.data()?.createdAt ?? nowIso) : nowIso,
         updatedAt: nowIso,
       }),
     )
   }
 
-  // Only prune missing docs that fall within this sync window so historical imports
-  // outside the rolling window (and future events during history import) are preserved.
-  const windowMinMs = new Date(timeMinIso).getTime()
-  const windowMaxMs = new Date(timeMaxIso).getTime()
-  for (const [docId, doc] of existingById.entries()) {
-    if (activeIds.has(docId)) continue
-    const docStartMs = new Date(String(doc.data().startAt ?? '')).getTime()
-    if (Number.isFinite(docStartMs) && docStartMs >= windowMinMs && docStartMs <= windowMaxMs) {
+  // Only prune missing docs that were loaded from this sync window.
+  for (const doc of existingForEmployee) {
+    if (!activeIds.has(doc.id)) {
       ops.push((batch) => batch.delete(doc.ref))
     }
   }

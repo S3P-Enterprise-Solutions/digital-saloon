@@ -4,6 +4,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler'
 
 import { assertAdmin, assertStaff } from '../authz'
 import { functionsRegion, getSalonId } from '../config'
+import { extractCustomerNameFromCalendarTitle } from '../customers/matching'
 import { isObject } from '../schemas'
 import {
   getServiceAccountAccessToken,
@@ -238,10 +239,14 @@ export const listBlockedSlotsInRange = onCall({ region: functionsRegion }, async
 
   const db = getFirestore()
   const salonId = getSalonId()
+  // Bound the lower startAt to 14 days before rangeStart so multi-day/all-day events
+  // still overlap without scanning 2 years of historical calendar imports.
+  const lowerBoundIso = new Date(rangeStartMs - 14 * 24 * 60 * 60_000).toISOString()
   const snap = await db
     .collection('salons')
     .doc(salonId)
     .collection('blockedSlots')
+    .where('startAt', '>=', lowerBoundIso)
     .where('startAt', '<', rangeEndIso)
     .orderBy('startAt', 'asc')
     .get()
@@ -297,11 +302,16 @@ export const setBlockedSlotPrivacy = onCall({ region: functionsRegion }, async (
 
   const privateOverride = request.data.isPrivate
   const isPrivate = resolveEffectivePrivacy(data.visibility, privateOverride)
+  const customerNameKey =
+    !isPrivate && !data.allDay && typeof data.title === 'string'
+      ? (extractCustomerNameFromCalendarTitle(data.title)?.orderInsensitiveKey ?? null)
+      : null
   const updatedAt = new Date().toISOString()
 
   await ref.update({
     privateOverride,
     isPrivate,
+    customerNameKey,
     updatedAt,
   })
 
