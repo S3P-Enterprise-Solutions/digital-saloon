@@ -17,6 +17,7 @@ export const queryRootVisibility = {
   blockedSlots: 'private',
   customers: 'private',
   customerDetail: 'private',
+  customerContext: 'private',
   googleCalendarStatus: 'private',
   userProfile: 'private',
   demoMode: 'private',

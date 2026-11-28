@@ -45,6 +45,20 @@ const getCustomerDetailResponseSchema = v.object({
 })
 export type CustomerDetailResponse = v.InferOutput<typeof getCustomerDetailResponseSchema>
 
+const customerContextResponseSchema = v.object({
+  customer: v.nullable(customerSchema),
+  history: v.array(customerHistoryItemSchema),
+})
+export type CustomerContextResponse = v.InferOutput<typeof customerContextResponseSchema>
+
+export type LookupCustomerContextInput = {
+  customerId?: string | null
+  firstName?: string
+  lastName?: string
+  email?: string | null
+  excludeReservationId?: string | null
+}
+
 const saveCustomerResponseSchema = v.object({
   customer: customerSchema,
 })
@@ -71,6 +85,17 @@ export async function getCustomerDetail(customerId: string): Promise<CustomerDet
   )
   const result = await call({ customerId })
   return v.parse(getCustomerDetailResponseSchema, result.data)
+}
+
+export async function lookupCustomerContext(
+  input: LookupCustomerContextInput,
+): Promise<CustomerContextResponse> {
+  const call = httpsCallable<LookupCustomerContextInput, unknown>(
+    firebaseFunctions,
+    'lookupCustomerContext',
+  )
+  const result = await call(input)
+  return v.parse(customerContextResponseSchema, result.data)
 }
 
 export async function saveCustomer(input: SaveCustomerInput): Promise<Customer> {

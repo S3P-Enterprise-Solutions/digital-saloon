@@ -14,6 +14,8 @@ export function useAvailableSlots(input: {
   managementToken?: string
   /** Admin edit: ignore this reservation while loading free slots. */
   excludeReservationId?: string
+  /** Admin-only custom duration override (minutes). */
+  durationMinutesOverride?: number | null
 }) {
   const serviceIds =
     input.serviceIds && input.serviceIds.length > 0
@@ -35,6 +37,7 @@ export function useAvailableSlots(input: {
       enforceAdvanceRestrictions,
       input.managementToken ?? null,
       input.excludeReservationId ?? null,
+      input.durationMinutesOverride ?? null,
     ),
     queryFn: () =>
       fetchAvailableSlots({
@@ -46,6 +49,7 @@ export function useAvailableSlots(input: {
         enforceAdvanceRestrictions,
         managementToken: input.managementToken,
         excludeReservationId: input.excludeReservationId,
+        durationMinutesOverride: input.durationMinutesOverride,
       }),
     enabled,
   })

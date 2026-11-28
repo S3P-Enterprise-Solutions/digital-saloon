@@ -42,6 +42,8 @@ export async function fetchAvailableSlots(input: {
   managementToken?: string
   /** Admin edit: keep this reservation's slot free while picking a new time. */
   excludeReservationId?: string
+  /** Admin-only custom duration override (minutes). */
+  durationMinutesOverride?: number | null
 }): Promise<AvailableSlotDto[]> {
   const callable = httpsCallable<
     {
@@ -53,6 +55,7 @@ export async function fetchAvailableSlots(input: {
       enforceAdvanceRestrictions?: boolean
       managementToken?: string
       excludeReservationId?: string
+      durationMinutesOverride?: number | null
     },
     { slots: AvailableSlotDto[] }
   >(firebaseFunctions, 'getAvailableSlots')
@@ -65,6 +68,9 @@ export async function fetchAvailableSlots(input: {
     ...(input.enforceAdvanceRestrictions === false ? { enforceAdvanceRestrictions: false } : {}),
     ...(input.managementToken ? { managementToken: input.managementToken } : {}),
     ...(input.excludeReservationId ? { excludeReservationId: input.excludeReservationId } : {}),
+    ...(typeof input.durationMinutesOverride === 'number'
+      ? { durationMinutesOverride: input.durationMinutesOverride }
+      : {}),
   })
   return result.data.slots
 }
