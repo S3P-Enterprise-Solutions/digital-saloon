@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { addDays, findEarliestAvailableDate, weekDays, weekStartMondayYmd } from './bookingCalendar'
+import {
+  addDays,
+  findEarliestAvailableDate,
+  monthBoundsYmd,
+  weekDays,
+  weekStartMondayYmd,
+} from './bookingCalendar'
 
 describe('bookingCalendar week helpers', () => {
   it('computes Monday of the week for any weekday', () => {
@@ -35,5 +41,20 @@ describe('bookingCalendar week helpers', () => {
     ])
     expect(findEarliestAvailableDate(days, byDate, '2026-11-17')).toBe('2026-11-18')
     expect(findEarliestAvailableDate(days, new Map(), '2026-11-17')).toBeNull()
+  })
+
+  it('computes first and last day of a month including leap years', () => {
+    expect(monthBoundsYmd('2026-11-23')).toEqual({
+      startYmd: '2026-11-01',
+      endYmd: '2026-11-30',
+    })
+    expect(monthBoundsYmd('2026-12-01')).toEqual({
+      startYmd: '2026-12-01',
+      endYmd: '2026-12-31',
+    })
+    expect(monthBoundsYmd('2028-02-10')).toEqual({
+      startYmd: '2028-02-01',
+      endYmd: '2028-02-29',
+    })
   })
 })

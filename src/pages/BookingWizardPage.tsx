@@ -8,23 +8,18 @@ import {
   Chip,
   CircularProgress,
   FormControlLabel,
-  IconButton,
   Paper,
   Stack,
   TextField,
   Typography,
   Link,
 } from '@mui/material'
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
-import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import * as v from 'valibot'
 
+import { BookingMonthCalendar } from '../components/BookingMonthCalendar'
 import type { AvailableSlotDto, BookingFailure } from '../data/bookingApi'
 import {
-  addMonths,
   findEarliestAvailableDate,
-  monthMatrix,
-  parseYmd,
   slotsByDate,
   viennaTodayYmd,
   weekDays,
@@ -177,16 +172,6 @@ export const BookingWizardPage: React.FunctionComponent<BookingWizardPageProps> 
     timeSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [selectedDate])
 
-  const weekdays = [
-    t('book.weekday.mo'),
-    t('book.weekday.tu'),
-    t('book.weekday.we'),
-    t('book.weekday.th'),
-    t('book.weekday.fr'),
-    t('book.weekday.sa'),
-    t('book.weekday.su'),
-  ]
-
   const selectedServices = useMemo(
     () => (services ?? []).filter((item) => selectedServiceIds.includes(item.id)),
     [services, selectedServiceIds],
@@ -212,15 +197,10 @@ export const BookingWizardPage: React.FunctionComponent<BookingWizardPageProps> 
     [selectedServices],
   )
   const byDate = useMemo(() => slotsByDate(rangeSlots ?? []), [rangeSlots])
+  const availableDates = useMemo(() => new Set(byDate.keys()), [byDate])
   const daySlots = selectedDate ? (byDate.get(selectedDate) ?? []) : []
   const todayYmd = viennaTodayYmd()
   const currentWeekDays = useMemo(() => weekDays(weekAnchorYmd), [weekAnchorYmd])
-  const { year, monthIndex } = parseYmd(monthAnchorYmd)
-  const weeks = monthMatrix(year, monthIndex)
-  const monthLabel = new Intl.DateTimeFormat(intlLocale, {
-    month: 'long',
-    timeZone: 'UTC',
-  }).format(new Date(Date.UTC(year, monthIndex, 1)))
 
   useEffect(() => {
     if (step !== 2 || rangeLoading || rangeSlots === undefined) return
@@ -470,114 +450,16 @@ export const BookingWizardPage: React.FunctionComponent<BookingWizardPageProps> 
             <Typography id="step-date" variant="h2" sx={{ fontSize: '1.15rem', mb: 1.5 }}>
               {t('book.step.date')}
             </Typography>
-            <Stack
-              direction="row"
-              sx={{ mb: 2, alignItems: 'center', justifyContent: 'space-between' }}
-            >
-              <IconButton
-                size="small"
-                aria-label={t('book.monthPrev')}
-                onClick={() => onMonthAnchorChange(addMonths(monthAnchorYmd, -1))}
-              >
-                <ChevronLeftIcon />
-              </IconButton>
-              <Typography
-                component="span"
-                sx={{ fontWeight: 600, fontSize: '1.05rem', textTransform: 'capitalize' }}
-              >
-                {monthLabel}
-              </Typography>
-              <IconButton
-                size="small"
-                aria-label={t('book.monthNext')}
-                onClick={() => onMonthAnchorChange(addMonths(monthAnchorYmd, 1))}
-              >
-                <ChevronRightIcon />
-              </IconButton>
-            </Stack>
-
-            {rangeLoading ? (
-              <CircularProgress
-                aria-label={t('book.availabilityLoading')}
-                size={24}
-                sx={{ mb: 2, display: 'block', mx: 'auto' }}
-              />
-            ) : null}
-            {rangeError ? (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {t('book.availabilityError')}
-              </Alert>
-            ) : null}
-
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(7, 1fr)',
-                gap: 0.5,
-                mb: 1,
-              }}
-            >
-              {weekdays.map((label) => (
-                <Typography
-                  key={label}
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ textAlign: 'center', fontWeight: 600 }}
-                >
-                  {label}
-                </Typography>
-              ))}
-            </Box>
-
-            <Stack spacing={0.5}>
-              {weeks.map((week, weekIndex) => (
-                <Box
-                  key={weekIndex}
-                  sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5 }}
-                >
-                  {week.map((ymd, dayIndex) => {
-                    if (!ymd) return <Box key={`empty-${weekIndex}-${dayIndex}`} />
-                    const available = (byDate.get(ymd)?.length ?? 0) > 0
-                    const selected = ymd === selectedDate
-                    const past = ymd < todayYmd
-                    const disabled = !available || past
-                    return (
-                      <Button
-                        key={ymd}
-                        size="small"
-                        disabled={disabled}
-                        variant="text"
-                        onClick={() => handleSelectDate(ymd)}
-                        sx={{
-                          minWidth: 36,
-                          width: 36,
-                          height: 36,
-                          mx: 'auto',
-                          p: 0,
-                          borderRadius: '50%',
-                          fontWeight: selected ? 700 : 400,
-                          bgcolor: selected ? 'text.primary' : 'transparent',
-                          color: selected ? 'background.paper' : 'text.primary',
-                          '&:hover': {
-                            bgcolor: selected ? 'text.primary' : 'action.hover',
-                          },
-                          opacity: disabled ? 0.35 : 1,
-                          textDecoration: disabled ? 'line-through' : 'none',
-                        }}
-                      >
-                        {String(parseYmd(ymd).day).padStart(2, '0')}
-                      </Button>
-                    )
-                  })}
-                </Box>
-              ))}
-            </Stack>
-
-            {!rangeLoading && byDate.size === 0 ? (
-              <Alert severity="info" sx={{ mt: 2 }}>
-                {t('book.noSlotsMonth')}
-              </Alert>
-            ) : null}
+            <BookingMonthCalendar
+              monthAnchorYmd={monthAnchorYmd}
+              selectedDate={selectedDate}
+              todayYmd={todayYmd}
+              availableDates={availableDates}
+              loading={rangeLoading}
+              error={rangeError}
+              onMonthAnchorChange={onMonthAnchorChange}
+              onSelectDate={handleSelectDate}
+            />
           </Paper>
 
           {selectedDate !== null ? (

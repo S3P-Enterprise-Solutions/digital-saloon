@@ -34,24 +34,30 @@ test.describe('admin @smoke', () => {
     await page.getByRole('button', { name: /^Herrenhaarschnitt/ }).click()
     await page.getByRole('button', { name: /^Kinderhaarschnitt/ }).click()
 
-    const dateButtons = page.locator('button').filter({ hasText: /\d{2}\.\d{2}\.\d{4}/ })
-    const dateCount = await dateButtons.count()
-    expect(dateCount).toBeGreaterThan(0)
+    const dateSection = page.locator('[aria-labelledby="admin-manual-date"]')
+    const dayButtons = dateSection.locator('button').filter({ hasText: /^\d{2}$/ })
 
-    let booked = false
-    for (let index = 0; index < dateCount; index += 1) {
-      await dateButtons.nth(index).click()
-      const slot = page.getByRole('button', { name: /^\d{2}:\d{2}/ }).first()
-      try {
-        await expect(slot).toBeVisible({ timeout: 8_000 })
-        await slot.click()
-        booked = true
-        break
-      } catch {
-        // try next day
+    const findEnabledDayIndex = async (): Promise<number> => {
+      const count = await dayButtons.count()
+      for (let index = 0; index < count; index += 1) {
+        if (await dayButtons.nth(index).isEnabled()) return index
       }
+      return -1
     }
-    expect(booked).toBe(true)
+
+    let enabledIndex = -1
+    for (let monthOffset = 0; monthOffset < 2; monthOffset += 1) {
+      await expect(dateSection.getByRole('progressbar')).toHaveCount(0, { timeout: 15_000 })
+      enabledIndex = await findEnabledDayIndex()
+      if (enabledIndex >= 0) break
+      await dateSection.getByRole('button', { name: 'Weiter' }).click()
+    }
+    expect(enabledIndex).toBeGreaterThanOrEqual(0)
+
+    await dayButtons.nth(enabledIndex).click()
+    const slot = page.getByRole('button', { name: /^\d{2}:\d{2}/ }).first()
+    await expect(slot).toBeVisible({ timeout: 8_000 })
+    await slot.click()
 
     await page.getByLabel('Vorname').fill('Telefon')
     await page.getByLabel('Nachname').fill('Kunde')

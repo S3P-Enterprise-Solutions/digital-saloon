@@ -51,6 +51,16 @@ export function addMonths(ymd: string, delta: number): string {
   return ymdFromParts(date.getUTCFullYear(), date.getUTCMonth(), clamped)
 }
 
+/** First and last `YYYY-MM-DD` of the calendar month containing `monthAnchorYmd`. */
+export function monthBoundsYmd(monthAnchorYmd: string): { startYmd: string; endYmd: string } {
+  const { year, monthIndex } = parseYmd(monthAnchorYmd)
+  const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate()
+  return {
+    startYmd: ymdFromParts(year, monthIndex, 1),
+    endYmd: ymdFromParts(year, monthIndex, lastDay),
+  }
+}
+
 export function monthMatrix(year: number, monthIndex: number): Array<Array<string | null>> {
   const firstWeekday = new Date(Date.UTC(year, monthIndex, 1)).getUTCDay()
   // Monday-first
