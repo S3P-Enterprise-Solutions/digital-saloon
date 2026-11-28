@@ -95,15 +95,13 @@ export type AdminSettingsPageProps = {
     status: GoogleCalendarStatus | undefined
     loading: boolean
     error: string | null
-    oauthCallbackResult?: 'connected' | 'error'
     connecting: boolean
-    selecting: boolean
+    connectedJustNow?: boolean
     syncing: boolean
     disconnecting: boolean
     actionError: string | null
     syncMessage: string | null
-    onConnect: () => void
-    onSelectCalendar: (calendarId: string) => void
+    onConnect: (calendarId: string) => void
     onSyncNow: () => void
     onDisconnect: () => void
   }
@@ -505,8 +503,22 @@ type GoogleCalendarSectionProps = {
 
 const GoogleCalendarSection: React.FunctionComponent<GoogleCalendarSectionProps> = ({ state }) => {
   const { t, locale } = useLocale()
-  const [customCalendarId, setCustomCalendarId] = useState('')
+  const [calendarIdInput, setCalendarIdInput] = useState('')
+  const [copiedEmail, setCopiedEmail] = useState(false)
   const status = state.status
+
+  const handleCopyServiceAccountEmail = async () => {
+    if (!status?.serviceAccountEmail) return
+    try {
+      await navigator.clipboard.writeText(status.serviceAccountEmail)
+      setCopiedEmail(true)
+      window.setTimeout(() => setCopiedEmail(false), 2000)
+    } catch {
+      // Clipboard API may be unavailable in insecure contexts.
+    }
+  }
+
+  const isReadOnly = status?.accessRole === 'reader' || status?.accessRole === 'freeBusyReader'
 
   return (
     <Paper
@@ -539,14 +551,9 @@ const GoogleCalendarSection: React.FunctionComponent<GoogleCalendarSectionProps>
         </TextField>
       ) : null}
 
-      {state.oauthCallbackResult === 'connected' ? (
+      {state.connectedJustNow && status?.connected ? (
         <Alert severity="success" sx={{ mb: 2 }}>
           {t('admin.googleCalendarConnectedBanner')}
-        </Alert>
-      ) : null}
-      {state.oauthCallbackResult === 'error' ? (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {t('admin.googleCalendarErrorBanner')}
         </Alert>
       ) : null}
 
@@ -555,74 +562,98 @@ const GoogleCalendarSection: React.FunctionComponent<GoogleCalendarSectionProps>
 
       {!state.loading && !state.error && status ? (
         <Stack spacing={2}>
-          {!status.oauthConfigured ? (
+          {!status.configured ? (
             <Alert severity="info">{t('admin.googleCalendarNotConfigured')}</Alert>
-          ) : null}
+          ) : !status.connected ? (
+            <Stack spacing={2}>
+              <Stack spacing={1}>
+                <Typography variant="subtitle2">{t('admin.googleCalendarStep1Title')}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {t('admin.googleCalendarStep1Hint')}
+                </Typography>
+                {status.serviceAccountEmail ? (
+                  <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={1}
+                    sx={{ alignItems: { sm: 'center' } }}
+                  >
+                    <TextField
+                      value={status.serviceAccountEmail}
+                      size="small"
+                      slotProps={{ input: { readOnly: true } }}
+                      sx={{ flexGrow: 1, maxWidth: 460 }}
+                    />
+                    <Button variant="outlined" size="small" onClick={handleCopyServiceAccountEmail}>
+                      {copiedEmail
+                        ? t('admin.googleCalendarEmailCopied')
+                        : t('admin.googleCalendarCopyEmail')}
+                    </Button>
+                  </Stack>
+                ) : null}
+              </Stack>
 
-          {!status.connected ? (
-            <Box>
-              <Button
-                variant="contained"
-                disabled={!status.oauthConfigured || state.connecting}
-                onClick={state.onConnect}
-              >
-                {t('admin.googleCalendarConnect')}
-              </Button>
-            </Box>
+              <Stack spacing={1}>
+                <Typography variant="subtitle2">{t('admin.googleCalendarStep2Title')}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {t('admin.googleCalendarStep2Hint')}
+                </Typography>
+                <Stack
+                  direction={{ xs: 'column', sm: 'row' }}
+                  spacing={1.5}
+                  sx={{ alignItems: { sm: 'center' } }}
+                >
+                  <TextField
+                    label={t('admin.googleCalendarIdLabel')}
+                    placeholder="name@gmail.com"
+                    value={calendarIdInput}
+                    onChange={(event) => setCalendarIdInput(event.target.value)}
+                    size="small"
+                    disabled={state.connecting}
+                    sx={{ flexGrow: 1, maxWidth: 420 }}
+                  />
+                  <Button
+                    variant="contained"
+                    disabled={!calendarIdInput.trim() || state.connecting}
+                    onClick={() => {
+                      state.onConnect(calendarIdInput.trim())
+                    }}
+                  >
+                    {t('admin.googleCalendarConnect')}
+                  </Button>
+                </Stack>
+              </Stack>
+            </Stack>
           ) : (
             <Stack spacing={2}>
               <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                <Chip color="success" size="small" label={status.calendarSummary ?? 'Google'} />
-                {status.accountEmail ? (
+                <Chip
+                  color="success"
+                  size="small"
+                  label={status.calendarSummary ?? status.calendarId ?? 'Google'}
+                />
+                {status.calendarId && status.calendarId !== status.calendarSummary ? (
                   <Typography variant="body2" color="text.secondary">
-                    {t('admin.googleCalendarConnectedAs', { email: status.accountEmail })}
+                    {status.calendarId}
                   </Typography>
                 ) : null}
               </Stack>
 
-              {status.availableCalendars.length > 0 ? (
-                <TextField
-                  select
-                  label={t('admin.googleCalendarSelectLabel')}
-                  value={status.calendarId ?? ''}
-                  disabled={state.selecting || state.syncing}
-                  onChange={(event) => {
-                    if (event.target.value) state.onSelectCalendar(event.target.value)
-                  }}
-                  sx={{ maxWidth: 420 }}
-                >
-                  {status.availableCalendars.map((cal) => (
-                    <MenuItem key={cal.id} value={cal.id}>
-                      {cal.summary}
-                      {cal.primary ? ' (Primary)' : ''}
-                    </MenuItem>
-                  ))}
-                </TextField>
+              {isReadOnly ? (
+                <Alert severity="warning">{t('admin.googleCalendarReadOnlyWarning')}</Alert>
               ) : null}
 
-              <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                spacing={1.5}
-                sx={{ alignItems: { sm: 'center' } }}
-              >
-                <TextField
-                  label={t('admin.googleCalendarCustomIdLabel')}
-                  value={customCalendarId}
-                  onChange={(event) => setCustomCalendarId(event.target.value)}
-                  size="small"
-                  sx={{ flexGrow: 1, maxWidth: 360 }}
-                />
-                <Button
-                  variant="outlined"
-                  disabled={!customCalendarId.trim() || state.selecting}
-                  onClick={() => {
-                    state.onSelectCalendar(customCalendarId.trim())
-                    setCustomCalendarId('')
-                  }}
-                >
-                  {t('admin.googleCalendarUseId')}
-                </Button>
-              </Stack>
+              {status.serviceAccountEmail ? (
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                  <Typography variant="caption" color="text.secondary">
+                    {t('admin.googleCalendarSharedWith', { email: status.serviceAccountEmail })}
+                  </Typography>
+                  <Button size="small" onClick={handleCopyServiceAccountEmail}>
+                    {copiedEmail
+                      ? t('admin.googleCalendarEmailCopied')
+                      : t('admin.googleCalendarCopyEmail')}
+                  </Button>
+                </Stack>
+              ) : null}
 
               {status.lastSyncAt ? (
                 <Typography variant="body2" color="text.secondary">

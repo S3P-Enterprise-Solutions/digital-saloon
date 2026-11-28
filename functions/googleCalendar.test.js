@@ -1,11 +1,15 @@
 ﻿import assert from 'node:assert/strict'
+import { createVerify, generateKeyPairSync } from 'node:crypto'
 import { describe, it } from 'node:test'
 
 import {
-  createOAuthNonce,
-  getGoogleOAuthConfig,
-  signOAuthState,
-  verifyOAuthState,
+  clearServiceAccountTokenCache,
+  createServiceAccountJwt,
+  getServiceAccountAccessToken,
+  getServiceAccountEmail,
+  GOOGLE_CALENDAR_SCOPE,
+  parseServiceAccountCredentials,
+  subscribeToCalendar,
 } from './lib/googleCalendar/client.js'
 import {
   blockedSlotDocIdForGoogleEvent,
@@ -131,37 +135,98 @@ describe('googleCalendar mapping', () => {
   })
 })
 
-describe('googleCalendar OAuth state signing & config', () => {
-  it('signs and verifies state tokens and rejects tampering or expiry', () => {
-    const secret = 'test-secret-key-32-chars-minimum'
-    const now = 1_700_000_000_000
-    const token = signOAuthState(
-      {
-        salonId: 'pilot',
-        uid: 'admin-1',
-        returnUrl: 'http://127.0.0.1:3100/admin/settings',
-        nonce: createOAuthNonce(),
-        exp: now + 60_000,
-      },
-      secret,
-    )
+describe('googleCalendar service account auth & calendar sharing', () => {
+  it('parses service account credentials from inline JSON, base64 JSON, or split env vars', () => {
+    const rawJson = JSON.stringify({
+      client_email: 'calendar-bot@example.iam.gserviceaccount.com',
+      private_key: '-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----',
+    })
+    const fromJson = parseServiceAccountCredentials({ GOOGLE_SERVICE_ACCOUNT_JSON: rawJson })
+    assert.equal(fromJson?.clientEmail, 'calendar-bot@example.iam.gserviceaccount.com')
+    assert.match(fromJson?.privateKey ?? '', /\nabc\n/)
 
-    const verified = verifyOAuthState(token, secret, now + 10_000)
-    assert.equal(verified?.salonId, 'pilot')
-    assert.equal(verified?.uid, 'admin-1')
+    const fromB64 = parseServiceAccountCredentials({
+      GOOGLE_SERVICE_ACCOUNT_JSON: Buffer.from(rawJson, 'utf8').toString('base64'),
+    })
+    assert.equal(fromB64?.clientEmail, 'calendar-bot@example.iam.gserviceaccount.com')
 
-    assert.equal(verifyOAuthState(`${token}x`, secret, now + 10_000), null)
-    assert.equal(verifyOAuthState(token, secret, now + 120_000), null)
+    const fromSplit = parseServiceAccountCredentials({
+      GOOGLE_SERVICE_ACCOUNT_EMAIL: 'split@example.iam.gserviceaccount.com',
+      GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: 'key-line-1\\nkey-line-2',
+    })
+    assert.equal(fromSplit?.clientEmail, 'split@example.iam.gserviceaccount.com')
+    assert.equal(fromSplit?.privateKey, 'key-line-1\nkey-line-2')
+
+    assert.equal(parseServiceAccountCredentials({}), null)
   })
 
-  it('requires GOOGLE_OAUTH_STATE_SECRET in production but allows emulator fallback', () => {
-    const baseEnv = {
-      GOOGLE_OAUTH_CLIENT_ID: 'cid',
-      GOOGLE_OAUTH_CLIENT_SECRET: 'csecret',
-      GOOGLE_OAUTH_REDIRECT_URI: 'https://example.com/cb',
+  it('signs a valid RS256 JWT assertion for Google Calendar scope', () => {
+    const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+    const privatePem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
+    const nowSec = 1_700_000_000
+
+    const jwt = createServiceAccountJwt(
+      { clientEmail: 'bot@salon.iam.gserviceaccount.com', privateKey: privatePem },
+      GOOGLE_CALENDAR_SCOPE,
+      nowSec,
+    )
+    const parts = jwt.split('.')
+    assert.equal(parts.length, 3)
+
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'))
+    assert.equal(payload.iss, 'bot@salon.iam.gserviceaccount.com')
+    assert.equal(payload.scope, GOOGLE_CALENDAR_SCOPE)
+    assert.equal(payload.iat, nowSec)
+    assert.equal(payload.exp, nowSec + 3600)
+
+    const valid = createVerify('RSA-SHA256')
+      .update(`${parts[0]}.${parts[1]}`)
+      .end()
+      .verify(publicKey, parts[2], 'base64url')
+    assert.equal(valid, true)
+  })
+
+  it('returns null in emulator without key, and uses metadata server outside emulator', async () => {
+    clearServiceAccountTokenCache()
+    assert.equal(await getServiceAccountEmail({ FUNCTIONS_EMULATOR: 'true' }), null)
+    assert.equal(await getServiceAccountAccessToken({ FUNCTIONS_EMULATOR: 'true' }), null)
+
+    const fakeFetch = async (url) => {
+      if (String(url).endsWith('/email')) {
+        return new Response('proj@appspot.gserviceaccount.com', { status: 200 })
+      }
+      if (String(url).includes('/token?scopes=')) {
+        return new Response(JSON.stringify({ access_token: 'meta-token', expires_in: 3600 }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      return new Response('not found', { status: 404 })
     }
-    assert.equal(getGoogleOAuthConfig(baseEnv), null)
-    assert.ok(getGoogleOAuthConfig({ ...baseEnv, FUNCTIONS_EMULATOR: 'true' }))
-    assert.ok(getGoogleOAuthConfig({ ...baseEnv, GOOGLE_OAUTH_STATE_SECRET: 'dedicated-secret' }))
+
+    const token = await getServiceAccountAccessToken({}, fakeFetch, 1_700_000_000_000)
+    assert.deepEqual(token, {
+      accessToken: 'meta-token',
+      serviceAccountEmail: 'proj@appspot.gserviceaccount.com',
+    })
+    clearServiceAccountTokenCache()
+  })
+
+  it('subscribes to a shared calendar and returns summary and accessRole', async () => {
+    const fakeFetch = async () =>
+      new Response(
+        JSON.stringify({
+          id: 'salon@gmail.com',
+          summary: 'Salon Termine',
+          accessRole: 'writer',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    const cal = await subscribeToCalendar('tok', 'salon@gmail.com', fakeFetch)
+    assert.deepEqual(cal, {
+      id: 'salon@gmail.com',
+      summary: 'Salon Termine',
+      accessRole: 'writer',
+    })
   })
 })
