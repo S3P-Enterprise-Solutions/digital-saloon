@@ -1,6 +1,7 @@
 export type Messages = {
   'nav.staffCalendar': string
   'nav.staffPending': string
+  'nav.staffCustomers': string
   'nav.staffSettings': string
   'nav.staffLogin': string
   'nav.signedInAs': string
@@ -578,6 +579,27 @@ export type Messages = {
   'admin.reservationsFilterAll': string
   'admin.reservationsFilterSalonFlow': string
   'admin.reservationsFilterGoogle': string
+  'admin.customersTitle': string
+  'admin.customersSubtitle': string
+  'admin.customersAdd': string
+  'admin.customersSearchPlaceholder': string
+  'admin.customersError': string
+  'admin.customersEmpty': string
+  'admin.customersContact': string
+  'admin.customersVisits': string
+  'admin.customersLastVisit': string
+  'admin.customersHasNotes': string
+  'admin.customersProfileTitle': string
+  'admin.customersStylistNotes': string
+  'admin.customersStylistNotesHint': string
+  'admin.customersBack': string
+  'admin.customersBookNew': string
+  'admin.customersHistoryTitle': string
+  'admin.customersHistoryEmpty': string
+  'admin.customersDuration': string
+  'admin.customersArchive': string
+  'admin.customersArchiveConfirmTitle': string
+  'admin.customersArchiveConfirmBody': string
   'admin.googleCalendarDisconnect': string
   'book.employeeTitle': string
   'book.employeeAny': string
@@ -633,6 +655,7 @@ export type MessageKey = keyof Messages
 export const de: Messages = {
   'nav.staffCalendar': 'Kalender',
   'nav.staffPending': 'Anfragen',
+  'nav.staffCustomers': 'Kunden',
   'nav.staffSettings': 'Einstellungen',
   'nav.staffLogin': 'Login für das Team',
   'nav.signedInAs': 'Angemeldet als {email}',
@@ -1273,6 +1296,29 @@ export const de: Messages = {
   'admin.reservationsFilterAll': 'Alle',
   'admin.reservationsFilterSalonFlow': 'SalonFlow',
   'admin.reservationsFilterGoogle': 'Google Kalender',
+  'admin.customersTitle': 'Kundenstamm',
+  'admin.customersSubtitle':
+    'Stammkunden verwalten, Farbformeln & Notizen pflegen und vergangene Termine einsehen.',
+  'admin.customersAdd': 'Neuer Kunde',
+  'admin.customersSearchPlaceholder': 'Nach Name, E-Mail, Telefon oder Notiz suchen…',
+  'admin.customersError': 'Kundendaten konnten nicht geladen werden.',
+  'admin.customersEmpty': 'Noch keine Kunden gefunden.',
+  'admin.customersContact': 'Kontakt',
+  'admin.customersVisits': 'Besuche',
+  'admin.customersLastVisit': 'Letzter Besuch',
+  'admin.customersHasNotes': 'Notiz',
+  'admin.customersProfileTitle': 'Kundendaten & Stylist-Notizen',
+  'admin.customersStylistNotes': 'Stylist-Notizen (Farbformel, Haarlänge, Vorlieben)',
+  'admin.customersStylistNotesHint': 'z. B. Balayage 8.1 + 6%, dickes Haar, benötigt ca. 3h 15m',
+  'admin.customersBack': 'Zurück zum Kundenstamm',
+  'admin.customersBookNew': 'Neuen Termin buchen',
+  'admin.customersHistoryTitle': 'Terminverlauf ({count})',
+  'admin.customersHistoryEmpty': 'Keine vergangenen oder geplanten Termine gefunden.',
+  'admin.customersDuration': 'Dauer',
+  'admin.customersArchive': 'Archivieren',
+  'admin.customersArchiveConfirmTitle': 'Kunde archivieren?',
+  'admin.customersArchiveConfirmBody':
+    'Der Eintrag wird aus dem Kundenstamm ausgeblendet. Bestehende Buchungen bleiben erhalten.',
   'admin.googleCalendarDisconnect': 'Trennen',
   'book.employeeTitle': 'Stylist*in auswählen',
   'book.employeeAny': 'Beliebig (nächster freier Termin)',
@@ -1329,6 +1375,7 @@ export const de: Messages = {
 export const it: Messages = {
   'nav.staffCalendar': 'Calendario',
   'nav.staffPending': 'Richieste',
+  'nav.staffCustomers': 'Clienti',
   'nav.staffSettings': 'Impostazioni',
   'nav.staffLogin': 'Accesso per il team',
   'nav.signedInAs': 'Accesso come {email}',
@@ -1957,6 +2004,30 @@ export const it: Messages = {
   'admin.reservationsFilterAll': 'Tutti',
   'admin.reservationsFilterSalonFlow': 'SalonFlow',
   'admin.reservationsFilterGoogle': 'Google Calendar',
+  'admin.customersTitle': 'Clienti',
+  'admin.customersSubtitle':
+    'Gestisci i clienti abituali, annota formule colore e preferenze e consulta lo storico appuntamenti.',
+  'admin.customersAdd': 'Nuovo cliente',
+  'admin.customersSearchPlaceholder': 'Cerca per nome, e-mail, telefono o note…',
+  'admin.customersError': 'Impossibile caricare l’elenco clienti.',
+  'admin.customersEmpty': 'Nessun cliente trovato.',
+  'admin.customersContact': 'Contatto',
+  'admin.customersVisits': 'Visite',
+  'admin.customersLastVisit': 'Ultima visita',
+  'admin.customersHasNotes': 'Note',
+  'admin.customersProfileTitle': 'Dati cliente e note stilista',
+  'admin.customersStylistNotes': 'Note stilista (formula colore, lunghezza capelli, preferenze)',
+  'admin.customersStylistNotesHint':
+    'es. Balayage 8.1 + 6%, capelli folti, durata tipica ca. 3h 15m',
+  'admin.customersBack': 'Torna ai clienti',
+  'admin.customersBookNew': 'Prenota nuovo appuntamento',
+  'admin.customersHistoryTitle': 'Storico appuntamenti ({count})',
+  'admin.customersHistoryEmpty': 'Nessun appuntamento passato o futuro trovato.',
+  'admin.customersDuration': 'Durata',
+  'admin.customersArchive': 'Archivia',
+  'admin.customersArchiveConfirmTitle': 'Archiviare il cliente?',
+  'admin.customersArchiveConfirmBody':
+    'Il profilo verrà nascosto dall’elenco clienti. Le prenotazioni esistenti rimarranno invariate.',
   'admin.googleCalendarDisconnect': 'Scollega',
   'book.employeeTitle': 'Scegli stilista',
   'book.employeeAny': 'Qualsiasi (primo orario disponibile)',

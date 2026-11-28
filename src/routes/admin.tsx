@@ -22,6 +22,10 @@ import { useAdminReservationActions, useAdminReservations } from '../hooks/useAd
 import { useAllServices } from '../hooks/useAllServices'
 import { useAvailableSlots } from '../hooks/useAvailableSlots'
 import { useBlockedSlots } from '../hooks/useBlockedSlots'
+import { useArchiveCustomer } from '../hooks/useArchiveCustomer'
+import { useCustomerDetail } from '../hooks/useCustomerDetail'
+import { useCustomers } from '../hooks/useCustomers'
+import { useSaveCustomer } from '../hooks/useSaveCustomer'
 import { useAdminEmployees } from '../hooks/useAdminEmployees'
 import { useActiveEmployees } from '../hooks/useEmployees'
 import { useCreateEmployeeProfileForAdmin } from '../hooks/useCreateEmployeeProfileForAdmin'
@@ -57,6 +61,8 @@ import {
 import { useUserProfile } from '../hooks/useUserProfile'
 import { useLocale } from '../i18n'
 import { AdminActivityLogsPage } from '../pages/admin/AdminActivityLogsPage'
+import { AdminCustomerDetailPage } from '../pages/admin/AdminCustomerDetailPage'
+import { AdminCustomersPage } from '../pages/admin/AdminCustomersPage'
 import { AdminEmployeesPage } from '../pages/admin/AdminEmployeesPage'
 import { AdminHomePage } from '../pages/admin/AdminHomePage'
 import { AdminHomepagePage } from '../pages/admin/AdminHomepagePage'
@@ -432,6 +438,7 @@ export const adminReservationDetailRoute = createRoute({
 
 const manualSearchSchema = v.object({
   reservationId: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
+  customerId: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
   serviceId: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
   serviceIds: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
   employeeId: optionalSearchParam(v.pipe(v.string(), v.minLength(1))),
@@ -459,7 +466,9 @@ export const adminManualRoute = createRoute({
     const { t } = useLocale()
     const search = adminManualRoute.useSearch()
     const editingReservationId = search.reservationId ?? null
+    const prefillCustomerId = editingReservationId ? null : (search.customerId ?? null)
     const editing = useAdminReservation(editingReservationId)
+    const prefillCustomer = useCustomerDetail(prefillCustomerId, prefillCustomerId !== null)
     const services = useAllServices(true)
     const employees = useActiveEmployees()
     const selectedEmployeeId = search.employeeId ?? null
@@ -543,7 +552,9 @@ export const adminManualRoute = createRoute({
       (selectedDateInVisibleMonth ? monthSlots.isLoading : fallbackDaySlots.isLoading)
 
     const isEdit = editingReservationId !== null
-    const editReady = !isEdit || editing.data != null
+    const editReady =
+      (!isEdit || editing.data != null) &&
+      (prefillCustomerId === null || !prefillCustomer.isLoading)
     const submitPending = isEdit ? actions.updateManual.isPending : actions.createManual.isPending
     const submitError = isEdit
       ? actions.updateManual.isError
@@ -559,6 +570,7 @@ export const adminManualRoute = createRoute({
 
     const manualSearchBase = {
       reservationId: editingReservationId ?? undefined,
+      customerId: prefillCustomerId ?? undefined,
       week: returnWeek,
       from: fromPending ? ('pending' as const) : undefined,
     }
@@ -578,7 +590,7 @@ export const adminManualRoute = createRoute({
 
     return editReady ? (
       <AdminManualBookingPage
-        key={editingReservationId ?? 'create'}
+        key={editingReservationId ?? prefillCustomerId ?? 'create'}
         mode={isEdit ? 'edit' : 'create'}
         services={services.data?.filter((service) => service.active)}
         employees={employees.data}
@@ -616,7 +628,15 @@ export const adminManualRoute = createRoute({
                 email: editing.data.email ?? '',
                 internalNote: editing.data.internalNote ?? '',
               }
-            : null
+            : prefillCustomer.data?.customer
+              ? {
+                  firstName: prefillCustomer.data.customer.firstName,
+                  lastName: prefillCustomer.data.customer.lastName,
+                  phone: prefillCustomer.data.customer.phone ?? '',
+                  email: prefillCustomer.data.customer.email ?? '',
+                  internalNote: '',
+                }
+              : null
         }
         slots={selectedDaySlots}
         slotsLoading={selectedDaySlotsLoading}
@@ -1159,6 +1179,104 @@ export const adminActivityLogsRoute = createRoute({
         }}
         onBackClick={() => {
           void navigate({ to: '/admin/settings' })
+        }}
+      />
+    )
+  },
+})
+
+const customersSearchSchema = v.object({
+  q: optionalSearchParam(v.string()),
+})
+
+export const adminCustomersRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: '/customers',
+  validateSearch: (search: Record<string, unknown>) => v.parse(customersSearchSchema, search),
+  component: function AdminCustomersRoute() {
+    const navigate = useNavigate()
+    const search = adminCustomersRoute.useSearch()
+    const q = search.q ?? ''
+    const customers = useCustomers(q, true)
+    const saveCustomer = useSaveCustomer()
+
+    return (
+      <AdminCustomersPage
+        customers={customers.data}
+        searchQuery={q}
+        onSearchChange={(next) => {
+          void navigate({
+            to: '/admin/customers',
+            search: { q: next || undefined },
+            replace: true,
+          })
+        }}
+        isLoading={customers.isLoading}
+        isError={customers.isError}
+        saving={saveCustomer.isPending}
+        saveError={saveCustomer.error instanceof Error ? saveCustomer.error.message : null}
+        onSelectCustomer={(customerId) => {
+          void navigate({
+            to: '/admin/customers/$customerId',
+            params: { customerId },
+          })
+        }}
+        onCreateCustomer={async (input) => {
+          const created = await saveCustomer.mutateAsync(input)
+          void navigate({
+            to: '/admin/customers/$customerId',
+            params: { customerId: created.id },
+          })
+        }}
+      />
+    )
+  },
+})
+
+export const adminCustomerDetailRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: '/customers/$customerId',
+  component: function AdminCustomerDetailRoute() {
+    const navigate = useNavigate()
+    const { customerId } = adminCustomerDetailRoute.useParams()
+    const detail = useCustomerDetail(customerId, true)
+    const saveCustomer = useSaveCustomer()
+    const archiveCustomer = useArchiveCustomer()
+
+    return (
+      <AdminCustomerDetailPage
+        detail={detail.data}
+        isLoading={detail.isLoading}
+        isError={detail.isError}
+        saving={saveCustomer.isPending}
+        saved={saveCustomer.isSuccess}
+        saveError={saveCustomer.error instanceof Error ? saveCustomer.error.message : null}
+        archiving={archiveCustomer.isPending}
+        archiveError={archiveCustomer.error instanceof Error ? archiveCustomer.error.message : null}
+        onBackClick={() => {
+          void navigate({ to: '/admin/customers', search: { q: undefined } })
+        }}
+        onBookForCustomer={(customer) => {
+          void navigate({
+            to: '/admin/manual',
+            search: { customerId: customer.id },
+          })
+        }}
+        onOpenReservation={(reservationId) => {
+          void navigate({
+            to: '/admin/reservations/$reservationId',
+            params: { reservationId },
+          })
+        }}
+        onSave={(input) => {
+          saveCustomer.mutate(input)
+        }}
+        onArchive={() => {
+          archiveCustomer.mutate(customerId, {
+            onSuccess: () => {
+              void navigate({ to: '/admin/customers', search: { q: undefined } })
+            },
+          })
         }}
       />
     )

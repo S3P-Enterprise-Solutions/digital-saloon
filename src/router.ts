@@ -4,6 +4,8 @@ import { getActiveBrandModule } from './brands/active'
 import {
   adminActivityLogsRoute,
   adminCalendarRoute,
+  adminCustomerDetailRoute,
+  adminCustomersRoute,
   adminHolidaysRoute,
   adminEmployeesRoute,
   adminHomepageRoute,
@@ -61,6 +63,8 @@ export const router = createRouter({
       adminIndexRoute,
       adminCalendarRoute,
       adminPendingRoute,
+      adminCustomersRoute,
+      adminCustomerDetailRoute,
       adminReservationsRoute,
       adminReservationDetailRoute,
       adminManualRoute,
